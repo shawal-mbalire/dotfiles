@@ -1,14 +1,7 @@
 {
-  "ide": {
-    "hasSeenNudge": true
-  },
   "security": {
     "auth": {
       "selectedType": "oauth-personal"
     }
-  },
-  "ui": {
-    "theme": "ANSI"
-  },
-  "default_model": "gemini-2.5-flash"
+  }
 }
