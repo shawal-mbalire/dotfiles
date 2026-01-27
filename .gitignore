@@ -61,6 +61,7 @@
 !.gitignore
 !.gitconfig
 !.gitattributes
+!install.sh
 # hosts.yml
 
 # WAYBAR

@@ -27,9 +27,16 @@ du -h -d 4 | sort -hr | head -30
 ---
 
 ## Accepting This Configuration on a New Install  
+
+### Quick Install (Single Command)
+```sh
+curl -fsSL https://raw.githubusercontent.com/shawal-mbalire/root_home_shawal/main/install.sh | bash
+```
+
+### Manual Install
 ```sh
 git clone https://github.com/shawal-mbalire/root_home_shawal
-rsync -avhu --progress root_home_shawal ~
+rsync -avhu --progress root_home_shawal/ ~/
 ```  
 
 ---
