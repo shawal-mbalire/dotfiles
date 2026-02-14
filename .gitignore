@@ -1,138 +1,16 @@
-# Exclude problematic directories
-.config/user-share/
-.android/
 *
-*.uuid
-*/.uuid
-!.config
-
-# FISH
-!.config/fish
-!.config/fish/config.fish
-!.config/fish/functions
-!.config/fish/fish_prompt.fish
-
-# HYPRLAND
 !wallpaper.jpg
-!.config/hypr
-!.config/hypr/hyprland.conf
-!.config/hypr/hyprlock.conf
-!.config/hypr/hyprpaper.conf
-
-# FASTFETCH
-!.config/fastfetch
-!.config/fastfetch/config.jsonc
-
-# KITTY
-!.config/kitty
-!.config/kitty/kitty.conf
-
-# NEOVIM
-!.config/nvim
+!.config/fish/**
+!.config/hypr/**
+!.config/fastfetch/**
+!.config/kitty/**
 !.config/nvim/**
-.config/nvim/lazy-lock.json
-
-# Tmux 
-!.config/tmux 
-!.config/tmux.conf 
-
-!.config/obsidian
-.config/*
-
-# XMONAD
-!.xmonad
-!.xmonad/**.backup
-!.xmonad/**.hs
-!.xmobarrc
-!.xmobarrc.hs
-!.stalonetrayrc
-!.xscreensaver
-
-# OTHER FILES
-!.vimrc
-!.bashrc
-!.xinitrc
-!.xprofile
-!.xsession
-!.alacritty.toml
-
-# VERSION CONTROL
-!README.md
-!.gitignore
-!.gitconfig
-!.gitattributes
-!install.sh
-# hosts.yml
-
-# WAYBAR
-!.config/waybar
-!.config/waybar/config.jsonc
-!.config/waybar/style.css
-
-# open-webui
-!.confg/open-webui
-!.config/open-webui/docker-compose.yml
-
-#ags
-!.config/ags
-!.config/ags
-
-# fastfetch
-!.config/fastfetch
-!.config/fastfetch/config.jsonc
-
-# rofi
-!.config/rofi
-!.config/rofi/config.rasi
-!.config/rofi/themes
-!.config/rofi/themes/*.rasi
+!.config/tmux/**
+!.config/obsidian/**
+!.config/waybar/**
+!.config/fastfetch/**
 !.config/rofi/**
-
-# open-webui
-!.config/open-webui
-!.config/open-webui/docker-compose.yaml
-
-# fonts
-.local/*
-!.local
-!.local/share
-!.local/share/fonts
 !.local/share/fonts/**
-!.local/share/fonts/**/**
-
-# icons
-!.local/share/icons
-!.local/share/themes
-!.local/share/icons/BeautySolar
-!.local/share/icons/BeautySolar/*
-!.local/share/themes/BreezeDark
-!.local/share/themes/BreezeDark/**
-
-# feh
-!.fehbg
-
-# picom
+!.local/share/icons/**
+!.local/share/themes/**
 !.config/picom.conf
-!.config/picom.conf.backup
-
-# GTK
-!.gtkrc-2.0
-!.config/gtkrc
-!.config/gtkrc-2.0
-!.config/gtk-2.0
-!.config/gtk-3.0
-!.config/gtk-4.0
-!.config/gtkrc-2.0
-!.config/gtk-2.0/gtkfilechooser.ini
-!.config/gtk-3.0/settings.ini
-!.config/gtk-4.0/settings.ini
-
-# firefox
-!.mozilla
-!.mozilla/user.js
-!.mozilla/User.js
-
-# qute browser
-!.config/qutebrowser
-!.config/qutebrowser/config.py
-.local/share/fonts/**/*.uuid
