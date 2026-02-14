@@ -1,5 +1,9 @@
 *
+# Keep wallpaper accessible
 !wallpaper.jpg
+
+# Un-ignore .config parent directory and selected subpaths
+!.config/
 !.config/fish/**
 !.config/hypr/**
 !.config/fastfetch/**
@@ -8,9 +12,23 @@
 !.config/tmux/**
 !.config/obsidian/**
 !.config/waybar/**
-!.config/fastfetch/**
 !.config/rofi/**
+!.config/picom.conf
+
+# Un-ignore .local parent directory and selected share subpaths
+!.local/
+!.local/share/
 !.local/share/fonts/**
 !.local/share/icons/**
 !.local/share/themes/**
-!.config/picom.conf
+
+# Ensure nvim plugin folder is explicitly included (both under .config and repo-root)
+!.config/nvim/
+!.config/nvim/lua/
+!.config/nvim/lua/plugins/
+!.config/nvim/lua/plugins/**
+
+!nvim/
+!nvim/lua/
+!nvim/lua/plugins/
+!nvim/lua/plugins/**
