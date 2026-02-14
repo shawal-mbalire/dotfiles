@@ -28,7 +28,3 @@
 !.config/nvim/lua/plugins/
 !.config/nvim/lua/plugins/**
 
-!nvim/
-!nvim/lua/
-!nvim/lua/plugins/
-!nvim/lua/plugins/**
