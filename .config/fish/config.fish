@@ -11,7 +11,7 @@
 # Set defaults only if not already defined in environment
 
 # Editor configuration
-set -q EDITOR; or set -gx EDITOR nvim
+set -q EDITOR; or set -gx EDITOR /usr/bin/nvim
 set -q VISUAL; or set -gx VISUAL nvim
 
 # Theme configuration
