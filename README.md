@@ -1,5 +1,11 @@
 # My Linux Configuration  
 
+## Install dot files
+
+To fix tmux. 
+```sh 
+git clone https://github.com/tmux-plugins/tpm ~/.config/tmux/plugins/tpm
+```
 ## Application Installations  
 
 ### Snaps  
@@ -43,7 +49,7 @@ rsync -avhu --progress root_home_shawal/ ~/
 
 ## Installing Auth Agent (lxpolkit)  
 ```sh
-sudo dnf install lxpolkit
+sudo dnf install hyprpolkitagent
 ```  
 
 ---
