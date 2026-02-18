@@ -4,5 +4,22 @@
   "permission": {
     "edit": "ask",
     "bash": "ask"
+  },
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "qwen2.5-coder:3b": {
+          "name": "Qwen 2.5 Coder"
+        },
+        "qwen3:1.7b": {
+          "name": "Qwen3"
+        },
+      }
+    }
   }
 }
