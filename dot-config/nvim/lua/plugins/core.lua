@@ -28,7 +28,7 @@ return {
     "nvim-telescope/telescope.nvim",
     opts = {
       defaults = {
-        -- ...
+        find_command = { "fd", "--type", "f", "--hidden", "--no-ignore" },
       },
       pickers = {
         find_files = {
