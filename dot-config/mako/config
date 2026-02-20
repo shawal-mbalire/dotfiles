@@ -1,32 +1,112 @@
-# Basic Mako configuration
-# See `man 5 mako` for a full list of options
+# =============================================================================
+# Mako Notification Daemon Configuration
+# =============================================================================
+# A lightweight notification daemon for Wayland compositors
+# See `man 5 mako` for full documentation
+# =============================================================================
 
-font=sans-serif 10
-padding=5
-border-size=1
-border-radius=5
+# -----------------------------------------------------------------------------
+# Appearance
+# -----------------------------------------------------------------------------
 
-# Colors
-background-color=#282828
+font=Sono 10
+padding=12
+border-size=2
+border-radius=8
+markup=yes
+icons=yes
+
+# Progress bar styling
+progress-color=#8ec07c
+progress-radius=4
+
+# Grouping
+group-by=app-name
+
+# Maximum visible notifications
+max-visible=5
+
+# -----------------------------------------------------------------------------
+# Colors (Gruvbox Dark Theme)
+# -----------------------------------------------------------------------------
+
+background-color=#282828cc
 text-color=#ebdbb2
-border-color=#928374
+border-color=#504945
 
-# Default timeout
+# -----------------------------------------------------------------------------
+# Position & Layer
+# -----------------------------------------------------------------------------
+
+anchor=top-right
+layer=overlay
+
+# -----------------------------------------------------------------------------
+# Default Timeout (milliseconds)
+# -----------------------------------------------------------------------------
+
 timeout=5000
 
-# Position
-# anchor=top-right
+# -----------------------------------------------------------------------------
+# Urgency Levels
+# -----------------------------------------------------------------------------
 
 [urgency=low]
-default-timeout=2000
+background-color=#3c3836cc
+border-color=#689d6a
+text-color=#a89984
+default-timeout=3000
 
 [urgency=normal]
+background-color=#3c3836cc
+border-color=#83a598
+text-color=#ebdbb2
 default-timeout=5000
 
 [urgency=high]
-default-timeout=10000
+background-color=#504945cc
+border-color=#d79921
+text-color=#fabd2f
+default-timeout=8000
 
 [urgency=critical]
-default-timeout=0
-border-size=2
+background-color=#cc241dcc
 border-color=#fb4934
+text-color=#ffffff
+border-size=3
+default-timeout=0
+
+# -----------------------------------------------------------------------------
+# Application-Specific Overrides
+# -----------------------------------------------------------------------------
+
+# Battery notifications
+[app-name=swaync]
+border-color=#8ec07c
+
+# Music player notifications
+[app-name=playerctl]
+border-color=#d3869b
+
+# System updates
+[app-name=pacman]
+border-color=#83a598
+
+# Browser notifications
+[app-name=firefox]
+border-color=#458588
+
+# Terminal notifications
+[app-name=alacritty|kitty|foot]
+border-color=#b8bb26
+
+# -----------------------------------------------------------------------------
+# Ignore Rules (silent notifications)
+# -----------------------------------------------------------------------------
+
+# Ignore specific apps
+[app-name=mpv]
+invisible=yes
+
+[app-name=vlc]
+invisible=yes

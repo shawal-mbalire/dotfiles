@@ -2,7 +2,7 @@ macos_option_as_alt     true
 hide_window_decorations yes 
 window_padding_width    10
 font_size               14
-# font_family             sono
+font_family             sono
 initial_window_width    1920
 initial_window_height   1080
 
@@ -10,11 +10,3 @@ initial_window_height   1080
 # Catppuccin-Mocha
 include current-theme.conf
 # END_KITTY_THEME
-
-
-# BEGIN_KITTY_FONTS
-font_family      family="Sono Monospace"
-bold_font        auto
-italic_font      auto
-bold_italic_font auto
-# END_KITTY_FONTS

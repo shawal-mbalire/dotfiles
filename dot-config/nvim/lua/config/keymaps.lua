@@ -3,7 +3,7 @@
 -- Add any additional keymaps here
 
 -- Neo-tree for file explorer
-vim.keymap.set("n", "<leader>e", "<cmd>NeotreeToggle<cr>", { desc = "Toggle Neo-tree" })
+vim.keymap.set("n", "<leader>e", "<cmd>Neotree<cr>", { desc = "Toggle Neo-tree" })
 
 -- Telescope for finding files
 vim.keymap.set("n", "<leader> ", "<cmd>Telescope find_files<cr>", { desc = "Find Files" })

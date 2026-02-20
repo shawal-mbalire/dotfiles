@@ -1,0 +1,20 @@
+# Install all dependencies for Fedora
+install:
+    @echo "Installing waybar dependencies..."
+    sudo dnf install -y waybar jetbrains-mono-fonts sono-fonts pavucontrol brightnessctl
+
+# Install optional dependencies
+install-extra:
+    @echo "Installing optional dependencies..."
+    sudo dnf install -y hyprshot foot network-manager-applet power-profiles-daemon
+
+# Restart waybar
+restart:
+    @echo "Restarting waybar..."
+    killall waybar || true
+    waybar &
+
+# Reload waybar (soft reload)
+reload:
+    @echo "Reloading waybar..."
+    killall -SIGUSR2 waybar

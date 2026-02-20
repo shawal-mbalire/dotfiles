@@ -1,126 +1,255 @@
+/* Catppuccin Mocha Color Palette */
+@define-color base #1e1e2e;
+@define-color mantle #181825;
+@define-color crust #11111b;
+@define-color text #cdd6f4;
+@define-color subtext0 #a6adc8;
+@define-color subtext1 #bac2de;
+@define-color overlay0 #6c7086;
+@define-color overlay1 #7f849c;
+@define-color surface0 #313244;
+@define-color surface1 #45475a;
+@define-color blue #89b4fa;
+@define-color lavender #b4befe;
+@define-color sapphire #74c7ec;
+@define-color sky #89dceb;
+@define-color teal #94e2d5;
+@define-color green #a6e3a1;
+@define-color yellow #f9e2af;
+@define-color peach #fab387;
+@define-color maroon #eba0ac;
+@define-color red #f38ba8;
+@define-color mauve #cba6f7;
+@define-color pink #f5c2e7;
+@define-color flamingo #f2cdcd;
+
+/* ============================================
+   Reusable Classes
+   ============================================ */
+
+.module {
+    background-color: @surface0;
+    border-radius: 5px;
+    border: 1px solid @surface1;
+    padding: 0 4px;
+    margin: 0 2px;
+}
+
+.ws-button {
+    border-radius: 5px;
+    background-color: transparent;
+    color: @subtext1;
+    transition: all 0.2s ease;
+}
+
+.ws-button:hover {
+    background-color: @surface1;
+    color: @text;
+}
+
+.ws-button.active,
+.ws-button.focused {
+    background-color: @blue;
+    color: @base;
+}
+
+.ws-button.urgent {
+    background-color: @red;
+    color: @base;
+}
+
+.color-blue { color: @blue; }
+.color-lavender { color: @lavender; }
+.color-sapphire { color: @sapphire; }
+.color-sky { color: @sky; }
+.color-teal { color: @teal; }
+.color-green { color: @green; }
+.color-yellow { color: @yellow; }
+.color-peach { color: @peach; }
+.color-maroon { color: @maroon; }
+.color-red { color: @red; }
+.color-mauve { color: @mauve; }
+.color-pink { color: @pink; }
+.color-flamingo { color: @flamingo; }
+.color-text { color: @text; }
+.color-subtext { color: @subtext1; }
+.color-overlay { color: @overlay0; }
+
+.bold { font-weight: bold; }
+
+@keyframes blink {
+    to { opacity: 0.5; }
+}
+
+/* ============================================
+   Global Reset
+   ============================================ */
+
 * {
+    margin: 0;
+    padding: 0;
     border: none;
-    border-radius: 0;
-    font-family: "Comfortaa";
-    font-size: 14px;
+    font-family: "Sono Medium", "JetBrainsMono Nerd Font", sans-serif;
+    font-size: 16px;
     min-height: 0;
 }
 
+/* ============================================
+   Waybar Window
+   ============================================ */
+
 window#waybar {
-    background-color: rgba(0, 0, 0, 0.7);
-    color: #ebdbb2;
+    background-color: @base;
+    color: @text;
 }
+
+/* ============================================
+   Modules
+   ============================================ */
 
 #workspaces button {
-    padding: 5px 10px;
-    color: #ffffff;
-    border-radius: 3px;
-    transition: all 0.3s ease;
-    font-size: 28px;
+    border-radius: 5px;
+    background-color: transparent;
+    color: @subtext1;
+    transition: all 0.2s ease;
+    padding: 0 4px;
+    margin: 0 2px;
 }
 
-#workspaces button.focused {
-    background-color: #a6e3a1;
-    color: #282a36;
-    border-radius: 3px;
+#workspaces button:hover {
+    background-color: @surface1;
+    color: @text;
+}
+
+#workspaces button.focused,
+#workspaces button.active {
+    background-color: @blue;
+    color: @base;
 }
 
 #workspaces button.urgent {
-    color: #f38ba8;
+    background-color: @red;
+    color: @base;
 }
 
-#mode {
-    background: #b8bb26;
-    color: #282828;
-    padding: 5px 10px;
+#hyprland-submap {
+    background-color: @yellow;
+    color: @base;
+    font-weight: bold;
 }
-
-#clock, #battery, #cpu, #memory, #temperature, #backlight, #network, #pulseaudio, #tray, #idle_inhibitor, #power-profiles-daemon, #bluetooth, #custom\/screenshot, #custom\/temp {
-    padding: 0 10px;
-}
-
 
 #clock {
-    color: #fab387;
+    color: @peach;
+    font-weight: bold;
 }
 
 #battery {
-    color: #a6e3a1;
+    color: @green;
 }
 
-#battery.charging {
-    color: #94e2d5;
+#battery.charging,
+#battery.plugged {
+    color: @teal;
 }
 
 #battery.warning:not(.charging) {
-    color: #f9e2af;
+    color: @yellow;
 }
 
 #battery.critical:not(.charging) {
-    color: #f38ba8;
+    color: @red;
+    animation: blink 1s linear infinite;
 }
 
 #cpu {
-    color: #89b4fa;
+    color: @blue;
 }
 
 #memory {
-    color: #cba6f7;
+    color: @mauve;
 }
 
 #temperature {
-    color: #f5c2e7;
+    color: @pink;
 }
 
 #temperature.critical {
-    color: #f38ba8;
-}
-
-#network {
-    color: #b4befe;
-}
-
-#network.disconnected {
-    color: #f38ba8;
-}
-
-#pulseaudio {
-    color: #f2cdcd;
-}
-
-#pulseaudio.muted {
-    color: #6c7086;
+    color: @red;
 }
 
 #backlight {
-    color: #fabd2f;
+    color: @yellow;
+}
+
+#network {
+    color: @lavender;
+}
+
+#network.disconnected {
+    color: @overlay0;
+}
+
+#pulseaudio {
+    color: @flamingo;
+}
+
+#pulseaudio.muted {
+    color: @overlay0;
 }
 
 #tray {
-    background-color: transparent;
-    padding: 0 10px;
+    background-color: @surface0;
+    border-radius: 5px;
+    border: 1px solid @surface1;
+    padding: 0 4px;
+    margin: 0 2px;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+    -gtk-icon-effect: highlight;
 }
 
 #idle_inhibitor {
-    color: #cdd6f4;
+    color: @subtext1;
 }
 
 #idle_inhibitor.activated {
-    color: #a6e3a1;
+    color: @green;
 }
 
 #power-profiles-daemon {
-    color: #f9e2af;
+    color: @yellow;
+}
+
+#power-profiles-daemon.performance {
+    color: @red;
+}
+
+#power-profiles-daemon.balanced {
+    color: @green;
+}
+
+#power-profiles-daemon.power-saver {
+    color: @blue;
 }
 
 #bluetooth {
-    color: #89b4fa;
+    color: @blue;
 }
 
-#bluetooth.disabled {
-    color: #6c7086;
+#bluetooth.disabled,
+#bluetooth.off {
+    color: @overlay0;
 }
 
-#custom\/screenshot {
-    color: #d3869b;
+#custom-screenshot {
+    color: @maroon;
+}
+
+#custom-temp {
+    color: @pink;
 }
