@@ -10,14 +10,14 @@
       "npm": "@ai-sdk/openai-compatible",
       "name": "Ollama (local)",
       "options": {
-        "baseURL": "http://localhost:11434/v1"
+        "baseURL": "http://ollama.localhost/v1"
       },
       "models": {
         "qwen2.5-coder:3b": {
-          "name": "Qwen 2.5 Coder"
+          "name": "Qwen 2.5 Coder 3B"
         },
-        "qwen3:1.7b": {
-          "name": "Qwen3"
+        "qwen2.5-coder:1.5": {
+          "name": "Qwen2.5 coder 1.5B"
         },
       }
     }

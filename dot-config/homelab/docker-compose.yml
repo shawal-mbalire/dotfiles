@@ -8,18 +8,12 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.file.filename=/certs/dynamic.yml"
       - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
     ports:
       - "80:80"
-      - "443:443"
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./certs:/certs:ro
     networks:
       - proxy
     restart: unless-stopped
@@ -34,8 +28,8 @@ services:
     environment:
       - N8N_HOST=n8n.localhost
       - N8N_PORT=5678
-      - N8N_PROTOCOL=https
-      - WEBHOOK_URL=https://n8n.localhost
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://n8n.localhost
       - N8N_SECURE_COOKIE=false
     volumes:
       - n8n_storage:/home/node/.n8n
@@ -44,8 +38,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.n8n.rule=Host(`n8n.localhost`)"
-      - "traefik.http.routers.n8n.entrypoints=websecure"
-      - "traefik.http.routers.n8n.tls=true"
+      - "traefik.http.routers.n8n.entrypoints=web"
       - "traefik.http.services.n8n.loadbalancer.server.port=5678"
 
   # --- Ollama ---
@@ -60,14 +53,16 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.ollama.rule=Host(`ollama.localhost`)"
-      - "traefik.http.routers.ollama.entrypoints=websecure"
-      - "traefik.http.routers.ollama.tls=true"
+      - "traefik.http.routers.ollama.entrypoints=web"
       - "traefik.http.services.ollama.loadbalancer.server.port=11434"
 
   # --- Open WebUI ---
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
+    environment:
+      - "USE_OLLAMA_DOCKER=true"
+      - "OLLAMA_BASE_URL=http://ollama:11434"
     volumes:
       - open-webui_storage:/app/backend/data
     depends_on:
@@ -80,8 +75,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.chat.rule=Host(`chat.localhost`)"
-      - "traefik.http.routers.chat.entrypoints=websecure"
-      - "traefik.http.routers.chat.tls=true"
+      - "traefik.http.routers.chat.entrypoints=web"
       - "traefik.http.services.chat.loadbalancer.server.port=8080"
 
   # --- SearXNG ---
@@ -97,8 +91,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.search.rule=Host(`search.localhost`)"
-      - "traefik.http.routers.search.entrypoints=websecure"
-      - "traefik.http.routers.search.tls=true"
+      - "traefik.http.routers.search.entrypoints=web"
       - "traefik.http.services.search.loadbalancer.server.port=8080"
 
 volumes:

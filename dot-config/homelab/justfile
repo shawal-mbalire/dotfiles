@@ -2,25 +2,14 @@
 default:
     @just --list
 
-# Install mkcert, generate certificates, and create Traefik TLS config
-setup:
-    @echo "🔒 Setting up HTTPS certificates..."
-    mkcert -install
-    mkdir -p ./certs
-    # Generate one cert for all your subdomains
-    mkcert -key-file ./certs/local-key.pem -cert-file ./certs/local-cert.pem "localhost" "*.localhost" "n8n.localhost" "chat.localhost" "ollama.localhost" "search.localhost"
-    # Create the dynamic Traefik config file automatically
-    @echo "tls:\n  stores:\n    default:\n      defaultCertificate:\n        certFile: /certs/local-cert.pem\n        keyFile: /certs/local-key.pem" > ./certs/dynamic.yml
-    @echo "✅ Setup complete. Certificates and config generated."
-
-# Run the stack (runs setup first automatically)
-up: setup
+# Run the stack
+up:
     docker-compose up -d
     @echo "🚀 Stack is running!"
-    @echo "   - Traefik: https://localhost:8080"
-    @echo "   - n8n:     https://n8n.localhost"
-    @echo "   - Chat:    https://chat.localhost"
-    @echo "   - Search:  https://search.localhost"
+    @echo "   - Traefik: http://localhost:8080"
+    @echo "   - n8n:     http://n8n.localhost"
+    @echo "   - Chat:    http://chat.localhost"
+    @echo "   - Search:  http://search.localhost"
 
 # Stop the stack
 down:
