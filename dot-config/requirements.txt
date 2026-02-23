@@ -1,0 +1,139 @@
+# =============================================================================
+# Dotfiles Configuration Requirements
+# =============================================================================
+# Install required packages for each configuration module
+# =============================================================================
+
+# =============================================================================
+# HYPRLAND (Wayland Compositor)
+# =============================================================================
+# Core Hyprland components
+hyprland
+hyprlock
+hyprpaper
+hypridle
+hyprpolkitagent
+
+# Status bar and launchers
+waybar
+rofi-wayland
+
+# System utilities
+wl-clipboard        # wl-paste, wl-copy - clipboard management
+cliphist            # clipboard history
+grimblast           # screenshots
+gammastep           # blue light filter
+brightnessctl       # brightness control
+playerctl           # media control
+pavucontrol         # volume control
+
+# System tray and notifications
+network-manager-applet  # nm-applet - network tray
+blueman             # blueman-applet - bluetooth tray
+mako                # notification daemon
+
+# Apps
+kitty               # terminal
+nautilus            # file manager
+zen-browser         # browser (via flatpak: app.zen_browser.zen)
+obsidian            # note taking
+code-insiders       # code editor
+slack               # chat
+
+# Fonts
+fonts-sono          # or ttf-sono on Arch
+jetbrains-mono-nerd # or ttf-jetbrains-mono-nerd on Arch
+
+# =============================================================================
+# KITTY (Terminal Emulator)
+# =============================================================================
+kitty
+fonts-sono          # or ttf-sono on Arch
+
+# =============================================================================
+# TMUX (Terminal Multiplexer)
+# =============================================================================
+tmux
+
+# =============================================================================
+# FISH (Shell)
+# =============================================================================
+fish
+fisher              # plugin manager (optional)
+
+# Recommended fish plugins (install via fisher):
+# - jorgebucaran/fisher
+# - edc/bass
+# - jethrokuan/z
+
+# =============================================================================
+# WAYBAR (Status Bar)
+# =============================================================================
+waybar
+network-manager-applet
+pavucontrol
+playerctl
+brightnessctl
+gammastep
+
+# =============================================================================
+# ROFI (Application Launcher)
+# =============================================================================
+rofi-wayland
+cliphist            # for clipboard mode
+
+# =============================================================================
+# MAKO (Notification Daemon)
+# =============================================================================
+mako
+
+# =============================================================================
+# LAZYGIT (Git TUI)
+# =============================================================================
+lazygit
+git
+
+# =============================================================================
+# GTK (Theme)
+# =============================================================================
+# GTK themes and engine
+gtk-engine-murrine  # or gtk-murrine-engine on Arch
+adwaita-qt          # Qt theme engine
+
+# =============================================================================
+# PICOM (Compositor for X11)
+# =============================================================================
+picom
+
+# =============================================================================
+# INSTALLATION COMMANDS
+# =============================================================================
+
+# Arch Linux / Manjaro:
+# sudo pacman -S hyprland hyprlock hyprpaper hypridle hyprpolkitagent \
+#                waybar rofi-wayland wl-clipboard cliphist grimblast \
+#                gammastep brightnessctl playerctl pavucontrol \
+#                network-manager-applet blueman mako kitty nautilus \
+#                obsidian slack fish tmux lazygit git picom \
+#                ttf-sono ttf-jetbrains-mono-nerd gtk-engine-murrine
+#
+# flatpak install flathub app.zen_browser.zen
+# flatpak install flathub com.slack.Slack
+
+# Fedora:
+# sudo dnf install waybar rofi-wayland wl-clipboard cliphist \
+#                  gammastep brightnessctl playerctl pavucontrol \
+#                  NetworkManager-applet blueman mako kitty nautilus \
+#                  fish tmux lazygit git picom \
+#                  jetbrains-mono-fonts
+#
+# hyprland is available via copr or from source
+
+# Debian / Ubuntu:
+# sudo apt install waybar rofi wl-clipboard cliphist \
+#                  gammastep brightnessctl playerctl pavucontrol \
+#                  network-manager-gnome blueman mako kitty nautilus \
+#                  fish tmux lazygit git picom \
+#                  fonts-jetbrains-mono
+#
+# hyprland may need to be built from source on Debian/Ubuntu

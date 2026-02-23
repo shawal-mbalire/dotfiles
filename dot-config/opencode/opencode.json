@@ -16,7 +16,7 @@
         "qwen2.5-coder:3b": {
           "name": "Qwen 2.5 Coder 3B"
         },
-        "qwen2.5-coder:1.5": {
+        "qwen2.5-coder:1.5b": {
           "name": "Qwen2.5 coder 1.5B"
         },
       }
