@@ -6,10 +6,11 @@ default:
 up:
     docker-compose up -d
     @echo "🚀 Stack is running!"
-    @echo "   - Traefik: http://localhost:8080"
-    @echo "   - n8n:     http://n8n.localhost"
-    @echo "   - Chat:    http://chat.localhost"
-    @echo "   - Search:  http://search.localhost"
+    @echo "   - Traefik:   http://traefik.localhost"
+    @echo "   - n8n:       http://n8n.localhost"
+    @echo "   - Chat:      http://chat.localhost"
+    @echo "   - Search:    http://search.localhost"
+    @echo "   - Nextcloud: http://nextcloud.localhost"
 
 # Stop the stack
 down:

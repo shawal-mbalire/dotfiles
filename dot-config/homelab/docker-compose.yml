@@ -1,8 +1,8 @@
 services:
   # --- Traefik Reverse Proxy ---
-  traefik:
+  global-traefik:
     image: traefik:latest
-    container_name: traefik
+    container_name: global-traefik
     command:
       - "--api.dashboard=true"
       - "--api.insecure=true"
@@ -11,7 +11,6 @@ services:
       - "--entrypoints.web.address=:80"
     ports:
       - "80:80"
-      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -19,6 +18,11 @@ services:
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=web"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
 
   # --- n8n ---
   n8n:
@@ -93,6 +97,21 @@ services:
       - "traefik.http.routers.search.rule=Host(`search.localhost`)"
       - "traefik.http.routers.search.entrypoints=web"
       - "traefik.http.services.search.loadbalancer.server.port=8080"
+
+  # --- ONLYOffice Document Server ---
+  office:
+    image: onlyoffice/documentserver:latest
+    container_name: office
+    environment:
+      - JWT_ENABLED=false
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.office.rule=Host(`office.localhost`)"
+      - "traefik.http.routers.office.entrypoints=web"
+      - "traefik.http.services.office.loadbalancer.server.port=80"
 
 volumes:
   ollama_storage:

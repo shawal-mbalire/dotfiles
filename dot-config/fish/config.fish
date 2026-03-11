@@ -75,3 +75,6 @@ if status is-interactive
     set -q PURE_COLOR_DANGER; or set -g pure_color_danger red
     set -q PURE_COLOR_WARNING; or set -g pure_color_warning yellow
 end
+
+# Added by LM Studio CLI tool (lms)
+set -gx PATH $PATH /home/shawal/.lmstudio/bin
