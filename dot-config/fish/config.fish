@@ -78,3 +78,5 @@ end
 
 # Added by LM Studio CLI tool (lms)
 set -gx PATH $PATH /home/shawal/.lmstudio/bin
+
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv fish)"

@@ -1,38 +1,36 @@
 # =============================================================================
 # Mako Notification Daemon Configuration
 # =============================================================================
-# A lightweight notification daemon for Wayland compositors
-# See `man 5 mako` for full documentation
+# Theme: Catppuccin Mocha
+# Font: JetBrains Mono Nerd Font
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Appearance
 # -----------------------------------------------------------------------------
 
-font=Sono 10
-padding=12
+font=JetBrainsMono Nerd Font 11
+padding=16
 border-size=2
-border-radius=8
-markup=yes
-icons=yes
+border-radius=12
+markup=1
+icons=1
+icon-location=left
 
 # Progress bar styling
-progress-color=#8ec07c
-progress-radius=4
+progress-color=#f5c2e7
 
 # Grouping
 group-by=app-name
-
-# Maximum visible notifications
 max-visible=5
 
 # -----------------------------------------------------------------------------
-# Colors (Gruvbox Dark Theme)
+# Colors (Catppuccin Mocha)
 # -----------------------------------------------------------------------------
 
-background-color=#282828cc
-text-color=#ebdbb2
-border-color=#504945
+background-color=#1e1e2ef0
+text-color=#cdd6f4
+border-color=#6c7086
 
 # -----------------------------------------------------------------------------
 # Position & Layer
@@ -45,34 +43,34 @@ layer=overlay
 # Default Timeout (milliseconds)
 # -----------------------------------------------------------------------------
 
-timeout=5000
+default-timeout=5000
 
 # -----------------------------------------------------------------------------
 # Urgency Levels
 # -----------------------------------------------------------------------------
 
 [urgency=low]
-background-color=#3c3836cc
-border-color=#689d6a
-text-color=#a89984
+background-color=#313244f0
+border-color=#89b4fa
+text-color=#a6adc8
 default-timeout=3000
 
 [urgency=normal]
-background-color=#3c3836cc
-border-color=#83a598
-text-color=#ebdbb2
+background-color=#313244f0
+border-color=#89dceb
+text-color=#cdd6f4
 default-timeout=5000
 
 [urgency=high]
-background-color=#504945cc
-border-color=#d79921
-text-color=#fabd2f
+background-color=#45475af0
+border-color=#f9e2af
+text-color=#f9e2af
 default-timeout=8000
 
 [urgency=critical]
-background-color=#cc241dcc
-border-color=#fb4934
-text-color=#ffffff
+background-color=#f38ba8f0
+border-color=#f38ba8
+text-color=#11111b
 border-size=3
 default-timeout=0
 
@@ -80,33 +78,173 @@ default-timeout=0
 # Application-Specific Overrides
 # -----------------------------------------------------------------------------
 
-# Battery notifications
-[app-name=swaync]
-border-color=#8ec07c
+# Battery notifications (UPower)
+[app-name=upower]
+border-color=#a6e3a1
+background-color=#1e1e2ef0
 
-# Music player notifications
-[app-name=playerctl]
-border-color=#d3869b
+[app-name=power-profiles-daemon]
+border-color=#a6e3a1
 
-# System updates
-[app-name=pacman]
-border-color=#83a598
+# Music players
+[app-name=spotify]
+border-color=#1db954
+background-color=#191414f0
+
+[app-name=rhythmbox]
+border-color=#f38ba8
+
+[app-name=vlc]
+border-color=#ff8800
 
 # Browser notifications
 [app-name=firefox]
-border-color=#458588
+border-color=#f9e2af
+
+[app-name=zen]
+border-color=#f9e2af
+
+[app-name=google-chrome]
+border-color=#89b4fa
+
+[app-name=chromium]
+border-color=#89b4fa
 
 # Terminal notifications
-[app-name=alacritty|kitty|foot]
-border-color=#b8bb26
+[app-name=kitty]
+border-color=#a6e3a1
+
+[app-name=alacritty]
+border-color=#89b4fa
+
+[app-name=foot]
+border-color=#f5c2e7
+
+# System notifications
+[app-name=notify-send]
+border-color=#cba6f7
+
+[app-name=dunst]
+border-color=#89b4fa
+
+# IDE notifications
+[app-name=code]
+border-color=#58a6ff
+
+[app-name=code-insiders]
+border-color=#58a6ff
+
+[app-name=jetbrains-*]
+border-color=#f5c2e7
+
+# Messaging apps
+[app-name=telegram-desktop]
+border-color=#229ed9
+
+[app-name=discord]
+border-color=#5865f2
+
+[app-name=slack]
+border-color=#4a154b
+
+# Email
+[app-name=thunderbird]
+border-color=#f9e2af
+
+# File managers
+[app-name=nautilus]
+border-color=#89b4fa
+
+# Screenshots
+[app-name=grim]
+border-color=#cba6f7
+
+[app-name=swaync]
+border-color=#f5c2e7
 
 # -----------------------------------------------------------------------------
 # Ignore Rules (silent notifications)
 # -----------------------------------------------------------------------------
 
-# Ignore specific apps
+# Video players (usually don't need notifications)
 [app-name=mpv]
-invisible=yes
+invisible=1
 
-[app-name=vlc]
-invisible=yes
+# -----------------------------------------------------------------------------
+# Custom Icons via Summary/Body Matching
+# -----------------------------------------------------------------------------
+
+# Battery level indicators
+[summary="*Battery*"]
+border-color=#a6e3a1
+
+[summary="*Charging*"]
+border-color=#a6e3a1
+
+[summary="*discharged*"]
+border-color=#a6e3a1
+
+# Low battery warning
+[summary="*low battery*"]
+border-color=#f38ba8
+
+# Volume notifications
+[summary="*Volume*"]
+border-color=#89b4fa
+
+[summary="*Muted*"]
+border-color=#89b4fa
+
+[summary="*volume*"]
+border-color=#89b4fa
+
+# Brightness notifications
+[summary="*Brightness*"]
+border-color=#f9e2af
+
+[summary="*brightness*"]
+border-color=#f9e2af
+
+# Screenshot notifications
+[summary="*Screenshot*"]
+border-color=#cba6f7
+
+[summary="*screenshot*"]
+border-color=#cba6f7
+
+# Update notifications
+[summary="*Update*"]
+border-color=#a6e3a1
+
+[summary="*update*"]
+border-color=#a6e3a1
+
+[summary="*Updates*"]
+border-color=#a6e3a1
+
+# Error notifications
+[summary="*Error*"]
+border-color=#f38ba8
+
+[summary="*error*"]
+border-color=#f38ba8
+
+[summary="*Failed*"]
+border-color=#f38ba8
+
+# Success notifications
+[summary="*Success*"]
+border-color=#a6e3a1
+
+[summary="*Complete*"]
+border-color=#a6e3a1
+
+[summary="*Done*"]
+border-color=#a6e3a1
+
+# Warning notifications
+[summary="*Warning*"]
+border-color=#f9e2af
+
+[summary="*warning*"]
+border-color=#f9e2af
