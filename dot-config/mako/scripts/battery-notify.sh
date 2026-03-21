@@ -60,7 +60,8 @@ check_battery() {
             if [[ $percentage -le $CRITICAL_LEVEL ]]; then
                 send_notification "critical" " Critical Battery" "Only ${percentage}% remaining - Plug in now!"
             elif [[ $percentage -le $LOW_LEVEL ]]; then
-                send_notification "high" " Low Battery" "${percentage}% remaining - ${get_battery_time} until empty"
+                # notify-send accepts: low, normal, critical — 'high' is invalid
+                send_notification "normal" " Low Battery" "${percentage}% remaining - ${get_battery_time} until empty"
             fi
             ;;
     esac
@@ -78,9 +79,13 @@ show_status() {
     fi
 
     local icon=""
-    [[ "$state" == "charging" ]] && icon=""
-    [[ $percentage -le $CRITICAL_LEVEL ]] && icon=""
-    [[ $percentage -le $LOW_LEVEL ]] && icon=""
+    if [[ "$state" == "charging" ]]; then
+        icon=""
+    elif [[ $percentage -le $CRITICAL_LEVEL ]]; then
+        icon=""
+    elif [[ $percentage -le $LOW_LEVEL ]]; then
+        icon=""
+    fi
 
     echo "$icon Battery: ${percentage}% | $state | $time"
 }

@@ -24,6 +24,22 @@ services:
       - "traefik.http.routers.traefik-dashboard.entrypoints=web"
       - "traefik.http.routers.traefik-dashboard.service=api@internal"
 
+  # --- Portainer (Compose / Docker management) ---
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.localhost`)"
+      - "traefik.http.routers.portainer.entrypoints=web"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
   # --- n8n ---
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
@@ -117,6 +133,7 @@ volumes:
   ollama_storage:
   open-webui_storage:
   n8n_storage:
+  portainer_data:
 
 networks:
   proxy:
