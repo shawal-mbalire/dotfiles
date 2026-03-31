@@ -3,15 +3,16 @@
 
 # Core Hyprland components
 hyprland
+hypridle
 hyprlock
 hyprpaper
-
-# Status bar
 waybar
 
 # System tray and notifications
 nm-applet
-blueman-applet
+blueman
+pipewire
+wireplumber
 mako
 
 # Polkit agent
@@ -22,7 +23,7 @@ wl-paste
 cliphist
 
 # Screen utilities
-gammastep
+hyprsunset
 hypridle
 
 # Launcher and media

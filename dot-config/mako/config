@@ -9,7 +9,7 @@
 # Appearance
 # -----------------------------------------------------------------------------
 
-font=JetBrainsMono Nerd Font 11
+font=Sono Nerd Font 11
 padding=16
 border-size=2
 border-radius=12
@@ -162,6 +162,19 @@ border-color=#cba6f7
 [app-name=swaync]
 border-color=#f5c2e7
 
+[app-name=volume]
+anchor=top-center
+width=20
+height=200
+progress-color=#89b4fa
+border-radius=5
+
+[app-name=brightness]
+anchor=top-center
+width=20
+height=200
+progress-color=#f9e2af
+border-radius=5
 # -----------------------------------------------------------------------------
 # Ignore Rules (silent notifications)
 # -----------------------------------------------------------------------------
