@@ -1,0 +1,10 @@
+2026-04-11 12:59:55 Loaded main app package /usr/lib/obsidian/obsidian.asar
+2026-04-11 12:59:55 Checking for update using Github
+2026-04-11 12:59:56 Success.
+2026-04-11 12:59:56 Latest version is 1.12.7
+2026-04-11 12:59:56 App is up to date.
+2026-04-14 10:01:49 Loaded main app package /usr/lib/obsidian/obsidian.asar
+2026-04-14 10:01:49 Checking for update using Github
+2026-04-14 10:01:49 Failed to check for update using Github (net::ERR_INTERNET_DISCONNECTED)
+2026-04-14 10:01:49 Checking for update using obsidian.md
+2026-04-14 10:01:49 Failed to check for update using obsidian.md (net::ERR_INTERNET_DISCONNECTED)

@@ -47,4 +47,5 @@ return {
       { "<C-l>", "<cmd>TmuxNavigateRight<cr>", desc = "Window Right" },
     },
   },
+  { "tpope/vim-obsession" },
 }

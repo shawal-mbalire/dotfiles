@@ -65,6 +65,7 @@ if status is-interactive
 
     ## aliases
     alias vim='nvim'
+    alias ssh='kitty +kitten ssh'
 
     # Prompt Configuration (12-Factor: Config)
     # Pure prompt colors - override via environment if needed
@@ -75,3 +76,7 @@ if status is-interactive
     set -q PURE_COLOR_DANGER; or set -g pure_color_danger red
     set -q PURE_COLOR_WARNING; or set -g pure_color_warning yellow
 end
+
+# Added by LM Studio CLI (lms)
+set -gx PATH $PATH /home/shawal/.lmstudio/bin
+# End of LM Studio CLI section
