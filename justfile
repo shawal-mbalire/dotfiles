@@ -1,0 +1,2 @@
+stow:
+  stow --dotfiles .
