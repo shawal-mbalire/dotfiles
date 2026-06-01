@@ -1,1 +1,5 @@
 dot-config/gh/
+
+# Ignore UUID files and icons
+**/.uuid
+dot-local/share/icons/
