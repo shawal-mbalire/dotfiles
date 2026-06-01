@@ -3,3 +3,5 @@
 -- Add any additional options here
 vim.g.root_spec = { "cwd" }
 vim.opt.mouse = ""
+vim.opt.autoread = true
+vim.opt.updatetime = 300
