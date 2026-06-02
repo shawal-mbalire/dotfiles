@@ -32,3 +32,24 @@ vim.api.nvim_create_autocmd("FileChangedShellPost", {
     end
   end,
 })
+
+-- Autosave modified file buffers on focus change (like VSCode)
+vim.api.nvim_create_autocmd({ "FocusLost", "BufLeave" }, {
+  group = vim.api.nvim_create_augroup("AutoSave", { clear = true }),
+  callback = function()
+    -- Don't run while in a command-line window
+    if vim.fn.getcmdwintype() == "" then
+      for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_get_option(bufnr, "modified")
+           and vim.api.nvim_buf_get_option(bufnr, "buflisted")
+           and vim.api.nvim_buf_get_option(bufnr, "modifiable")
+           and vim.api.nvim_buf_get_option(bufnr, "buftype") == ""
+           and vim.api.nvim_buf_get_name(bufnr) ~= "" then
+          pcall(vim.api.nvim_buf_call, bufnr, function()
+            vim.cmd("silent! write")
+          end)
+        end
+      end
+    end
+  end,
+})
