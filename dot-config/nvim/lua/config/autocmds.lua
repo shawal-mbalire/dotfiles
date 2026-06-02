@@ -21,9 +21,14 @@ vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHo
   end,
 })
 
--- Notify when a file is changed on disk and reloaded
+-- Force-reload when a file is changed on disk (discard local unsaved changes)
 vim.api.nvim_create_autocmd("FileChangedShellPost", {
   callback = function()
-    vim.notify("File changed on disk. Buffer reloaded.", vim.log.levels.INFO)
+    -- Only run when not in a command-line window
+    if vim.fn.getcmdwintype() == "" then
+      -- Use silent! edit! to reload the file from disk and discard local changes
+      pcall(vim.cmd, "silent! edit!")
+      vim.notify("File changed on disk. Buffer force-reloaded.", vim.log.levels.INFO)
+    end
   end,
 })
