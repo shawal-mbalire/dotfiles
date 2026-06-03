@@ -80,3 +80,7 @@ end
 # Added by LM Studio CLI (lms)
 set -gx PATH $PATH /home/shawal/.lmstudio/bin
 # End of LM Studio CLI section
+
+
+# Added by Antigravity CLI installer
+set -gx PATH "/home/shawal/.local/bin" $PATH

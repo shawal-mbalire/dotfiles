@@ -1,19 +1,13 @@
 return {
-  "folke/snacks.nvim",
-  opts = {
-    image = {
-      enabled = true,
-      doc = {
-        inline = true,
-        float = true,
-      },
-    },
-    explorer = { enabled = true },
-    picker = {
-      sources = {
-        explorer = {
-          hidden = true,
-          ignored = true,
+  {
+    "folke/snacks.nvim",
+    opts = {
+      picker = {
+        sources = {
+          explorer = {
+            hidden = true, -- Shows hidden files by default
+            -- ignored = true, -- Uncomment to also show files ignored by .gitignore
+          },
         },
       },
     },
