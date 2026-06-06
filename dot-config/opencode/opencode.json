@@ -1,23 +1,31 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "opencode-lmstudio"
+  ],
   "permission": {
     "edit": "ask",
     "bash": "ask"
   },
   "provider": {
-    "ollama": {
+    "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Ollama (local)",
+      "name": "LM Studio (local)",
       "options": {
-        "baseURL": "http://ollama.localhost/v1"
+        "baseURL": "http://127.0.0.1:1234/v1"
       },
       "models": {
-        "qwen2.5-coder:3b": {
-          "name": "Qwen 2.5 Coder 3B"
-        },
-        "qwen2.5-coder:1.5b": {
-          "name": "Qwen2.5 coder 1.5B"
-        },
+        "text-embedding-nomic-embed-text-v1_5": {
+          "name": "Nomic Embed Text v1.5",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        }
       }
     }
   }
