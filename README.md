@@ -2,10 +2,7 @@
 
 ## Install dot files
 
-To fix tmux. 
-```sh 
-git clone https://github.com/tmux-plugins/tpm ~/.config/tmux/plugins/tpm
-```
+tmux now bootstraps TPM and installs declared plugins automatically on first load, using `~/.config/tmux/plugins`.
 ## Application Installations  
 
 ### Snaps  
