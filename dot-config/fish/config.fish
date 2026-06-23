@@ -78,14 +78,19 @@ if status is-interactive
 end
 
 # Added by LM Studio CLI (lms)
-set -gx PATH $PATH /home/shawal/.lmstudio/bin
+test -d $HOME/.lmstudio/bin; and fish_add_path $HOME/.lmstudio/bin
 # End of LM Studio CLI section
 
 
 # Added by Antigravity CLI installer
-set -gx PATH "/home/shawal/.local/bin" $PATH
+test -d $HOME/.local/bin; and fish_add_path $HOME/.local/bin
 
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv fish)"
+# Homebrew (macOS)
+if test -x /opt/homebrew/bin/brew
+    eval (/opt/homebrew/bin/brew shellenv)
+end
 
-# The next line updates PATH for the Google Cloud SDK.
-if [ -f '/home/shawal/GitHub/adg-flight_agent/google-cloud-sdk/path.fish.inc' ]; . '/home/shawal/GitHub/adg-flight_agent/google-cloud-sdk/path.fish.inc'; end
+# Google Cloud SDK (if installed)
+if test -f $HOME/google-cloud-sdk/path.fish.inc
+    source $HOME/google-cloud-sdk/path.fish.inc
+end
