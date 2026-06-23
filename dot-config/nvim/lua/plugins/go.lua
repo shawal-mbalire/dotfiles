@@ -18,7 +18,7 @@ return {
                     bounds = true,
                     escape = true,
                     inline = true,
-                    nil = true,
+                    ["nil"] = true,
                   },
                 },
               },

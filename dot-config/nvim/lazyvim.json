@@ -2,6 +2,7 @@
   "extras": [
     "lazyvim.plugins.extras.editor.telescope",
     "lazyvim.plugins.extras.lang.angular",
+    "lazyvim.plugins.extras.dap.core",
     "lazyvim.plugins.extras.lang.docker",
     "lazyvim.plugins.extras.lang.git",
     "lazyvim.plugins.extras.lang.go",
