@@ -1,0 +1,58 @@
+# List available commands
+default:
+    @just --list
+
+# Install TPM (Tmux Plugin Manager) if missing
+install-tpm:
+    @if [ ! -d "$HOME/.config/tmux/plugins/tpm" ]; then \
+        echo "Installing TPM..."; \
+        git clone https://github.com/tmux-plugins/tpm "$HOME/.config/tmux/plugins/tpm"; \
+    else \
+        echo "TPM already installed"; \
+    fi
+
+# Install all tmux plugins via TPM
+install-plugins:
+    @echo "Installing plugins..."
+    ~/.config/tmux/plugins/tpm/bin/install_plugins
+
+# Update all tmux plugins
+update-plugins:
+    @echo "Updating plugins..."
+    ~/.config/tmux/plugins/tpm/bin/update_plugins all
+
+# Clean unused plugins
+clean-plugins:
+    @echo "Cleaning unused plugins..."
+    ~/.config/tmux/plugins/tpm/bin/clean_plugins
+
+# Reload tmux configuration
+reload:
+    tmux source-file ~/.config/tmux/tmux.conf
+    @echo "Config reloaded"
+
+# Start a new tmux session (or attach to existing)
+new:
+    tmux attach || tmux new-session
+
+# Attach to last session
+attach:
+    tmux attach-session
+
+# List all sessions
+sessions:
+    tmux list-sessions
+
+# Kill the tmux server (kills all sessions)
+kill:
+    tmux kill-server
+
+# Save tmux state now (via continuum/resurrect)
+save:
+    tmux run-shell ~/.config/tmux/plugins/tmux-continuum/scripts/save_continuum.sh
+    @echo "State saved"
+
+# Restore tmux state
+restore:
+    tmux run-shell ~/.config/tmux/plugins/tmux-resurrect/scripts/restore.sh
+    @echo "State restored"

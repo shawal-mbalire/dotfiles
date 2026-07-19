@@ -13,6 +13,7 @@
 # Editor configuration
 set -q EDITOR; or set -gx EDITOR /usr/bin/nvim
 set -q VISUAL; or set -gx VISUAL nvim
+set -gx TERM xterm-256color
 
 # Theme configuration
 set -q GTK_THEME; or set -gx GTK_THEME BreezeDark
@@ -80,7 +81,6 @@ end
 # Added by LM Studio CLI (lms)
 test -d $HOME/.lmstudio/bin; and fish_add_path $HOME/.lmstudio/bin
 # End of LM Studio CLI section
-
 
 # Added by Antigravity CLI installer
 test -d $HOME/.local/bin; and fish_add_path $HOME/.local/bin
