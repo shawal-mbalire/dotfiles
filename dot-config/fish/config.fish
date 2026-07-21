@@ -13,7 +13,7 @@
 # Editor configuration
 set -q EDITOR; or set -gx EDITOR /usr/bin/nvim
 set -q VISUAL; or set -gx VISUAL nvim
-set -gx TERM xterm-256color
+# TERM is managed by tmux; don't override it here
 
 # Theme configuration
 set -q GTK_THEME; or set -gx GTK_THEME BreezeDark
