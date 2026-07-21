@@ -2,6 +2,15 @@
 default:
     @just --list
 
+# Install dependencies on macOS via brew
+install-deps-macos:
+    brew install fzf zoxide neovim
+    brew install tmux || true
+
+# Install dependencies on Fedora via dnf
+install-deps-fedora:
+    sudo dnf install -y fzf zoxide neovim tmux
+
 # Install TPM (Tmux Plugin Manager) if missing
 install-tpm:
     @if [ ! -d "$HOME/.config/tmux/plugins/tpm" ]; then \
