@@ -496,35 +496,64 @@ TEST_F(CreateDocumentTest, LogsCreation) {
 ```just
 set dotenv-load
 
+# Toolchain
 CXX := "g++"
 CXXFLAGS := "-std=c++20 -Wall -Wextra -pedantic -I."
 LDFLAGS := "-lgtest -lgtest_main -lpthread -luuid"
 
+# Directories
+BUILD_DIR := "build"
+TEST_DIR := "tests/unit"
+
 default:
     @just --list
 
+# Create build directory structure
+build-dirs:
+    mkdir -p {{BUILD_DIR}}/domain {{BUILD_DIR}}/adapters {{BUILD_DIR}}/infra {{BUILD_DIR}}/{{TEST_DIR}}
+
+# Compile sources in a directory
+build-obj dir: build-dirs
+    #!/usr/bin/env bash
+    for src in {{dir}}/**/*.cpp; do
+        [ -f "$src" ] || continue
+        obj="{{BUILD_DIR}}/${src}.o"
+        mkdir -p "$(dirname "$obj")"
+        {{CXX}} {{CXXFLAGS}} -c "$src" -o "$obj"
+    done
+
+# Build domain objects
+build-domain: (build-obj "domain")
+
+# Build adapter objects
+build-adapters: (build-obj "adapters")
+
+# Build infra objects
+build-infra: (build-obj "infra")
+
 # Build the application
-build:
-    {{CXX}} {{CXXFLAGS}} -c domain/workflows/create_document.cpp -o build/create_document.o
-    {{CXX}} {{CXXFLAGS}} -c adapters/firestore_adapter.cpp -o build/firestore_adapter.o
-    {{CXX}} {{CXXFLAGS}} -c infra/config.cpp -o build/config.o
-    {{CXX}} {{CXXFLAGS}} -c adapters/console_logger.cpp -o build/console_logger.o
-    {{CXX}} {{CXXFLAGS}} main.cpp build/*.o -o build/app {{LDFLAGS}}
+build: build-domain build-adapters build-infra
+    {{CXX}} {{CXXFLAGS}} main.cpp {{BUILD_DIR}}/**/*.o -o {{BUILD_DIR}}/app {{LDFLAGS}}
 
 # Run the application
 run: build
-    ./build/app
+    ./{{BUILD_DIR}}/app
 
 # Build and run tests
-test:
-    mkdir -p build
-    {{CXX}} {{CXXFLAGS}} -c tests/unit/test_create_document.cpp -o build/test_create_document.o
-    {{CXX}} {{CXXFLAGS}} tests/unit/test_create_document.cpp -o build/tests {{LDFLAGS}}
-    ./build/tests
+test: build-dirs
+    #!/usr/bin/env bash
+    for src in {{TEST_DIR}}/**/*.cpp; do
+        [ -f "$src" ] || continue
+        obj="{{BUILD_DIR}}/${src}.o"
+        mkdir -p "$(dirname "$obj")"
+        {{CXX}} {{CXXFLAGS}} -c "$src" -o "$obj"
+    done
+    {{CXX}} {{CXXFLAGS}} {{TEST_DIR}}/**/*.cpp -o {{BUILD_DIR}}/tests {{LDFLAGS}}
+    ./{{BUILD_DIR}}/tests
 
 # Run tests with verbose output
 test-verbose: test
-    ./build/tests --gtest_brief=0
+    ./{{BUILD_DIR}}/tests --gtest_brief=0
 
 # Lint with clang-tidy
 lint:
@@ -536,7 +565,7 @@ format:
 
 # Clean build artifacts
 clean:
-    rm -rf build/
+    rm -rf {{BUILD_DIR}}/
 
 # Watch for changes and rebuild (requires entr)
 watch:
