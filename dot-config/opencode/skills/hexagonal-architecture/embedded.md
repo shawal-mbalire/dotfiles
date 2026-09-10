@@ -116,6 +116,23 @@ class TimerPort(ABC):
     @abstractmethod
     def sleep_ms(self, ms: int) -> None: ...
 
+# domain/ports/lifetime_port.py
+from abc import ABC, abstractmethod
+from typing import Callable
+
+class LifetimePort(ABC):
+    @abstractmethod
+    def register_cleanup(self, handler: Callable[[], None]) -> None: ...
+
+    @abstractmethod
+    def on_exit(self, handler: Callable[[str], None]) -> None: ...
+
+    @abstractmethod
+    def get_exit_reason(self) -> str: ...
+
+    @abstractmethod
+    def is_shutting_down(self) -> bool: ...
+
 # domain/models/device_state.py
 class IrrigationState:
     def __init__(self):
@@ -212,6 +229,37 @@ class SerialLogger(LoggerPort):
     def error(self, message: str) -> None:
         print(f"[ERROR] {message}")
 
+# adapters/sensor_mappings.py (Pure helpers — no hardware, trivial to test)
+from domain.models.device_state import IrrigationState
+
+def format_sensor_reading(temperature: float, humidity: float) -> str:
+    """Format sensor data for logging. Pure function."""
+    return f"Temp: {temperature:.1f}C, Humidity: {humidity:.1f}%"
+
+def should_activate_irrigation(humidity: float, threshold: float, is_active: bool) -> bool:
+    """Decide if irrigation should start. Pure function — no I/O."""
+    return humidity < threshold and not is_active
+
+def should_deactivate_irrigation(humidity: float, threshold: float, is_active: bool) -> bool:
+    """Decide if irrigation should stop. Pure function — no I/O."""
+    return humidity >= threshold and is_active
+
+# tests/unit/test_sensor_mappings.py (Test pure helpers — no hardware needed)
+from adapters.sensor_mappings import format_sensor_reading, should_activate_irrigation
+
+def test_format_sensor_reading():
+    result = format_sensor_reading(23.5, 60.0)
+    assert result == "Temp: 23.5C, Humidity: 60.0%"
+
+def test_should_activate_when_humidity_low():
+    assert should_activate_irrigation(40.0, 60.0, False) is True
+
+def test_should_not_activate_when_already_active():
+    assert should_activate_irrigation(40.0, 60.0, True) is False
+
+def test_should_not_activate_when_humidity_high():
+    assert should_activate_irrigation(80.0, 60.0, False) is False
+
 # adapters/esp32_relay_adapter.py
 from machine import Pin
 from domain.ports.relay_port import RelayPort
@@ -253,6 +301,85 @@ class HardwareTimerAdapter(TimerPort):
 
     def sleep_ms(self, ms: int) -> None:
         time.sleep_ms(ms)
+
+# adapters/watchdog_lifetime.py (Embedded-specific exit detection)
+import machine
+from domain.ports.lifetime_port import LifetimePort
+from typing import Callable
+
+class WatchdogLifetimeAdapter(LifetimePort):
+    def __init__(self):
+        self._cleanup_handlers: list[Callable[[], None]] = []
+        self._exit_handlers: list[Callable[[str], None]] = []
+        self._exit_reason = "normal"
+        self._shutting_down = False
+        self._watchdog = None
+
+    def register_cleanup(self, handler: Callable[[], None]) -> None:
+        self._cleanup_handlers.append(handler)
+
+    def on_exit(self, handler: Callable[[str], None]) -> None:
+        self._exit_handlers.append(handler)
+
+    def get_exit_reason(self) -> str:
+        return self._exit_reason
+
+    def is_shutting_down(self) -> bool:
+        return self._shutting_down
+
+    def _handle_interrupt(self, pin):
+        self._shutting_down = True
+        self._exit_reason = "user_exit"
+        for handler in self._exit_handlers:
+            handler(self._exit_reason)
+        for handler in self._cleanup_handlers:
+            handler()
+
+    def install(self, button_pin: int = 0):
+        """Install interrupt handler for graceful shutdown."""
+        button = machine.Pin(button_pin, machine.Pin.IN, machine.Pin.PULL_UP)
+        button.irq(trigger=machine.Pin.IRQ_FALLING, handler=self._handle_interrupt)
+
+    def enter_deep_sleep(self, sleep_seconds: int):
+        """Clean up and enter deep sleep."""
+        self._shutting_down = True
+        self._exit_reason = "shutdown"
+        for handler in self._cleanup_handlers:
+            handler()
+        machine.deepsleep(sleep_seconds * 1000)
+
+# adapters/mock_lifetime.py (for testing on PC)
+from domain.ports.lifetime_port import LifetimePort
+from typing import Callable
+
+class MockLifetimeAdapter(LifetimePort):
+    def __init__(self):
+        self._cleanup_handlers: list[Callable[[], None]] = []
+        self._exit_handlers: list[Callable[[str], None]] = []
+        self._exit_reason = "normal"
+        self._shutting_down = False
+        self.cleanup_count = 0
+
+    def register_cleanup(self, handler: Callable[[], None]) -> None:
+        self._cleanup_handlers.append(handler)
+
+    def on_exit(self, handler: Callable[[str], None]) -> None:
+        self._exit_handlers.append(handler)
+
+    def get_exit_reason(self) -> str:
+        return self._exit_reason
+
+    def is_shutting_down(self) -> bool:
+        return self._shutting_down
+
+    def trigger_exit(self, reason: str) -> None:
+        self._shutting_down = True
+        self._exit_reason = reason
+        for handler in self._exit_handlers:
+            handler(reason)
+        for handler in self._cleanup_handlers:
+            handler()
+            self.cleanup_count += 1
 
 # main.py (Composition Root + Driving Adapter)
 from adapters.esp32_relay_adapter import ESP32RelayAdapter
@@ -799,6 +926,178 @@ def test_safety_limit_stops_cycles(controller):
     assert "limit" in logger.messages[-1][1].lower()
 ```
 
+### Integration Tests (MicroPython)
+
+Hardware-in-the-loop tests run on the device. These test real adapter behavior with actual GPIO, sensors, and timers.
+
+```python
+# tests/integration/test_relay_hardware.py
+# Run on device: ampy --port /dev/tty.usbmodem* run tests/integration/test_relay_hardware.py
+from adapters.esp32_relay_adapter import ESP32RelayAdapter
+from adapters.serial_logger import SerialLogger
+import time
+
+def test_relay_turns_on_and_off():
+    """Test real relay hardware — run on device only."""
+    relay = ESP32RelayAdapter(pin_number=14)
+    logger = SerialLogger()
+
+    relay.turn_on()
+    time.sleep(0.1)
+    logger.info("Relay should be ON — verify with multimeter or LED")
+
+    relay.turn_off()
+    time.sleep(0.1)
+    logger.info("Relay should be OFF — verify with multimeter or LED")
+
+def test_sensor_reads_real_values():
+    """Test real DHT sensor — run on device only."""
+    from adapters.dht_sensor_adapter import DHTSensorAdapter
+
+    sensor = DHTSensorAdapter(pin_number=4)
+    temp = sensor.read_temperature()
+    humidity = sensor.read_humidity()
+
+    assert isinstance(temp, float), f"Temperature should be float, got {type(temp)}"
+    assert isinstance(humidity, float), f"Humidity should be float, got {type(humidity)}"
+    assert -40.0 <= temp <= 80.0, f"Temperature out of range: {temp}"
+    assert 0.0 <= humidity <= 100.0, f"Humidity out of range: {humidity}"
+
+def test_full_irrigation_cycle():
+    """Integration test: sensor → controller → relay — run on device only."""
+    from adapters.esp32_relay_adapter import ESP32RelayAdapter
+    from adapters.dht_sensor_adapter import DHTSensorAdapter
+    from adapters.hardware_timer_adapter import HardwareTimerAdapter
+    from domain.workflows.pump_controller import PumpController
+    from domain.constants import IrrigationConfig
+
+    config = IrrigationConfig(
+        relay_pin=14,
+        sensor_pin=4,
+        moisture_threshold=60.0,
+        check_interval_ms=1000,
+    )
+
+    relay = ESP32RelayAdapter(config.relay_pin)
+    sensor = DHTSensorAdapter(config.sensor_pin)
+    logger = SerialLogger()
+    timer = HardwareTimerAdapter()
+
+    controller = PumpController(relay, sensor, logger, timer, config)
+
+    # Run one check cycle
+    controller.check_and_toggle()
+
+    # Verify state was updated
+    assert isinstance(controller.state.is_active, bool)
+    logger.info(f"Integration test complete. Active: {controller.state.is_active}")
+```
+
+### Integration Tests (C++ / PlatformIO Native)
+
+Native C++ tests run on the development machine, not on the device. Use PlatformIO's native test target.
+
+```cpp
+// tests/integration/test_pump_controller_integration.cpp
+// Runs on development machine via: pio test -e native
+#include <gtest/gtest.h>
+#include <domain/workflows/pump_controller.h>
+#include <domain/constants.h>
+
+class FakeRelay : public RelayPort {
+public:
+    bool is_on = false;
+    int on_count = 0;
+    int off_count = 0;
+
+    void turn_on() override { is_on = true; on_count++; }
+    void turn_off() override { is_on = false; off_count++; }
+};
+
+class FakeSensor : public SensorPort {
+public:
+    float temperature = 25.0;
+    float humidity = 70.0;
+
+    SensorReading read() override {
+        return {temperature, humidity};
+    }
+};
+
+class FakeTimer : public TimerPort {
+public:
+    uint32_t current_ms = 0;
+
+    uint32_t now_ms() override { return current_ms; }
+    void delay_ms(uint32_t ms) override { current_ms += ms; }
+};
+
+class PumpControllerIntegrationTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        config = {14, 4, 60.0f, 30000};
+        controller = std::make_unique<PumpController>(relay, sensor, logger, timer, config);
+    }
+
+    FakeRelay relay;
+    FakeSensor sensor;
+    FakeLogger logger;
+    FakeTimer timer;
+    IrrigationConfig config;
+    std::unique_ptr<PumpController> controller;
+};
+
+TEST_F(PumpControllerIntegrationTest, StartsIrrigationWhenHumidityLow) {
+    sensor.humidity = 40.0;
+
+    controller->check_and_toggle();
+
+    EXPECT_TRUE(relay.is_on);
+    EXPECT_TRUE(controller->state.is_active);
+    EXPECT_GE(logger.info_count, 1);
+}
+
+TEST_F(PumpControllerIntegrationTest, StopsIrrigationWhenHumidityHigh) {
+    sensor.humidity = 40.0;
+    controller->check_and_toggle();
+
+    sensor.humidity = 80.0;
+    timer.current_ms = MIN_TOGGLE_INTERVAL_MS + 1;
+    controller->check_and_toggle();
+
+    EXPECT_FALSE(relay.is_on);
+    EXPECT_FALSE(controller->state.is_active);
+}
+
+TEST_F(PumpControllerIntegrationTest, RespectsDebounceInterval) {
+    sensor.humidity = 40.0;
+
+    controller->check_and_toggle();
+    int first_on_count = relay.on_count;
+
+    // Immediate second call — should be debounced
+    controller->check_and_toggle();
+    EXPECT_EQ(relay.on_count, first_on_count);
+}
+
+TEST_F(PumpControllerIntegrationTest, RespectsSafetyLimit) {
+    sensor.humidity = 40.0;
+
+    // Exhaust daily limit
+    for (int i = 0; i < 10; i++) {
+        controller->check_and_toggle();
+        timer.current_ms += MIN_TOGGLE_INTERVAL_MS + 1;
+        controller->check_and_toggle(); // stop
+        timer.current_ms += MIN_TOGGLE_INTERVAL_MS + 1;
+    }
+
+    // Next attempt should be blocked
+    int count_before = relay.on_count;
+    controller->check_and_toggle();
+    EXPECT_EQ(relay.on_count, count_before);
+}
+```
+
 ## PlatformIO Configuration
 
 ```ini
@@ -819,7 +1118,8 @@ test_filter = test_pump_controller
 [env:native]
 platform = native
 test_framework = google_test
-build_flags = -std=c++20
+build_flags = -std=c++20 -I.
+test_filter = test_pump_controller_integration
 ```
 
 ## Justfile (Embedded Workspace)
@@ -830,6 +1130,9 @@ set dotenv-load
 
 PORT := env_var_or_default("PORT", "/dev/tty.usbmodem*")
 BAUD := env_var_or_default("BAUD", "115200")
+
+default:
+    @just --list
 
 logs:
     @echo "Connecting to serial port..."
@@ -848,9 +1151,17 @@ upload-project:
 run file:
     ampy --port $(ls {{PORT}} 2>/dev/null | head -1) run {{file}}
 
-# Run domain tests on PC (not device)
+# Run domain unit tests on PC (not device)
 test:
     uv run pytest tests/ -v
+
+# Run unit tests only
+test-unit:
+    uv run pytest tests/unit/ -v
+
+# Run integration tests on device (MicroPython)
+test-integration-device:
+    ampy --port $(ls {{PORT}} 2>/dev/null | head -1) run tests/integration/test_relay_hardware.py
 
 # Build and flash C++ to device
 build:
@@ -859,13 +1170,21 @@ build:
 flash:
     pio run -e esp32 --target upload
 
-# Run native C++ tests
+# Run native C++ integration tests (on development machine)
 test-native:
     pio test -e native
+
+# Run C++ unit tests on device
+test-device:
+    pio test -e esp32test
 
 lint:
     uv run ruff check .
 
 format:
     uv run ruff format .
+
+clean:
+    uv run ruff clean
+    pio run -t clean
 ```

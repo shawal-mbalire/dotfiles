@@ -280,23 +280,43 @@ class LoggerPort(Protocol):
     def info(self, message: str) -> None: ...
     def error(self, message: str) -> None: ...
 
+# domain/ports/time_port.py
+from typing import Protocol
+
+class TimePort(Protocol):
+    def now_ms(self) -> int: ...
+    def elapsed_ms(self, start_ms: int) -> int: ...
+
+# domain/ports/lifetime_port.py
+from typing import Protocol, Callable
+
+class LifetimePort(Protocol):
+    def register_cleanup(self, handler: Callable[[], None]) -> None: ...
+    def on_exit(self, handler: Callable[[str], None]) -> None: ...
+    def get_exit_reason(self) -> str: ...
+    def is_shutting_down(self) -> bool: ...
+
 # domain/workflows/create_document.py
 from domain.models.document import Document
 from domain.ports.repository import DocumentRepository
 from domain.ports.logger import LoggerPort
+from domain.ports.time_port import TimePort
 from domain.errors.document_errors import EmptyContentError
 
 def create_document(
     content: str,
     document_repository: DocumentRepository,
     logger: LoggerPort,
+    time: TimePort,
 ) -> Document:
+    start = time.now_ms()
     if not content.strip():
         raise EmptyContentError()
 
     document = Document.create(content=content)
     document_repository.save(document)
-    logger.info(f"Document created with identifier {document.id}")
+    elapsed = time.elapsed_ms(start)
+    logger.info(f"Document created with identifier {document.id} in {elapsed}ms")
     return document
 
 # infra/config.py
@@ -365,10 +385,132 @@ class RichLogger(LoggerPort):
     def error(self, message: str) -> None:
         self._logger.error(message)
 
-# adapters/firestore_adapter.py
+# adapters/system_time.py
+import time
+from domain.ports.time_port import TimePort
+
+class SystemTimeAdapter(TimePort):
+    def now_ms(self) -> int:
+        return int(time.time() * 1000)
+
+    def elapsed_ms(self, start_ms: int) -> int:
+        return self.now_ms() - start_ms
+
+# adapters/mock_time.py (for testing)
+from domain.ports.time_port import TimePort
+
+class MockTimeAdapter(TimePort):
+    def __init__(self) -> None:
+        self._current_ms = 0
+
+    def now_ms(self) -> int:
+        return self._current_ms
+
+    def elapsed_ms(self, start_ms: int) -> int:
+        return self._current_ms - start_ms
+
+    def advance_ms(self, ms: int) -> None:
+        self._current_ms += ms
+
+# adapters/signal_lifetime.py (System-level exit detection)
+import signal
+from typing import Callable
+from domain.ports.lifetime_port import LifetimePort
+
+class SignalLifetimeAdapter(LifetimePort):
+    def __init__(self) -> None:
+        self._cleanup_handlers: list[Callable[[], None]] = []
+        self._exit_handlers: list[Callable[[str], None]] = []
+        self._exit_reason = "normal"
+        self._shutting_down = False
+
+    def register_cleanup(self, handler: Callable[[], None]) -> None:
+        self._cleanup_handlers.append(handler)
+
+    def on_exit(self, handler: Callable[[str], None]) -> None:
+        self._exit_handlers.append(handler)
+
+    def get_exit_reason(self) -> str:
+        return self._exit_reason
+
+    def is_shutting_down(self) -> bool:
+        return self._shutting_down
+
+    def _handle_signal(self, signum: int, frame) -> None:
+        self._shutting_down = True
+        if signum == signal.SIGTERM:
+            self._exit_reason = "shutdown"
+        elif signum == signal.SIGINT:
+            self._exit_reason = "user_exit"
+        else:
+            self._exit_reason = "crash"
+
+        for handler in self._exit_handlers:
+            handler(self._exit_reason)
+        for handler in self._cleanup_handlers:
+            handler()
+
+    def install(self) -> None:
+        signal.signal(signal.SIGTERM, self._handle_signal)
+        signal.signal(signal.SIGINT, self._handle_signal)
+
+# adapters/mock_lifetime.py (for testing)
+from domain.ports.lifetime_port import LifetimePort
+from typing import Callable
+
+class MockLifetimeAdapter(LifetimePort):
+    def __init__(self) -> None:
+        self._cleanup_handlers: list[Callable[[], None]] = []
+        self._exit_handlers: list[Callable[[str], None]] = []
+        self._exit_reason = "normal"
+        self._shutting_down = False
+        self.cleanup_count = 0
+
+    def register_cleanup(self, handler: Callable[[], None]) -> None:
+        self._cleanup_handlers.append(handler)
+
+    def on_exit(self, handler: Callable[[str], None]) -> None:
+        self._exit_handlers.append(handler)
+
+    def get_exit_reason(self) -> str:
+        return self._exit_reason
+
+    def is_shutting_down(self) -> bool:
+        return self._shutting_down
+
+    def trigger_exit(self, reason: str) -> None:
+        """Simulate exit for testing."""
+        self._shutting_down = True
+        self._exit_reason = reason
+        for handler in self._exit_handlers:
+            handler(reason)
+        for handler in self._cleanup_handlers:
+            handler()
+            self.cleanup_count += 1
+
+# adapters/firestore_mappings.py (Pure helpers — no I/O, trivial to test)
+from domain.models.document import Document, DocumentStatus
+
+def document_to_firestore_dict(document: Document) -> dict:
+    """Convert domain model to Firestore document. Pure function."""
+    return {
+        "content": document.content,
+        "status": document.status.value,
+    }
+
+def firestore_dict_to_document(doc_id: str, data: dict) -> Document:
+    """Convert Firestore document to domain model. Pure function."""
+    return Document(
+        id=doc_id,
+        content=data["content"],
+        status=DocumentStatus(data["status"]),
+    )
+
+# adapters/firestore_adapter.py (Thin I/O — calls pure helpers)
 from google.cloud import firestore
 from domain.ports.repository import DocumentRepository
 from domain.models.document import Document
+from adapters.firestore_mappings import document_to_firestore_dict, firestore_dict_to_document
 
 class FirestoreDocumentAdapter(DocumentRepository):
     def __init__(self, project_id: str, collection_name: str) -> None:
@@ -376,42 +518,69 @@ class FirestoreDocumentAdapter(DocumentRepository):
         self.collection = self.firestore_client.collection(collection_name)
 
     def save(self, document: Document) -> None:
-        self.collection.document(document.id).set({
-            "content": document.content,
-            "status": document.status.value,
-        })
+        self.collection.document(document.id).set(document_to_firestore_dict(document))
 
     def find_by_id(self, document_id: str) -> Document | None:
-        document_reference = self.collection.document(document_id).get()
-        if document_reference.exists:
-            document_data = document_reference.to_dict()
-            return Document(
-                id=document_id,
-                content=document_data["content"],
-                status=DocumentStatus(document_data["status"]),
-            )
+        doc_ref = self.collection.document(document_id).get()
+        if doc_ref.exists:
+            return firestore_dict_to_document(document_id, doc_ref.to_dict())
         return None
 
-# main.py (Composition Root)
+# tests/unit/test_firestore_mappings.py (Test pure helpers — no mocks needed)
+from adapters.firestore_mappings import document_to_firestore_dict, firestore_dict_to_document
+from domain.models.document import Document, DocumentStatus
+
+def test_document_to_firestore_dict():
+    doc = Document(id="123", content="Hello", status=DocumentStatus.DRAFT)
+    result = document_to_firestore_dict(doc)
+    assert result == {"content": "Hello", "status": "draft"}
+
+def test_firestore_dict_to_document():
+    data = {"content": "Hello", "status": "published"}
+    result = firestore_dict_to_document("123", data)
+    assert result.id == "123"
+    assert result.content == "Hello"
+    assert result.status == DocumentStatus.PUBLISHED
+
+# No mocks, no Firestore emulator — just input → output
+
+# orchestrator/wire_adapters.py (Creates adapters, maps ports to implementations)
 from adapters.firestore_adapter import FirestoreDocumentAdapter
 from adapters.console_logger import ConsoleLogger
+from adapters.system_time import SystemTimeAdapter
 from infra.config import FirestoreConfiguration, LoggingConfiguration
+
+def create_document_repository() -> FirestoreDocumentAdapter:
+    config = FirestoreConfiguration.from_environment()
+    return FirestoreDocumentAdapter(
+        project_id=config.project_id,
+        collection_name=config.collection_name,
+    )
+
+def create_logger() -> ConsoleLogger:
+    return ConsoleLogger()
+
+def create_time() -> SystemTimeAdapter:
+    return SystemTimeAdapter()
+
+# main.py (Orchestrator — thin, only wires and starts)
+from orchestrator.wire_adapters import create_document_repository, create_logger, create_time
 from domain.workflows.create_document import create_document
 
 def main() -> None:
-    firestore_configuration = FirestoreConfiguration.from_environment()
-    document_repository = FirestoreDocumentAdapter(
-        project_id=firestore_configuration.project_id,
-        collection_name=firestore_configuration.collection_name,
-    )
-    logger = ConsoleLogger()
+    # Wire adapters
+    repo = create_document_repository()
+    logger = create_logger()
+    time = create_time()
 
+    # Start driving adapter (e.g., FastAPI routes)
     @app.post("/documents/{document_id}")
     def api_create_document(document_id: str, request_body: dict) -> dict:
         document = create_document(
             content=request_body["content"],
-            document_repository=document_repository,
+            document_repository=repo,
             logger=logger,
+            time=time,
         )
         return {
             "id": document.id,
@@ -643,6 +812,64 @@ raise ValueError("Invalid input")
 raise EmptyContentError("Document content cannot be empty")
 ```
 
+## Pure Functions in Domain
+
+Domain workflows should be pure functions: same input → same output, no side effects. I/O happens in adapters only.
+
+```python
+# BAD: impure — depends on external state
+def calculate_total(cart):
+    tax_rate = get_tax_rate_from_db()  # Hidden dependency!
+    return cart.subtotal * (1 + tax_rate)
+
+# GOOD: pure — all dependencies injected
+def calculate_total(cart: Cart, tax_rate: float) -> float:
+    return cart.subtotal * (1 + tax_rate)
+
+# BAD: impure workflow — I/O mixed with logic
+def create_document(content: str, db_connection) -> Document:
+    document = Document.create(content=content)
+    db_connection.execute("INSERT INTO docs ...")  # Side effect!
+    send_notification("Document created")           # Side effect!
+    return document
+
+# GOOD: pure workflow — logic only, I/O in adapters
+def create_document(
+    content: str,
+    repo: DocumentRepository,
+    logger: LoggerPort,
+    time: TimePort,
+) -> Document:
+    start = time.now_ms()
+
+    # Pure logic: validation
+    if not content.strip():
+        raise EmptyContentError()
+
+    # Pure logic: create model
+    document = Document.create(content=content)
+
+    # Adapter calls: all I/O happens here
+    repo.save(document)
+    elapsed = time.elapsed_ms(start)
+    logger.info(f"Document created {document.id} in {elapsed}ms")
+    return document
+```
+
+**Testing pure functions is trivial:**
+
+```python
+def test_calculate_total():
+    cart = Cart(items=[CartItem(price=10, quantity=2)])
+    assert calculate_total(cart, tax_rate=0.08) == 21.6
+
+def test_calculate_total_zero_tax():
+    cart = Cart(items=[CartItem(price=10, quantity=2)])
+    assert calculate_total(cart, tax_rate=0.0) == 20.0
+
+# No mocks, no setup, no database — just input → output
+```
+
 ## Structured Logging
 
 ```python
@@ -685,13 +912,14 @@ logger.error("firestore_save_failed", document_id=doc.id, error=str(e), retry=1)
 
 ```python
 # tests/fixtures/__init__.py
-from .fakes import FakeDocumentRepo, FakeLogger, FakeEventPublisher
+from .fakes import FakeDocumentRepo, FakeLogger, FakeEventPublisher, FakeTime
 from .factories import DocumentFactory
 
 # tests/fixtures/fakes.py
 from domain.models.document import Document
 from domain.ports.repository import DocumentRepository
 from domain.ports.logger import LoggerPort
+from domain.ports.time_port import TimePort
 from typing import Optional
 
 class FakeDocumentRepo(DocumentRepository):
@@ -719,6 +947,19 @@ class FakeLogger(LoggerPort):
     def error(self, message: str) -> None:
         self.messages.append(("error", message))
         self.error_count += 1
+
+class FakeTime(TimePort):
+    def __init__(self):
+        self._current_ms = 1000
+
+    def now_ms(self) -> int:
+        return self._current_ms
+
+    def elapsed_ms(self, start_ms: int) -> int:
+        return self._current_ms - start_ms
+
+    def advance_ms(self, ms: int) -> None:
+        self._current_ms += ms
 
 class FakeEventPublisher:
     def __init__(self):
@@ -765,7 +1006,7 @@ class DocumentFactory:
 import pytest
 from domain.workflows.create_document import create_document
 from domain.errors.document_errors import EmptyContentError
-from tests.fixtures import DocumentFactory, FakeDocumentRepo, FakeLogger
+from tests.fixtures import DocumentFactory, FakeDocumentRepo, FakeLogger, FakeTime
 
 @pytest.fixture
 def repo():
@@ -775,20 +1016,30 @@ def repo():
 def logger():
     return FakeLogger()
 
-def test_create_document_success(repo, logger):
-    result = create_document("Hello World", repo, logger)
+@pytest.fixture
+def time():
+    return FakeTime()
+
+def test_create_document_success(repo, logger, time):
+    result = create_document("Hello World", repo, logger, time)
 
     assert result.id is not None
     assert result.content == "Hello World"
     assert logger.info_count == 1
+    assert "ms" in logger.messages[0][1]  # Duration logged
 
-def test_create_document_empty_content_raises(repo, logger):
+def test_create_document_empty_content_raises(repo, logger, time):
     with pytest.raises(EmptyContentError):
-        create_document("", repo, logger)
+        create_document("", repo, logger, time)
 
-def test_create_document_saves_to_repo(repo, logger):
-    create_document("Test content", repo, logger)
+def test_create_document_saves_to_repo(repo, logger, time):
+    create_document("Test content", repo, logger, time)
     assert repo.save_count == 1
+
+def test_create_document_logs_duration(repo, logger, time):
+    time.advance_ms(42)  # Simulate 42ms of work
+    create_document("Test content", repo, logger, time)
+    assert "42ms" in logger.messages[0][1]
 ```
 
 ```python

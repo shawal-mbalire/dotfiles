@@ -1,6 +1,6 @@
 # C++ — Hexagonal Architecture Guide
 
-C++-specific code examples and patterns for hexagonal architecture. See [SKILL.md](./SKILL.md) for core architecture principles.
+C++-specific setup, tooling, code examples, and testing patterns for hexagonal architecture. See [SKILL.md](./SKILL.md) for core architecture principles.
 
 ## Project Structure
 
@@ -122,16 +122,46 @@ public:
     virtual void error(const std::string& message) = 0;
 };
 
+// domain/ports/time_port.h
+#pragma once
+#include <cstdint>
+
+class TimePort {
+public:
+    virtual ~TimePort() = default;
+    virtual uint64_t now_ms() = 0;
+    virtual uint64_t elapsed_ms(uint64_t start_ms) = 0;
+};
+
+enum class ExitReason {
+    Normal,
+    UserExit,
+    Crash,
+    Timeout,
+    Shutdown
+};
+
+class LifetimePort {
+public:
+    virtual ~LifetimePort() = default;
+    virtual void register_cleanup(std::function<void()> handler) = 0;
+    virtual void on_exit(std::function<void(ExitReason)> handler) = 0;
+    virtual ExitReason get_exit_reason() = 0;
+    virtual bool is_shutting_down() = 0;
+};
+
 // domain/workflows/create_document.h
 #pragma once
 #include <domain/models/document.h>
 #include <domain/ports/repository.h>
 #include <domain/ports/logger.h>
+#include <domain/ports/time_port.h>
 
 Document create_document(
     const std::string& content,
     DocumentRepository& repository,
-    Logger& logger
+    Logger& logger,
+    TimePort& time
 );
 
 // domain/workflows/create_document.cpp
@@ -142,15 +172,18 @@ Document create_document(
 Document create_document(
     const std::string& content,
     DocumentRepository& repository,
-    Logger& logger
+    Logger& logger,
+    TimePort& time
 ) {
+    auto start = time.now_ms();
     if (content.empty() || std::all_of(content.begin(), content.end(), ::isspace)) {
         throw EmptyContentError();
     }
 
     auto document = Document::create(content);
     repository.save(document);
-    logger.info("Document created with identifier " + document.id);
+    auto elapsed = time.elapsed_ms(start);
+    logger.info("Document created with identifier " + document.id + " in " + std::to_string(elapsed) + "ms");
     return document;
 }
 
@@ -205,6 +238,139 @@ public:
     void error(const std::string& message) override {
         std::cerr << "[ERROR] " << message << std::endl;
     }
+};
+
+// adapters/firestore_mappings.h (Pure helpers — no I/O, trivial to test)
+#pragma once
+#include <domain/models/document.h>
+#include <string>
+#include <map>
+
+struct FirestoreDoc {
+    std::string content;
+    std::string status;
+};
+
+inline FirestoreDoc document_to_firestore(const Document& doc) {
+    return {doc.content, status_to_string(doc.status)};
+}
+
+inline Document firestore_to_document(const std::string& id, const FirestoreDoc& doc) {
+    return {id, doc.content, string_to_status(doc.status)};
+}
+
+// adapters/system_time.h
+#pragma once
+#include <domain/ports/time_port.h>
+#include <chrono>
+
+class SystemTimeAdapter : public TimePort {
+public:
+    uint64_t now_ms() override {
+        auto now = std::chrono::system_clock::now();
+        auto duration = now.time_since_epoch();
+        return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    }
+
+    uint64_t elapsed_ms(uint64_t start_ms) override {
+        return now_ms() - start_ms;
+    }
+};
+
+// adapters/mock_time.h (for testing)
+#pragma once
+#include <domain/ports/time_port.h>
+
+class MockTimeAdapter : public TimePort {
+public:
+    MockTimeAdapter() : current_ms_(1000) {}
+
+    uint64_t now_ms() override { return current_ms_; }
+    uint64_t elapsed_ms(uint64_t start_ms) override { return current_ms_ - start_ms; }
+    void advance_ms(uint64_t ms) { current_ms_ += ms; }
+
+private:
+    uint64_t current_ms_;
+};
+
+// adapters/signal_lifetime.h
+#pragma once
+#include <domain/ports/lifetime_port.h>
+#include <vector>
+#include <functional>
+#include <csignal>
+
+class SignalLifetimeAdapter : public LifetimePort {
+public:
+    void register_cleanup(std::function<void()> handler) override {
+        cleanup_handlers_.push_back(std::move(handler));
+    }
+
+    void on_exit(std::function<void(ExitReason)> handler) override {
+        exit_handlers_.push_back(std::move(handler));
+    }
+
+    ExitReason get_exit_reason() override { return exit_reason_; }
+    bool is_shutting_down() override { return shutting_down_; }
+
+    void install() {
+        std::signal(SIGTERM, signal_handler);
+        std::signal(SIGINT, signal_handler);
+    }
+
+    static void signal_handler(int signum) {
+        auto& self = instance();
+        self.shutting_down_ = true;
+        self.exit_reason_ = (signum == SIGTERM) ? ExitReason::Shutdown : ExitReason::UserExit;
+        for (auto& h : self.exit_handlers_) h(self.exit_reason_);
+        for (auto& h : self.cleanup_handlers_) h();
+    }
+
+    static SignalLifetimeAdapter& instance() {
+        static SignalLifetimeAdapter inst;
+        return inst;
+    }
+
+private:
+    std::vector<std::function<void()>> cleanup_handlers_;
+    std::vector<std::function<void(ExitReason)>> exit_handlers_;
+    ExitReason exit_reason_ = ExitReason::Normal;
+    bool shutting_down_ = false;
+};
+
+// adapters/mock_lifetime.h (for testing)
+#pragma once
+#include <domain/ports/lifetime_port.h>
+#include <vector>
+#include <functional>
+
+class MockLifetimeAdapter : public LifetimePort {
+public:
+    void register_cleanup(std::function<void()> handler) override {
+        cleanup_handlers_.push_back(std::move(handler));
+    }
+
+    void on_exit(std::function<void(ExitReason)> handler) override {
+        exit_handlers_.push_back(std::move(handler));
+    }
+
+    ExitReason get_exit_reason() override { return exit_reason_; }
+    bool is_shutting_down() override { return shutting_down_; }
+
+    void trigger_exit(ExitReason reason) {
+        shutting_down_ = true;
+        exit_reason_ = reason;
+        for (auto& h : exit_handlers_) h(reason);
+        for (auto& h : cleanup_handlers_) { h(); cleanup_count++; }
+    }
+
+    int cleanup_count = 0;
+
+private:
+    std::vector<std::function<void()>> cleanup_handlers_;
+    std::vector<std::function<void(ExitReason)>> exit_handlers_;
+    ExitReason exit_reason_ = ExitReason::Normal;
+    bool shutting_down_ = false;
 };
 
 // adapters/firestore_adapter.h
@@ -269,6 +435,69 @@ int main() {
     std::cout << "Created: " << document.id << std::endl;
 
     return 0;
+}
+```
+
+## Domain Constants Pattern
+
+```cpp
+// domain/constants.h
+#pragma once
+#include <cstddef>
+#include <cstdint>
+
+// Static constants: fixed business knowledge, never change per deployment
+constexpr size_t MAX_CONTENT_LENGTH = 10000;
+constexpr double DEGREES_TO_RADIANS = 0.017453292519943295;
+constexpr double MAX_LATITUDE = 90.0;
+constexpr double MAX_LONGITUDE = 180.0;
+
+// Configurable constants: injected from infra/config
+struct DomainConstants {
+    int max_retry_count;
+    int request_timeout_ms;
+    int max_content_length;
+};
+
+// domain/workflows/create_document.cpp (using constants)
+#include "create_document.h"
+#include <domain/constants.h>
+
+Document create_document(
+    const std::string& content,
+    DocumentRepository& repository,
+    Logger& logger
+) {
+    if (content.empty() || std::all_of(content.begin(), content.end(), ::isspace)) {
+        throw EmptyContentError();
+    }
+    if (content.length() > MAX_CONTENT_LENGTH) {
+        throw DomainError("Content exceeds maximum length");
+    }
+    // ...
+}
+
+// infra/config.h (loading configurable constants)
+#pragma once
+#include <domain/constants.h>
+
+struct InfraConfig {
+    static DomainConstants load_domain_constants();
+};
+
+// infra/config.cpp
+#include "config.h"
+#include <cstdlib>
+
+DomainConstants InfraConfig::load_domain_constants() {
+    DomainConstants constants;
+    const char* retry = std::getenv("MAX_RETRY_COUNT");
+    constants.max_retry_count = retry ? std::stoi(retry) : 3;
+    const char* timeout = std::getenv("REQUEST_TIMEOUT_MS");
+    constants.request_timeout_ms = timeout ? std::stoi(timeout) : 30000;
+    const char* max_len = std::getenv("MAX_CONTENT_LENGTH");
+    constants.max_content_length = max_len ? std::stoi(max_len) : 10000;
+    return constants;
 }
 ```
 
@@ -352,6 +581,35 @@ throw std::runtime_error("Invalid input");
 
 // GOOD: specific error
 throw EmptyContentError("Document content cannot be empty");
+```
+
+## Pure Functions in Domain
+
+Domain workflows should be pure functions: same input → same output, no side effects. I/O happens in adapters only.
+
+```cpp
+// BAD: impure — depends on external state
+double calculate_total(const Cart& cart) {
+    double tax_rate = get_tax_rate_from_db(); // Hidden dependency!
+    return cart.subtotal * (1.0 + tax_rate);
+}
+
+// GOOD: pure — all dependencies injected
+double calculate_total(const Cart& cart, double tax_rate) {
+    return cart.subtotal * (1.0 + tax_rate);
+}
+
+// Testing pure functions is trivial
+TEST(CartTest, CalculateTotal) {
+    Cart cart{.subtotal = 20.0};
+    EXPECT_DOUBLE_EQ(calculate_total(cart, 0.08), 21.6);
+}
+
+TEST(CartTest, CalculateTotalZeroTax) {
+    Cart cart{.subtotal = 20.0};
+    EXPECT_DOUBLE_EQ(calculate_total(cart, 0.0), 20.0);
+}
+// No mocks, no setup, no database — just input → output
 ```
 
 ## Structured Logging
@@ -445,6 +703,22 @@ public:
     int info_count = 0;
     int error_count = 0;
 };
+
+// tests/fixtures/fake_time.h
+#pragma once
+#include <domain/ports/time_port.h>
+
+class FakeTimeAdapter : public TimePort {
+public:
+    FakeTimeAdapter() : current_ms_(1000) {}
+
+    uint64_t now_ms() override { return current_ms_; }
+    uint64_t elapsed_ms(uint64_t start_ms) override { return current_ms_ - start_ms; }
+    void advance_ms(uint64_t ms) { current_ms_ += ms; }
+
+private:
+    uint64_t current_ms_;
+};
 ```
 
 ### Unit Tests (Google Test)
@@ -456,15 +730,17 @@ public:
 #include <domain/errors/empty_content_error.h>
 #include <tests/fixtures/fake_repository.h>
 #include <tests/fixtures/fake_logger.h>
+#include <tests/fixtures/fake_time.h>
 
 class CreateDocumentTest : public ::testing::Test {
 protected:
     FakeDocumentRepository repo;
     FakeLogger logger;
+    FakeTimeAdapter time;
 };
 
 TEST_F(CreateDocumentTest, CreatesDocumentWithContent) {
-    auto result = create_document("Hello World", repo, logger);
+    auto result = create_document("Hello World", repo, logger, time);
 
     EXPECT_FALSE(result.id.empty());
     EXPECT_EQ(result.content, "Hello World");
@@ -472,22 +748,139 @@ TEST_F(CreateDocumentTest, CreatesDocumentWithContent) {
 }
 
 TEST_F(CreateDocumentTest, ThrowsOnEmptyContent) {
-    EXPECT_THROW(create_document("", repo, logger), EmptyContentError);
+    EXPECT_THROW(create_document("", repo, logger, time), EmptyContentError);
 }
 
 TEST_F(CreateDocumentTest, ThrowsOnWhitespaceOnly) {
-    EXPECT_THROW(create_document("   ", repo, logger), EmptyContentError);
+    EXPECT_THROW(create_document("   ", repo, logger, time), EmptyContentError);
 }
 
 TEST_F(CreateDocumentTest, SavesToRepository) {
-    create_document("Test content", repo, logger);
+    create_document("Test content", repo, logger, time);
     EXPECT_EQ(repo.save_count, 1);
 }
 
-TEST_F(CreateDocumentTest, LogsCreation) {
-    create_document("Test content", repo, logger);
+TEST_F(CreateDocumentTest, LogsCreationWithDuration) {
+    time.advance_ms(42);
+    create_document("Test content", repo, logger, time);
     EXPECT_EQ(logger.messages.size(), 1);
     EXPECT_EQ(logger.messages[0].first, "info");
+    EXPECT_NE(logger.messages[0].second.find("42ms"), std::string::npos);
+}
+```
+
+### Integration Tests
+
+```cpp
+// tests/integration/test_firestore_adapter.cpp
+#include <gtest/gtest.h>
+#include <adapters/firestore_adapter.h>
+#include <domain/models/document.h>
+
+class FirestoreAdapterTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        adapter = std::make_unique<FirestoreDocumentAdapter>("test-project", "test-documents");
+    }
+
+    void TearDown() override {
+        // Cleanup test data
+    }
+
+    std::unique_ptr<FirestoreDocumentAdapter> adapter;
+};
+
+TEST_F(FirestoreAdapterTest, SaveAndRetrieveDocument) {
+    Document doc{"test-123", "Integration test content", DocumentStatus::DRAFT};
+
+    adapter->save(doc);
+    auto retrieved = adapter->find_by_id("test-123");
+
+    ASSERT_TRUE(retrieved.has_value());
+    EXPECT_EQ(retrieved->content, doc.content);
+    EXPECT_EQ(retrieved->status, doc.status);
+}
+
+TEST_F(FirestoreAdapterTest, FindNonexistentReturnsNullopt) {
+    auto result = adapter->find_by_id("nonexistent-id");
+
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(FirestoreAdapterTest, SaveOverwritesExistingDocument) {
+    Document doc1{"test-123", "Original content", DocumentStatus::DRAFT};
+    Document doc2{"test-123", "Updated content", DocumentStatus::PUBLISHED};
+
+    adapter->save(doc1);
+    adapter->save(doc2);
+    auto retrieved = adapter->find_by_id("test-123");
+
+    ASSERT_TRUE(retrieved.has_value());
+    EXPECT_EQ(retrieved->content, "Updated content");
+    EXPECT_EQ(retrieved->status, DocumentStatus::PUBLISHED);
+}
+```
+
+### E2E Tests
+
+```cpp
+// tests/e2e/test_document_flow.cpp
+#include <gtest/gtest.h>
+#include <domain/workflows/create_document.h>
+#include <domain/errors/empty_content_error.h>
+#include <tests/fixtures/fake_repository.h>
+#include <tests/fixtures/fake_logger.h>
+
+class DocumentFlowE2E : public ::testing::Test {
+protected:
+    FakeDocumentRepository repo;
+    FakeLogger logger;
+};
+
+TEST_F(DocumentFlowE2E, CreateAndRetrieveDocument) {
+    // Create a document
+    auto doc = create_document("E2E test content", repo, logger);
+
+    EXPECT_FALSE(doc.id.empty());
+    EXPECT_EQ(doc.content, "E2E test content");
+
+    // Verify it was saved to repository
+    auto retrieved = repo.find_by_id(doc.id);
+    ASSERT_TRUE(retrieved.has_value());
+    EXPECT_EQ(retrieved->content, "E2E test content");
+
+    // Verify it was logged
+    EXPECT_EQ(logger.info_count, 1);
+    EXPECT_NE(logger.messages[0].second.find(doc.id), std::string::npos);
+}
+
+TEST_F(DocumentFlowE2E, CreateMultipleDocuments) {
+    auto doc1 = create_document("First document", repo, logger);
+    auto doc2 = create_document("Second document", repo, logger);
+    auto doc3 = create_document("Third document", repo, logger);
+
+    // All have unique IDs
+    EXPECT_NE(doc1.id, doc2.id);
+    EXPECT_NE(doc2.id, doc3.id);
+
+    // All are retrievable
+    EXPECT_TRUE(repo.find_by_id(doc1.id).has_value());
+    EXPECT_TRUE(repo.find_by_id(doc2.id).has_value());
+    EXPECT_TRUE(repo.find_by_id(doc3.id).has_value());
+
+    // All were logged
+    EXPECT_EQ(logger.info_count, 3);
+}
+
+TEST_F(DocumentFlowE2E, CreateDocumentWithEmptyContentFails) {
+    EXPECT_THROW(create_document("", repo, logger), EmptyContentError);
+    EXPECT_EQ(repo.save_count, 0);
+    EXPECT_EQ(logger.info_count, 0);
+}
+
+TEST_F(DocumentFlowE2E, CreateDocumentWithWhitespaceFails) {
+    EXPECT_THROW(create_document("   ", repo, logger), EmptyContentError);
+    EXPECT_EQ(repo.save_count, 0);
 }
 ```
 
@@ -550,6 +943,42 @@ test: build-dirs
     done
     {{CXX}} {{CXXFLAGS}} {{TEST_DIR}}/**/*.cpp -o {{BUILD_DIR}}/tests {{LDFLAGS}}
     ./{{BUILD_DIR}}/tests
+
+# Run unit tests only
+test-unit: build-dirs
+    #!/usr/bin/env bash
+    for src in tests/unit/**/*.cpp; do
+        [ -f "$src" ] || continue
+        obj="{{BUILD_DIR}}/${src}.o"
+        mkdir -p "$(dirname "$obj")"
+        {{CXX}} {{CXXFLAGS}} -c "$src" -o "$obj"
+    done
+    {{CXX}} {{CXXFLAGS}} tests/unit/**/*.cpp -o {{BUILD_DIR}}/unit_tests {{LDFLAGS}}
+    ./{{BUILD_DIR}}/unit_tests
+
+# Run integration tests
+test-integration: build-dirs
+    #!/usr/bin/env bash
+    for src in tests/integration/**/*.cpp; do
+        [ -f "$src" ] || continue
+        obj="{{BUILD_DIR}}/${src}.o"
+        mkdir -p "$(dirname "$obj")"
+        {{CXX}} {{CXXFLAGS}} -c "$src" -o "$obj"
+    done
+    {{CXX}} {{CXXFLAGS}} tests/integration/**/*.cpp -o {{BUILD_DIR}}/integration_tests {{LDFLAGS}}
+    ./{{BUILD_DIR}}/integration_tests
+
+# Run e2e tests
+test-e2e: build-dirs
+    #!/usr/bin/env bash
+    for src in tests/e2e/**/*.cpp; do
+        [ -f "$src" ] || continue
+        obj="{{BUILD_DIR}}/${src}.o"
+        mkdir -p "$(dirname "$obj")"
+        {{CXX}} {{CXXFLAGS}} -c "$src" -o "$obj"
+    done
+    {{CXX}} {{CXXFLAGS}} tests/e2e/**/*.cpp -o {{BUILD_DIR}}/e2e_tests {{LDFLAGS}}
+    ./{{BUILD_DIR}}/e2e_tests
 
 # Run tests with verbose output
 test-verbose: test

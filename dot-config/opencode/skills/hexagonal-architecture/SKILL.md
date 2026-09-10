@@ -25,6 +25,12 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 3. **Ports define contracts** — Interfaces (Protocols/ABCs/Traits) that the Domain needs fulfilled
 4. **Adapters are the plumbing** — Specific implementations of external libraries, services, databases, APIs
 5. **Infrastructure is separate** — Logging, config, and cross-cutting concerns live in `infra/`, not domain
+6. **Files over folders** — Prefer single files when a directory would contain fewer than 3 files. `domain/errors.py` beats `domain/errors/__init__.py` with one file inside
+7. **Pure functions in domain** — Domain workflows are pure functions: same input → same output, no side effects. I/O happens in adapters only. Testing becomes trivial: call function, check result.
+8. **Pure helpers in adapters** — Adapters handle I/O, but extract mapping/transformation logic into pure functions. Test pure helpers without mocks.
+9. **Reusable adapters** — Adapters depend only on ports and external libraries. Constructor-inject all config. Move to another project by swapping the port interface.
+10. **TimePort everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
+11. **LifetimePort for graceful exits** — Every workflow gets a `LifetimePort` to detect exit reasons (crash, user exit, error, normal) and run cleanup. No resource left behind.
 
 **The split:** Domain = what the app does (architecture). Adapters = how it connects (implementation).
 
@@ -45,15 +51,15 @@ domain/
 └── workflows    # Orchestrate flow using domain models and ports
 ```
 
-**Larger projects (folders):**
+**Larger projects (folders when 3+ files per module):**
 
 ```
 domain/
-├── models/
-├── constants    # Named business constants (injected from config, never hardcoded)
-├── errors/
-├── ports/
-└── workflows/
+├── models/      # 3+ model files → folder
+├── constants    # Usually 1 file → stays as file
+├── errors/      # 3+ error types → folder
+├── ports/       # 3+ port files → folder
+└── workflows/   # 3+ workflow files → folder
 ```
 
 **Domain Constants Pattern:**
@@ -124,21 +130,51 @@ Port: DocumentRepository
   save(document: Document) -> WriteResult            # leaks database type
 ```
 
-### Adapter Design for Transferability
+### Adapter Design for Reusability and Transferability
 
-Adapters translate between external systems and domain ports. Well-designed adapters can be moved to another project with minimal changes.
+Adapters translate between external systems and domain ports. Well-designed adapters are **reusable across projects** — pick up the file, drop it in another project, implement the port interface, done.
 
-**Rules:**
+**Transferability rules:**
 
 - Accept all external configuration via constructor parameters (connection strings, API keys, collection names)
 - Never read environment variables directly in adapter code — the composition root handles that
 - Map external types to domain types at the adapter boundary (DTO → Model, ORM Row → Model)
 - One adapter = one external system
+- Extract pure mapping/validation functions from adapter methods for independent testing
 - Adapters in `shared/adapters/` are reusable across projects; project-local `adapters/` are specific
 
-### 4. Main Entry (Composition Root)
+**Structure of a reusable adapter:**
 
-The wiring layer where everything comes together. Reads config from `infra/config`, creates adapters, injects dependencies.
+```
+adapters/
+├── firestore_user_adapter.py      # I/O: calls Firestore API
+├── firestore_user_adapter_test.py # Tests the adapter with real/emulated Firestore
+└── firestore_mappings.py          # Pure: DTO → Domain model conversions
+```
+
+The mapping file is pure and trivially testable. The adapter file is thin I/O that calls the mapping functions.
+
+### 4. Main Entry (Orchestrator)
+
+The orchestrator is where everything comes together. It reads config from `infra/config`, creates adapters, and plugs them into workflows. Keep it thin — it only wires, never contains logic.
+
+**Orchestrator responsibilities:**
+1. Read config from environment (only place env vars are read)
+2. Create adapter instances with injected config
+3. Pass adapters (via ports) to workflows
+4. Start driving adapters (HTTP server, CLI, event loop)
+
+**Orchestrator anti-patterns:**
+- Putting business logic in the orchestrator
+- Importing adapters in domain code
+- Doing I/O before wiring is complete
+
+```
+orchestrator/
+├── main.py              # Entry point — calls orchestrator functions
+├── wire_adapters.py     # Creates adapters, maps ports to implementations
+└── config.py            # Reads env vars, returns typed config objects
+```
 
 ### 5. Deployment Artifacts
 
@@ -162,6 +198,36 @@ Run:      Start the composition root with environment-specific config
 The domain and ports never change. Only the composition root's adapter wiring differs per environment.
 
 **Codebase:** One codebase tracked in version control. The same repo produces all deploy variants — the composition root plus environment-specific config is what differs, not the source.
+
+### Build Folder Convention
+
+All build artifacts go in a `build/` directory that is **not git tracked** and is **recreatable from code**.
+
+```
+.gitignore should contain:
+build/
+dist/
+*.o
+*.pyc
+__pycache__/
+node_modules/
+```
+
+**Rules:**
+- `build/` is the only directory for compiled/derived artifacts
+- `just clean` removes `build/` completely
+- `just build` recreates `build/` from source — never commit build outputs
+- Source code + Justfile/CMakeLists/Cargo.toml = everything needed to recreate `build/`
+
+**Per-language build directories:**
+
+| Language | Build Dir | Clean Command | Rebuild Command |
+|----------|-----------|---------------|-----------------|
+| Python | `build/` | `just clean` | `just build` |
+| TypeScript | `dist/` | `just clean` | `just build` |
+| Rust | `target/` | `cargo clean` | `cargo build` |
+| C++ | `build/` | `just clean` | `just build` |
+| Flutter | `build/` | `flutter clean` | `flutter build` |
 
 ### Scaling: Processes and Concurrency
 
@@ -196,6 +262,8 @@ User ← Driving Adapter ← Convert to DTO/Response ← Domain Model ← Result
 | Auth      | User model in domain | `infra/config` | JWT decode, OAuth adapter                                   |
 | Telemetry | `MetricsPort`        | `infra/config` | Prometheus, Datadog, or OpenTelemetry adapter               |
 | Events    | `EventPublisherPort` | `infra/config` | Kafka, RabbitMQ, MQTT, or in-process event bus adapter      |
+| Time      | `TimePort`           | `infra/config` | System clock, high-res timer, mock clock adapter            |
+| Lifetime  | `LifetimePort`       | `infra/config` | Signal handler, process observer, mock lifetime adapter     |
 
 ## Lifecycle Hooks
 
@@ -253,6 +321,235 @@ See language-specific guides for full code examples:
 - [Rust](./rust.md) — Tauri desktop, systems programming
 - [C++](./cpp.md) — Desktop, systems, game engines
 - [Embedded](./embedded.md) — MicroPython + C++ on ESP32, STM32, Arduino
+
+## Transfer Learning (Unsupported Languages)
+
+Language not listed? Use Python as the reference and map to your language's idioms. The architecture is language-agnostic — only the syntax changes.
+
+### Concept Mapping
+
+| Python | Go | Java | C# | Kotlin | Swift | PHP |
+|--------|-----|------|-----|--------|-------|-----|
+| `class` | `struct` | `class` | `class` | `class` | `struct/class` | `class` |
+| `Protocol` | `interface` | `interface` | `interface` | `interface` | `protocol` | `interface` |
+| `ABC` | `interface` | `abstract class` | `abstract class` | `abstract class` | `protocol` | `abstract class` |
+| `@dataclass(frozen=True)` | `struct` | `record` | `record` | `data class` | `struct` | readonly class |
+| `typing.Protocol` | `interface` | `interface` | `interface` | `interface` | `protocol` | `interface` |
+| `__init__` | constructor | constructor | constructor | constructor | `init` | `__construct` |
+| `raise` | `return err` | `throw` | `throw` | `throw` | `throw` | `throw` |
+| `try/except` | `if err != nil` | `try/catch` | `try/catch` | `try/catch` | `do/catch` | `try/catch` |
+| `pytest` | `testing` | `JUnit` | `xUnit/NUnit` | `JUnit` | `XCTest` | `PHPUnit` |
+
+### File Structure Mapping
+
+```
+Python                          →  Your Language
+────────────────────────────────────────────────────
+domain/models/document.py       →  domain/models/document.{ext}
+domain/ports/repository.py      →  domain/ports/repository.{ext}
+domain/workflows/create.py      →  domain/workflows/create.{ext}
+domain/errors/empty_error.py    →  domain/errors/empty_error.{ext}
+adapters/firestore_adapter.py   →  adapters/firestore_adapter.{ext}
+adapters/firestore_mappings.py  →  adapters/firestore_mappings.{ext}
+infra/config.py                 →  infra/config.{ext}
+main.py                         →  main.{ext}
+tests/unit/test_create.py       →  tests/unit/create_test.{ext}
+```
+
+### Port Translation Examples
+
+**Python Protocol → Go Interface:**
+```go
+// domain/ports/repository.go
+type DocumentRepository interface {
+    Save(doc *Document) error
+    FindByID(id string) (*Document, error)
+}
+```
+
+**Python Protocol → Java Interface:**
+```java
+// domain/ports/DocumentRepository.java
+public interface DocumentRepository {
+    void save(Document document);
+    Optional<Document> findById(String documentId);
+}
+```
+
+**Python Protocol → C# Interface:**
+```csharp
+// domain/ports/IDocumentRepository.cs
+public interface IDocumentRepository {
+    void Save(Document document);
+    Document? FindById(string documentId);
+}
+```
+
+**Python Protocol → Swift Protocol:**
+```swift
+// domain/ports/DocumentRepository.swift
+protocol DocumentRepository {
+    func save(_ document: Document) throws
+    func findById(_ id: String) throws -> Document?
+}
+```
+
+### Workflow Translation
+
+**Python → Go:**
+```go
+// domain/workflows/create_document.go
+func CreateDocument(content string, repo DocumentRepository, logger Logger, time TimePort) (*Document, error) {
+    start := time.NowMs()
+    if strings.TrimSpace(content) == "" {
+        return nil, ErrEmptyContent
+    }
+    doc := &Document{
+        ID:      uuid.New().String(),
+        Content: content,
+    }
+    if err := repo.Save(doc); err != nil {
+        return nil, fmt.Errorf("save document: %w", err)
+    }
+    logger.Info(fmt.Sprintf("Document created %s in %dms", doc.ID, time.ElapsedMs(start)))
+    return doc, nil
+}
+```
+
+**Python → Java:**
+```java
+// domain/workflows/CreateDocument.java
+public class CreateDocument {
+    private final DocumentRepository repo;
+    private final Logger logger;
+    private final TimePort time;
+
+    public CreateDocument(DocumentRepository repo, Logger logger, TimePort time) {
+        this.repo = repo;
+        this.logger = logger;
+        this.time = time;
+    }
+
+    public Document execute(String content) {
+        long start = time.nowMs();
+        if (content == null || content.isBlank()) {
+            throw new EmptyContentError();
+        }
+        Document doc = new Document(UUID.randomUUID().toString(), content);
+        repo.save(doc);
+        logger.info("Document created " + doc.getId() + " in " + time.elapsedMs(start) + "ms");
+        return doc;
+    }
+}
+```
+
+### Adapter Translation
+
+**Python → Go:**
+```go
+// adapters/firestore_adapter.go
+type FirestoreDocumentAdapter struct {
+    client     *firestore.Client
+    collection string
+}
+
+func NewFirestoreDocumentAdapter(projectID, collection string) (*FirestoreDocumentAdapter, error) {
+    client, err := firestorange.NewClient(context.Background(), projectID)
+    if err != nil {
+        return nil, fmt.Errorf("create firestore client: %w", err)
+    }
+    return &FirestoreDocumentAdapter{client: client, collection: collection}, nil
+}
+
+func (a *FirestoreDocumentAdapter) Save(doc *Document) error {
+    _, err := a.client.Collection(a.collection).Doc(doc.ID).Set(context.Background(), map[string]interface{}{
+        "content": doc.Content,
+        "status":  doc.Status,
+    })
+    return err
+}
+```
+
+### Testing Translation
+
+**Python → Go:**
+```go
+// tests/unit/create_document_test.go
+type FakeRepository struct {
+    docs map[string]*Document
+}
+
+func (f *FakeRepository) Save(doc *Document) error {
+    f.docs[doc.ID] = doc
+    return nil
+}
+
+func TestCreateDocument(t *testing.T) {
+    repo := &FakeRepository{docs: make(map[string]*Document)}
+    logger := &FakeLogger{}
+    time := &FakeTime{currentMs: 1000}
+
+    doc, err := CreateDocument("Hello", repo, logger, time)
+
+    assert.NoError(t, err)
+    assert.Equal(t, "Hello", doc.Content)
+}
+```
+
+### Standard Ports for Any Language
+
+Every language implementation must include these ports:
+
+| Port | Purpose | Required Methods |
+|------|---------|-----------------|
+| `LoggerPort` | Structured logging | `info(message)`, `error(message)` |
+| `TimePort` | Process timing | `nowMs()`, `elapsedMs(start)` |
+| `LifetimePort` | Graceful exits | `registerCleanup(handler)`, `onExit(handler)`, `getExitReason()`, `isShuttingDown()` |
+| `*Repository` | Data persistence | `save(entity)`, `findById(id)` |
+| `*Checker` | External validation | domain-specific |
+
+### Justfile for Any Language
+
+```just
+# Copy this justfile and replace tool commands for your language
+
+default:
+    @just --list
+
+run:
+    # Replace with your language's run command
+    # Go: go run .
+    # Java: mvn exec:java
+    # C#: dotnet run
+    # Kotlin: ./gradlew run
+
+test:
+    # Go: go test ./...
+    # Java: mvn test
+    # C#: dotnet test
+    # Kotlin: ./gradlew test
+
+lint:
+    # Go: golangci-lint run
+    # Java: checkstyle
+    # C#: dotnet format --verify-no-changes
+    # Kotlin: ./gradlew ktlintCheck
+
+format:
+    # Go: gofmt -w .
+    # Java: google-java-format -i **/*.java
+    # C#: dotnet format
+    # Kotlin: ./gradlew ktlintFormat
+
+build:
+    # Go: go build -o build/app .
+    # Java: mvn package
+    # C#: dotnet build -c Release
+    # Kotlin: ./gradlew build
+
+clean:
+    rm -rf build/ target/ bin/ obj/
+```
 
 ## Testing Strategy
 
@@ -430,6 +727,7 @@ Every request gets an ID that follows it through every adapter and layer:
 | Auth      | User model in domain | `infra/config` | JWT decode, OAuth adapter                                   |
 | Telemetry | `MetricsPort`        | `infra/config` | Prometheus, Datadog, or OpenTelemetry adapter               |
 | Events    | `EventPublisherPort` | `infra/config` | Kafka, RabbitMQ, MQTT, or in-process event bus adapter      |
+| Time      | `TimePort`           | `infra/config` | System clock, high-res timer, mock clock adapter            |
 
 1. **The DTO Boundary** — Adapters must translate external formats (JSON, SQL rows, raw bytes) into Pure Domain Models before passing them inward
 2. **Never import external frameworks in Domain** — No framework imports in domain code
@@ -441,7 +739,13 @@ Every request gets an ID that follows it through every adapter and layer:
 8. **Nested Hexagons Don't Import Each Other** — Bounded contexts communicate via ports/adapters, never direct imports
 9. **No Magic Numbers in Domain** — All numeric values in domain code must be named constants; static business constants in domain, configurable values injected from infra
 10. **Ports are Pluggable Contracts** — Port interfaces must be minimal, accept only domain types, and avoid exposing adapter-specific concerns
-11. **Adapters are Transferable** — Adapters depend only on ports and external libraries; they must accept config via constructor injection and be movable to another project by swapping the port interface
+11. **Adapters are Reusable** — Adapters depend only on ports and external libraries; they must accept config via constructor injection and be movable to another project by swapping the port interface
+12. **Files Over Folders** — Prefer single files when a directory would contain fewer than 3 files. `domain/errors.py` beats `domain/errors/__init__.py` with one file inside
+13. **TimePort Everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
+14. **Pure Domain Functions** — Domain workflows are pure functions: same input → same output, no side effects. I/O happens in adapters only. Testing becomes trivial.
+15. **Pure Adapter Helpers** — Extract mapping/transformation logic from adapter methods into pure functions. Test pure helpers without mocks; test I/O methods with integration tests.
+16. **Root Justfile for DX** — Every project has a root justfile with: run, dev, test, lint, format, typecheck, build, clean, check.
+17. **LifetimePort for Graceful Exits** — Every workflow registers cleanup via LifetimePort. No resource left behind, no matter the exit reason (crash, user exit, normal, timeout).
 
 ## 12FA Compliance
 
@@ -477,13 +781,21 @@ This architecture satisfies the 12-Factor App methodology:
 Building a new feature?
 ├─ Define Domain Models first (pure data, no imports)
 ├─ Create Ports for any external dependency (Protocol/Interface/Trait)
-├─ Implement Workflows using only Ports (zero infra imports)
+├─ Add TimePort for any process that needs duration tracking
+├─ Use single files for modules with < 3 files (errors.py, not errors/__init__.py)
+├─ Implement Workflows as pure functions (same input → same output)
 ├─ Create infra/ modules for cross-cutting concerns
 ├─ Build Adapters for specific infrastructure
 ├─ Create tests/fixtures/ with factories, builders, and fakes
 ├─ Write unit tests with Fake Adapters using shared fixtures
 ├─ Write integration tests for real Adapters
 ├─ Wire everything in the entry point (main, app, index)
+
+Multiple languages?
+├─ Each language gets its own folder with full hexagonal arch
+├─ Shared contracts via proto/openapi in shared/
+├─ Workspace-level justfile for cross-service commands
+└─ No direct imports between languages — communicate via ports
 
 Multiple bounded contexts?
 ├─ Use nested hexagonal architecture
@@ -519,6 +831,49 @@ repo = FirestoreDocumentAdapter(config.project_id, config.collection_name)
 
 # Run migration logic using the same domain workflows
 ```
+
+## Root Justfile Requirements
+
+Every project must have a root `justfile` (or `Justfile`) with these standard commands for good DX:
+
+```just
+# Required commands — every project must have these
+default:
+    @just --list
+
+# Development
+run:                # Start the application
+dev:                # Start with hot-reload / watch mode
+logs:               # Stream logs from running services
+
+# Testing
+test:               # Run all tests
+test-unit:          # Run unit tests only
+test-integration:   # Run integration tests only
+test-e2e:           # Run end-to-end tests only
+
+# Code Quality
+lint:               # Check code for issues (ruff, eslint, clippy, clang-tidy)
+format:             # Auto-fix code formatting (ruff format, prettier, cargo fmt)
+typecheck:          # Static type analysis (pyright, tsc --noEmit, cargo check)
+
+# Build
+build:              # Compile/package the application
+clean:              # Remove build/ directory entirely
+
+# Dependency Management
+install:            # Install dependencies (uv sync, npm install, cargo fetch)
+update:             # Update dependencies to latest versions
+
+# Combined
+check: lint typecheck test    # Full pre-commit check
+```
+
+**Why these commands matter:**
+- `lint` + `format` + `typecheck` catch errors before they reach tests
+- `test-unit` gives fast feedback during development
+- `build` + `clean` ensure reproducible builds from source
+- `check` is the single command to run before committing
 
 ## Directory Structure
 
@@ -657,4 +1012,519 @@ class UserLookupAdapter implements UserLookupPort:
   get_user_credit_limit(user_id: string) -> Money:
     user = user_repository.get_user(user_id)
     return user.credit_limit
+```
+
+## Multi-Language Projects
+
+When a project spans multiple languages (e.g., Python backend + TypeScript frontend + Flutter mobile), each language gets its own folder with a complete hexagonal architecture. They share infrastructure at the root level.
+
+### Multi-Language Structure
+
+```
+project/
+├── shared/                          # Cross-language contracts
+│   ├── proto/                       # Protobuf / gRPC definitions
+│   ├── openapi/                     # API specifications
+│   └── constants                    # Shared business constants
+├── backend/                         # Python hexagonal arch
+│   ├── domain/
+│   │   ├── models/
+│   │   ├── ports/
+│   │   └── workflows/
+│   ├── infra/
+│   ├── adapters/
+│   ├── tests/
+│   └── main.py
+├── frontend/                        # TypeScript hexagonal arch
+│   ├── domain/
+│   │   ├── models/
+│   │   ├── ports/
+│   │   └── workflows/
+│   ├── infra/
+│   ├── adapters/
+│   ├── tests/
+│   └── main.ts
+├── mobile/                          # Flutter hexagonal arch
+│   ├── lib/domain/
+│   │   ├── models/
+│   │   ├── ports/
+│   │   └── workflows/
+│   ├── lib/infra/
+│   ├── lib/adapters/
+│   ├── test/
+│   └── main.dart
+├── infra/                           # Shared infrastructure
+│   ├── docker-compose.yml
+│   └── shared_config/
+├── justfile                         # Workspace-level commands
+└── README.md
+```
+
+### Rules for Multi-Language Projects
+
+1. **Each language is a self-contained hexagon** — full domain/ports/adapters/tests in its own folder
+2. **Shared contracts via proto/openapi** — cross-language interfaces defined in `shared/`, not duplicated
+3. **Shared infra at root** — Docker, shared config, workspace commands live at workspace root
+4. **No direct imports across languages** — communicate via ports (HTTP, gRPC, message queues)
+5. **Workspace logs** — each service gets a color-coded log stream (see Workspace Log Streaming)
+
+### Workspace Justfile
+
+```just
+# project/justfile
+set dotenv-load
+
+default:
+    @just --list
+
+# Run all services
+up:
+    just backend/up &
+    just frontend/up &
+    just mobile/run &
+
+# Stop all services
+down:
+    pkill -f "backend" || true
+    pkill -f "frontend" || true
+
+# Stream logs from all services
+logs:
+    @echo "Starting log streams..."
+    just backend/logs &
+    just frontend/logs &
+
+# Run all tests
+test:
+    just backend/test &
+    just frontend/test &
+    just mobile/test
+
+# Lint all services
+lint:
+    just backend/lint &
+    just frontend/lint &
+    just mobile/lint
+```
+
+## TimePort
+
+Every project includes a `TimePort` for measuring process duration. This makes performance visible and debugging easy across all layers.
+
+### Domain Port
+
+```python
+# domain/ports/time_port.py (Python)
+from typing import Protocol
+
+class TimePort(Protocol):
+    def now_ms(self) -> int: ...
+    def elapsed_ms(self, start_ms: int) -> int: ...
+```
+
+```typescript
+// domain/ports/TimePort.ts (TypeScript)
+export interface TimePort {
+  nowMs(): number;
+  elapsedMs(startMs: number): number;
+}
+```
+
+```rust
+// domain/src/ports/time_port.rs (Rust)
+pub trait TimePort: Send + Sync {
+    fn now_ms(&self) -> u64;
+    fn elapsed_ms(&self, start_ms: u64) -> u64;
+}
+```
+
+### Adapter Implementations
+
+```python
+# adapters/system_time.py (Python)
+import time
+
+class SystemTimeAdapter:
+    def now_ms(self) -> int:
+        return int(time.time() * 1000)
+
+    def elapsed_ms(self, start_ms: int) -> int:
+        return self.now_ms() - start_ms
+
+# adapters/mock_time.py (Python - for testing)
+class MockTimeAdapter:
+    def __init__(self):
+        self._current_ms = 0
+
+    def now_ms(self) -> int:
+        return self._current_ms
+
+    def elapsed_ms(self, start_ms: int) -> int:
+        return self._current_ms - start_ms
+
+    def advance_ms(self, ms: int):
+        self._current_ms += ms
+```
+
+### Usage in Workflows
+
+```python
+# domain/workflows/create_document.py
+from domain.ports.time_port import TimePort
+from domain.ports.logger import LoggerPort
+
+def create_document(
+    content: str,
+    repo: DocumentRepository,
+    logger: LoggerPort,
+    time: TimePort,  # Inject time port
+) -> Document:
+    start = time.now_ms()
+
+    document = Document.create(content=content)
+    repo.save(document)
+
+    elapsed = time.elapsed_ms(start)
+    logger.info(f"Document created in {elapsed}ms: {document.id}")
+    return document
+```
+
+### TimePort Adapter Swapping
+
+| Environment | TimePort Adapter | Behavior |
+|-------------|------------------|----------|
+| Dev | `SystemTimeAdapter` | Real wall-clock time |
+| Test | `MockTimeAdapter` | Deterministic, fast, controllable |
+| Profile | `HighResTimeAdapter` | Nanosecond precision |
+
+## LifetimePort
+
+Every workflow gets a `LifetimePort` so it can detect why it's ending and clean up properly. No resource left behind, no matter the exit reason.
+
+### Exit Reasons
+
+```python
+class ExitReason:
+    NORMAL = "normal"           # Workflow completed successfully
+    USER_EXIT = "user_exit"     # User pressed Ctrl+C or closed app
+    CRASH = "crash"             # Unhandled exception or signal
+    TIMEOUT = "timeout"         # Exceeded deadline
+    SHUTDOWN = "shutdown"       # Graceful shutdown requested
+```
+
+### Domain Port
+
+```python
+# domain/ports/lifetime_port.py (Python)
+from typing import Protocol, Callable
+
+class LifetimePort(Protocol):
+    def register_cleanup(self, handler: Callable[[], None]) -> None: ...
+    def on_exit(self, handler: Callable[[str], None]) -> None: ...
+    def get_exit_reason(self) -> str: ...
+    def is_shutting_down(self) -> bool: ...
+```
+
+```typescript
+// domain/ports/LifetimePort.ts (TypeScript)
+export type ExitReason = "normal" | "user_exit" | "crash" | "timeout" | "shutdown";
+
+export interface LifetimePort {
+  registerCleanup(handler: () => void): void;
+  onExit(handler: (reason: ExitReason) => void): void;
+  getExitReason(): ExitReason;
+  isShuttingDown(): boolean;
+}
+```
+
+```rust
+// domain/src/ports/lifetime_port.rs (Rust)
+pub enum ExitReason {
+    Normal,
+    UserExit,
+    Crash,
+    Timeout,
+    Shutdown,
+}
+
+pub trait LifetimePort: Send + Sync {
+    fn register_cleanup(&self, handler: Box<dyn FnOnce() + Send>);
+    fn on_exit(&self, handler: Box<dyn FnOnce(&ExitReason) + Send>);
+    fn get_exit_reason(&self) -> ExitReason;
+    fn is_shutting_down(&self) -> bool;
+}
+```
+
+### Usage in Workflows
+
+```python
+# domain/workflows/data_collector.py
+from domain.ports.lifetime_port import LifetimePort
+from domain.ports.time_port import TimePort
+from domain.ports.logger import LoggerPort
+
+class DataCollector:
+    def __init__(
+        self,
+        sensor: SensorPort,
+        storage: StoragePort,
+        lifetime: LifetimePort,
+        time: TimePort,
+        logger: LoggerPort,
+    ):
+        self.sensor = sensor
+        self.storage = storage
+        self.lifetime = lifetime
+        self.time = time
+        self.logger = logger
+        self.buffer = []
+
+        # Register cleanup — runs on ANY exit reason
+        self.lifetime.register_cleanup(self._flush_buffer)
+
+        # Register exit handler — knows WHY we're exiting
+        self.lifetime.on_exit(self._handle_exit)
+
+    def _flush_buffer(self):
+        """Flush any buffered data before exit."""
+        if self.buffer:
+            self.storage.save_batch(self.buffer)
+            self.buffer.clear()
+
+    def _handle_exit(self, reason: str):
+        """Log exit reason and handle gracefully."""
+        if reason == "crash":
+            self.logger.error(f"Crash detected — flushing {len(self.buffer)} items")
+        elif reason == "user_exit":
+            self.logger.info(f"User exit — {len(self.buffer)} items pending")
+        elif reason == "timeout":
+            self.logger.error("Timeout — partial data saved")
+
+    def collect(self):
+        reading = self.sensor.read()
+        self.buffer.append(reading)
+
+        # Periodic flush
+        if len(self.buffer) >= 100:
+            self._flush_buffer()
+```
+
+### Adapter Implementation
+
+```python
+# adapters/signal_lifetime.py (System-level exit detection)
+import signal
+from domain.ports.lifetime_port import LifetimePort
+
+class SignalLifetimeAdapter(LifetimePort):
+    def __init__(self):
+        self._cleanup_handlers = []
+        self._exit_handlers = []
+        self._exit_reason = "normal"
+        self._shutting_down = False
+
+    def register_cleanup(self, handler):
+        self._cleanup_handlers.append(handler)
+
+    def on_exit(self, handler):
+        self._exit_handlers.append(handler)
+
+    def get_exit_reason(self):
+        return self._exit_reason
+
+    def is_shutting_down(self):
+        return self._shutting_down
+
+    def _handle_signal(self, signum, frame):
+        self._shutting_down = True
+        if signum == signal.SIGTERM:
+            self._exit_reason = "shutdown"
+        elif signum == signal.SIGINT:
+            self._exit_reason = "user_exit"
+        else:
+            self._exit_reason = "crash"
+
+        # Run exit handlers
+        for handler in self._exit_handlers:
+            handler(self._exit_reason)
+
+        # Run cleanup handlers
+        for handler in self._cleanup_handlers:
+            handler()
+
+    def install(self):
+        signal.signal(signal.SIGTERM, self._handle_signal)
+        signal.signal(signal.SIGINT, self._handle_signal)
+
+# adapters/mock_lifetime.py (for testing)
+from domain.ports.lifetime_port import LifetimePort
+
+class MockLifetimeAdapter(LifetimePort):
+    def __init__(self):
+        self._cleanup_handlers = []
+        self._exit_handlers = []
+        self._exit_reason = "normal"
+        self._shutting_down = False
+
+    def register_cleanup(self, handler):
+        self._cleanup_handlers.append(handler)
+
+    def on_exit(self, handler):
+        self._exit_handlers.append(handler)
+
+    def get_exit_reason(self):
+        return self._exit_reason
+
+    def is_shutting_down(self):
+        return self._shutting_down
+
+    def trigger_exit(self, reason: str):
+        """Simulate exit for testing."""
+        self._shutting_down = True
+        self._exit_reason = reason
+        for handler in self._exit_handlers:
+            handler(reason)
+        for handler in self._cleanup_handlers:
+            handler()
+```
+
+### LifetimePort Adapter Swapping
+
+| Environment | LifetimePort Adapter | Behavior |
+|-------------|---------------------|----------|
+| Production | `SignalLifetimeAdapter` | Catches SIGTERM/SIGINT, runs cleanup |
+| Test | `MockLifetimeAdapter` | Simulates exits, verifies cleanup |
+| Embedded | `WatchdogLifetimeAdapter` | Hardware watchdog, deep sleep |
+| Web | `RequestLifetimeAdapter` | Per-request lifecycle, connection pooling |
+
+## Pure Functions in Domain
+
+Domain workflows should be pure functions wherever possible. This makes testing trivial, eliminates code duplication, and makes the system predictable.
+
+### What is a Pure Function?
+
+A pure function has two properties:
+1. **Same input → same output** — no hidden state, no randomness
+2. **No side effects** — doesn't modify external state (files, databases, network)
+
+```python
+# BAD: impure — depends on external state
+def calculate_total(cart):
+    tax_rate = get_tax_rate_from_db()  # Hidden dependency!
+    return cart.subtotal * (1 + tax_rate)
+
+# GOOD: pure — all dependencies injected
+def calculate_total(cart: Cart, tax_rate: float) -> float:
+    return cart.subtotal * (1 + tax_rate)
+```
+
+### Pure Functions in Domain Workflows
+
+```python
+# BAD: impure workflow — I/O mixed with logic
+def create_document(content: str, db_connection) -> Document:
+    document = Document.create(content=content)
+    db_connection.execute("INSERT INTO docs ...")  # Side effect!
+    send_notification("Document created")           # Side effect!
+    return document
+
+# GOOD: pure workflow — logic only, I/O in adapters
+def create_document(
+    content: str,
+    repo: DocumentRepository,
+    logger: LoggerPort,
+    time: TimePort,
+) -> Document:
+    # Pure logic: validation
+    if not content.strip():
+        raise EmptyContentError()
+
+    # Pure logic: create model
+    document = Document.create(content=content)
+
+    # Adapter calls: all I/O happens here
+    repo.save(document)
+    logger.info(f"Document created {document.id} in {time.elapsed_ms(start)}ms")
+    return document
+```
+
+### Pure Function Benefits
+
+| Aspect | Impure | Pure |
+|--------|--------|------|
+| **Testing** | Mock everything, setup/teardown | Call function, check result |
+| **Duplication** | Logic scattered across I/O | Logic concentrated in one place |
+| **Debugging** | Trace through layers | Test function in isolation |
+| **Refactoring** | Fear of breaking side effects | Safe to rearrange pure logic |
+
+### Pure Function Testing Pattern
+
+```python
+# Domain unit tests: pure functions are trivial to test
+def test_calculate_total():
+    cart = Cart(items=[CartItem(price=10, quantity=2)])
+    assert calculate_total(cart, tax_rate=0.08) == 21.6
+
+def test_calculate_total_zero_tax():
+    cart = Cart(items=[CartItem(price=10, quantity=2)])
+    assert calculate_total(cart, tax_rate=0.0) == 20.0
+
+# No mocks, no setup, no database — just input → output
+```
+
+### Adapter Impurity is Fine — But Use Pure Functions Inside
+
+Adapters handle I/O, but the logic *inside* adapters should still be pure where possible. Separate the I/O from the transformation.
+
+```python
+# BAD: I/O and transformation mixed
+class FirestoreAdapter:
+    def find_user(self, user_id):
+        doc = self.collection.document(user_id).get()  # I/O
+        data = doc.to_dict()
+        return User(id=data["id"], name=data["name"], email=data["email"])  # Transformation
+
+# GOOD: pure mapping function extracted
+def map_firestore_doc_to_user(data: dict) -> User:
+    """Pure function — no I/O, trivial to test."""
+    return User(id=data["id"], name=data["name"], email=data["email"])
+
+class FirestoreAdapter:
+    def find_user(self, user_id):
+        doc = self.collection.document(user_id).get()  # I/O
+        return map_firestore_doc_to_user(doc.to_dict())  # Pure call
+```
+
+**Rule:** Adapter files contain two kinds of code:
+1. **I/O code** — thin methods that call external services (impure, hard to unit test)
+2. **Pure helpers** — mapping, validation, transformation functions (easy to unit test)
+
+Extract pure helpers into standalone functions or a separate `mapping.py` / `transforms.ts` file. Test them without mocks.
+
+### Reusable Adapters
+
+Adapters must be transferable to other projects without modification. To achieve this:
+
+1. **Depend only on ports** — adapter imports the port interface, never the concrete domain
+2. **Constructor-inject all config** — connection strings, API keys, collection names come from outside
+3. **No env var reads** — the composition root reads env vars and passes values to the adapter
+4. **One adapter = one external system** — Firestore adapter, not generic "storage adapter"
+5. **Map at the boundary** — external types (DTOs, ORM models) are converted to domain types at the adapter edge
+
+```
+# Reusable adapter — can move to any project
+class FirestoreUserAdapter:
+    def __init__(self, project_id: str, collection: str):  # Config from outside
+        self.client = firestore.Client(project=project_id)
+        self.collection = self.client.collection(collection)
+
+    def find(self, user_id: str) -> User:  # Returns domain type
+        doc = self.collection.document(user_id).get()
+        return map_firestore_doc_to_user(doc.to_dict())  # Pure mapping
+
+# NOT reusable — hard-coded config, env var reads
+class BadFirestoreAdapter:
+    def __init__(self):
+        self.client = firestore.Client(project=os.getenv("PROJECT_ID"))  # BAD
+        self.collection = self.client.collection("users")  # BAD
 ```
