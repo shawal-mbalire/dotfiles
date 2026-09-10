@@ -23,9 +23,9 @@ window {
     transparency: "screenshot";
     location: north east;
     anchor: north east;
-    offset: 0px 8px;
-    border: 1px solid;
-    border-radius: 5px;
+    offset: 0px 22px;
+    border: 0px solid;
+    border-radius: 0px 0px 12px 12px;
     opacity: 0.7;
     border-color: @selected;
     background-color: @background;

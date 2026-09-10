@@ -23,60 +23,6 @@
 @define-color pink #f5c2e7;
 @define-color flamingo #f2cdcd;
 
-/* ============================================
-   Reusable Classes
-   ============================================ */
-
-.module {
-    background-color: @surface0;
-    border-radius: 5px;
-    border: 1px solid @surface1;
-    padding: 0 4px;
-    margin: 0 2px;
-}
-
-.ws-button {
-    border-radius: 5px;
-    background-color: transparent;
-    color: @subtext1;
-    transition: all 0.2s ease;
-}
-
-.ws-button:hover {
-    background-color: @surface1;
-    color: @text;
-}
-
-.ws-button.active,
-.ws-button.focused {
-    background-color: @blue;
-    color: @base;
-}
-
-.ws-button.urgent {
-    background-color: @red;
-    color: @base;
-}
-
-.color-blue { color: @blue; }
-.color-lavender { color: @lavender; }
-.color-sapphire { color: @sapphire; }
-.color-sky { color: @sky; }
-.color-teal { color: @teal; }
-.color-green { color: @green; }
-.color-yellow { color: @yellow; }
-.color-peach { color: @peach; }
-.color-maroon { color: @maroon; }
-.color-red { color: @red; }
-.color-mauve { color: @mauve; }
-.color-pink { color: @pink; }
-.color-flamingo { color: @flamingo; }
-.color-text { color: @text; }
-.color-subtext { color: @subtext1; }
-.color-overlay { color: @overlay0; }
-
-.bold { font-weight: bold; }
-
 @keyframes blink {
     to { opacity: 0.5; }
 }
@@ -90,122 +36,236 @@
     padding: 0;
     border: none;
     font-family: "Sono Medium", "JetBrainsMono Nerd Font", sans-serif;
-    font-size: 16px;
+    font-size: 13px;
     min-height: 0;
 }
 
 /* ============================================
-   Waybar Window
+   Bar — attached to top, left and right
    ============================================ */
 
 window#waybar {
-    background-color: @base;
+    background-image: linear-gradient(
+        120deg,
+        alpha(@crust, 0.95),
+        alpha(@base, 0.9) 45%,
+        alpha(@mantle, 0.95)
+    );
     color: @text;
+    border: 1px solid alpha(@surface1, 0.55);
+    border-top: none;
+    border-radius: 0;
+}
+
+tooltip {
+    background-color: @mantle;
+    border: 1px solid alpha(@mauve, 0.55);
+    border-radius: 12px;
+    padding: 8px 10px;
+}
+
+tooltip label {
+    color: @text;
+    padding: 2px 6px;
+    font-size: 13px;
 }
 
 /* ============================================
-   Modules
+   Icon chip modules — centered glyph on a colored field,
+   rounded on the left (outer), square on the right (join).
    ============================================ */
 
-#workspaces button {
-    border-radius: 5px;
-    background-color: transparent;
-    color: @subtext1;
-    transition: all 0.2s ease;
-    padding: 0 4px;
-    margin: 0 2px;
-}
-
-#workspaces button:hover {
-    background-color: @surface1;
-    color: @text;
-}
-
-#workspaces button.focused,
-#workspaces button.active {
-    background-color: @blue;
-    color: @base;
-}
-
-#workspaces button.urgent {
-    background-color: @red;
-    color: @base;
-}
-
-#hyprland-submap {
-    background-color: @yellow;
-    color: @base;
+#custom-icon-clock,
+#custom-icon-temp,
+#custom-icon-network,
+#custom-icon-power,
+#custom-icon-volume,
+#custom-icon-backlight,
+#custom-icon-battery,
+#custom-icon-bluetooth {
+    padding: 0 8px;
+    border: 1px solid alpha(@surface1, 0.6);
+    border-radius: 9px 0 0 9px;
+    margin: 1px 0 1px 2px;
+    color: @crust;
     font-weight: bold;
+    transition: all 0.25s ease;
+}
+
+#custom-icon-clock     { background-color: @peach; }
+#custom-icon-temp      { background-color: @pink; }
+#custom-icon-network   { background-color: @lavender; }
+#custom-icon-power     { background-color: @green; }
+#custom-icon-power.power-saver { background-color: @blue; }
+#custom-icon-power.balanced    { background-color: @green; }
+#custom-icon-power.performance { background-color: @red; }
+#custom-icon-volume    { background-color: @sapphire; }
+#custom-icon-backlight { background-color: @yellow; }
+#custom-icon-battery   { background-color: @green; }
+#custom-icon-bluetooth { background-color: @blue; }
+
+/* ============================================
+   Info modules — centered text on a surface0 field,
+   rounded on the right (outer), square on the left (join).
+   ============================================ */
+
+#clock,
+#battery,
+#backlight,
+#network,
+#custom-power,
+#custom-audio,
+#bluetooth,
+#custom-temp {
+    background-color: alpha(@surface0, 0.5);
+    border: 1px solid alpha(@surface1, 0.6);
+    border-radius: 0 9px 9px 0;
+    margin: 1px 2px 1px 0;
+    padding: 0 10px;
+    color: @subtext1;
+    transition: all 0.25s ease;
 }
 
 #clock {
-    color: @peach;
+    color: @text;
     font-weight: bold;
 }
 
-#battery {
-    color: @green;
-    min-width: 3em;
-}
+/* --- state accents (text only; chip stays its accent) --- */
 
 #battery.charging,
 #battery.plugged {
     color: @teal;
+    box-shadow: 0 0 8px alpha(@teal, 0.5);
 }
 
 #battery.warning:not(.charging) {
     color: @yellow;
+    box-shadow: 0 0 8px alpha(@yellow, 0.5);
 }
 
 #battery.critical:not(.charging) {
     color: @red;
+    border-color: alpha(@red, 0.7);
+    box-shadow: 0 0 10px alpha(@red, 0.7);
     animation: blink 1s linear infinite;
-}
-
-#cpu {
-    color: @blue;
-}
-
-#memory {
-    color: @mauve;
-}
-
-#temperature {
-    color: @pink;
-}
-
-#temperature.critical {
-    color: @red;
-}
-
-#backlight {
-    color: @yellow;
-    min-width: 3em;
-}
-
-#network {
-    color: @lavender;
-    min-width: 6em;
 }
 
 #network.disconnected {
     color: @overlay0;
 }
 
-#pulseaudio {
-    color: @flamingo;
-}
-
-#pulseaudio.muted {
+#custom-audio.muted {
     color: @overlay0;
 }
 
+#bluetooth.disabled,
+#bluetooth.off {
+    color: @overlay0;
+}
+
+#custom-power.power-saver {
+    color: @blue;
+}
+#custom-power.balanced {
+    color: @green;
+}
+#custom-power.performance {
+    color: @red;
+}
+
+/* --- hover glow --- */
+
+#clock:hover,
+#battery:hover,
+#backlight:hover,
+#network:hover,
+#custom-power:hover,
+#custom-audio:hover,
+#bluetooth:hover,
+#custom-temp:hover {
+    border-color: alpha(@overlay1, 0.8);
+}
+
+#battery:hover { box-shadow: 0 0 8px alpha(@green, 0.5); }
+#backlight:hover { box-shadow: 0 0 8px alpha(@yellow, 0.5); }
+#network:hover { box-shadow: 0 0 8px alpha(@lavender, 0.5); }
+#custom-audio:hover { box-shadow: 0 0 8px alpha(@sapphire, 0.5); }
+#bluetooth:hover { box-shadow: 0 0 8px alpha(@blue, 0.5); }
+#custom-temp:hover { box-shadow: 0 0 8px alpha(@pink, 0.5); }
+#custom-power:hover { box-shadow: 0 0 8px alpha(@green, 0.5); }
+
+/* Unused modules, kept for completeness */
+#cpu { color: @blue; }
+#memory { color: @mauve; }
+#temperature { color: @pink; }
+#temperature.critical { color: @red; }
+#pulseaudio { color: @flamingo; }
+#pulseaudio.muted { color: @overlay0; }
+#idle_inhibitor { color: @subtext1; }
+#idle_inhibitor.activated { color: @green; }
+
+/* ============================================
+   Workspaces
+   ============================================ */
+
+#workspaces {
+    background-color: alpha(@surface0, 0.35);
+    border: 1px solid alpha(@surface1, 0.5);
+    border-radius: 9px;
+    margin: 1px 2px;
+    padding: 0 2px;
+}
+
+#workspaces button {
+    border-radius: 7px;
+    background-color: transparent;
+    color: @subtext1;
+    padding: 0 8px;
+    margin: 0 1px;
+    min-height: 0;
+    min-width: 0;
+    transition: all 0.25s ease;
+}
+
+#workspaces button:hover {
+    background-color: alpha(@overlay0, 0.35);
+    color: @text;
+}
+
+#workspaces button.focused,
+#workspaces button.active {
+    background-image: linear-gradient(135deg, @blue, @sapphire);
+    color: @crust;
+    box-shadow: 0 0 10px alpha(@blue, 0.75), 0 0 2px alpha(@sky, 0.9);
+}
+
+#workspaces button.urgent {
+    background-image: linear-gradient(135deg, @red, @maroon);
+    color: @crust;
+    box-shadow: 0 0 10px alpha(@red, 0.8);
+}
+
+#hyprland-submap {
+    background-image: linear-gradient(135deg, @yellow, @peach);
+    color: @crust;
+    font-weight: bold;
+    border-radius: 9px;
+    margin: 1px 2px;
+    padding: 0 8px;
+    box-shadow: 0 0 10px alpha(@yellow, 0.7);
+}
+
+/* ============================================
+   Tray
+   ============================================ */
+
 #tray {
-    background-color: @surface0;
-    border-radius: 5px;
-    border: 1px solid @surface1;
-    padding: 0 4px;
-    margin: 0 2px;
+    background-color: alpha(@surface0, 0.5);
+    border: 1px solid alpha(@surface1, 0.6);
+    border-radius: 9px;
+    margin: 1px 2px;
+    padding: 0 8px;
 }
 
 #tray > .passive {
@@ -214,54 +274,4 @@ window#waybar {
 
 #tray > .needs-attention {
     -gtk-icon-effect: highlight;
-}
-
-#idle_inhibitor {
-    color: @subtext1;
-}
-
-#idle_inhibitor.activated {
-    color: @green;
-}
-
-#power-profiles-daemon {
-    color: @yellow;
-    min-width: 2em;
-}
-
-#power-profiles-daemon.performance {
-    color: @red;
-}
-
-#power-profiles-daemon.balanced {
-    color: @green;
-}
-
-#power-profiles-daemon.power-saver {
-    color: @blue;
-}
-
-#bluetooth {
-    color: @blue;
-    min-width: 5em;
-}
-
-#bluetooth.disabled,
-#bluetooth.off {
-    color: @overlay0;
-}
-
-#custom-screenshot {
-    color: @maroon;
-    min-width: 2em;
-}
-
-#custom-temp {
-    color: @pink;
-    min-width: 2em;
-}
-
-#custom-audio-device {
-    color: @sapphire;
-    min-width: 5em;
 }

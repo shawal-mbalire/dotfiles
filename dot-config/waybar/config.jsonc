@@ -1,117 +1,176 @@
 {
   "layer": "top",
   "position": "top",
-  "height": 24,
+  "height": 22,
   "spacing": 0,
   "modules-left": [
     "hyprland/workspaces"
   ],
   "modules-center": [
+    "custom/icon-clock",
     "clock"
   ],
   "modules-right": [
-    "custom/screenshot",
+    "custom/icon-temp",
     "custom/temp",
+    "custom/icon-network",
     "network",
-    "power-profiles-daemon",
-    "custom/audio-device",
+    "custom/icon-power",
+    "custom/power",
+    "custom/icon-volume",
+    "custom/audio",
+    "custom/icon-backlight",
     "backlight",
+    "custom/icon-battery",
     "battery",
+    "custom/icon-bluetooth",
     "bluetooth",
     "tray"
   ],
   "hyprland/workspaces": {
-    "disable-scroll": true,
+    "disable-scroll": false,
     "all-outputs": true,
     "format": "{name}",
     "on-click": "activate",
     "sort-by-number": true
   },
-  "clock": {
-    "format": "<span>󰥔</span> {:%H:%M}",
-    "format-alt": " {:%A, %B %d, %Y}",
-    "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
+  "custom/icon-clock": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/pill-icon.sh clock",
+    "interval": 60,
+    "tooltip": true
   },
-  "custom/screenshot": {
-    "format": "󰄄",
-    "tooltip-format": "Screenshot\nLeft-click: Area select",
-    "on-click": "grimblast --freeze copysave area"
+  "clock": {
+    "format": "{:%H:%M}",
+    "format-alt": "{:%A, %B %d, %Y}",
+    "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+    "tooltip": true
+  },
+  "custom/icon-temp": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/pill-icon.sh temp",
+    "interval": 5,
+    "tooltip": true
   },
   "custom/temp": {
     "format": "{}",
     "return-type": "json",
     "exec": "~/.config/waybar/scripts/temp-status.sh",
     "interval": 5,
-    "on-click": "~/.config/waybar/scripts/toggle_temp.sh"
+    "on-click": "~/.config/waybar/scripts/toggle_temp.sh",
+    "tooltip": true
   },
-  "network": {
-    "format-wifi": "<span></span> {signalStrength}%",
-    "format-ethernet": "<span></span> {ifname}",
-    "format-linked": "{ifname} (No IP) <span></span>",
-    "format-disconnected": "Offline <span>⚠</span>",
-    "tooltip-format": "{ifname}: {ipaddr}/{cidr}\nSignal: {signalStrength}%",
-    "on-click": "nm-connection-editor"
-  },
-  "power-profiles-daemon": {
-    "format": "{icon} {profile}",
-    "tooltip-format": "Power profile: {profile}",
-    "tooltip": true,
-    "format-icons": {
-      "default": "",
-      "performance": "",
-      "balanced": "",
-      "power-saver": ""
-    },
-    "on-click": "~/.config/waybar/scripts/cycle-power-profile.sh",
-    "on-click-right": "~/.config/waybar/scripts/select-power-profile.sh"
-  },
-  "custom/audio-device": {
+  "custom/icon-network": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/select-audio-device.sh info",
+    "exec": "~/.config/waybar/scripts/pill-icon.sh network",
     "interval": 5,
-    "on-click": "~/.config/waybar/scripts/select-audio-device.sh select",
-    "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
-    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-",
-    "tooltip-format": "Audio\nLeft-click: Switch device\nRight-click: Mute\nScroll: Volume"
+    "tooltip": true
+  },
+  "network": {
+    "format-wifi": "{signalStrength}%",
+    "format-ethernet": "{ifname}",
+    "format-linked": "{ifname} (No IP)",
+    "format-disconnected": "Offline",
+    "tooltip-format": "<span foreground='#b4befe' font_weight='bold'>NETWORK</span>\n<span foreground='#6c7086'>Interface</span>  <span foreground='#cdd6f4'>{ifname}</span>\n<span foreground='#6c7086'>IP</span>  <span foreground='#cdd6f4'>{ipaddr}/{cidr}</span>\n<span foreground='#6c7086'>Signal</span>  <span foreground='#cdd6f4'>{signalStrength}%</span>",
+    "on-click": "nm-connection-editor",
+    "tooltip": true
+  },
+  "custom/icon-volume": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/pill-icon.sh volume",
+    "interval": 5,
+    "tooltip": true,
+    "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+",
+    "on-scroll-down": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%-",
+    "signal": 5
+  },
+  "custom/icon-backlight": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/pill-icon.sh backlight",
+    "interval": 5,
+    "tooltip": true,
+    "on-scroll-up": "brightnessctl s 5%+",
+    "on-scroll-down": "brightnessctl s 5%-"
   },
   "backlight": {
     "device": "intel_backlight",
     "format": "{percent}%",
-    "tooltip-format": "Brightness: {percent}%",
-    "format-icons": [
-      "󰃚",
-      "󰃛",
-      "󰃜",
-      "󰃝",
-      "󰃞",
-      "󰃟",
-      "󰃠",
-      "󰃡"
-    ],
-    "on-scroll-up": "brightnessctl s 10%+",
-    "on-scroll-down": "brightnessctl s 10%-"
+    "tooltip-format": "Brightness: {percent}%\nScroll: Adjust\nRight-click: Presets",
+    "on-scroll-up": "brightnessctl s 5%+",
+    "on-scroll-down": "brightnessctl s 5%-",
+    "on-click-right": "~/.config/waybar/scripts/brightness-menu.sh",
+    "tooltip": true
+  },
+  "custom/icon-battery": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/pill-icon.sh battery",
+    "interval": 5,
+    "tooltip": true
   },
   "battery": {
     "bat": "BAT0",
     "format": "{capacity}%",
     "format-charging": "{capacity}%",
     "format-plugged": "{capacity}%",
-    "tooltip-format": "Battery: {capacity}%\nStatus: {status}"
+    "tooltip-format": "<span foreground='#a6e3a1' font_weight='bold'>BATTERY</span>\n<span foreground='#6c7086'>Capacity</span>  <span foreground='#cdd6f4'>{capacity}%</span>\n<span foreground='#6c7086'>Time</span>  <span foreground='#cdd6f4'>{timeTo}</span>",
+    "tooltip": true
+  },
+  "custom/icon-bluetooth": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/pill-icon.sh bluetooth",
+    "interval": 5,
+    "tooltip": true
   },
   "bluetooth": {
-    "format": "<span>󰂯</span>",
-    "format-connected": "<span>󰂯</span> {device_alias}",
-    "format-disconnected": "<span>󰂲</span>",
-    "tooltip-format": "Bluetooth\nLeft-click: Devices\nRight-click: Power toggle",
+    "format": "",
+    "format-connected": "{device_alias}",
+    "format-disconnected": "off",
+    "tooltip-format": "<span foreground='#89b4fa' font_weight='bold'>BLUETOOTH</span>\n<span foreground='#6c7086'>Left-click</span>  <span foreground='#cdd6f4'>Devices</span>\n<span foreground='#6c7086'>Right-click</span>  <span foreground='#cdd6f4'>Power toggle</span>",
     "on-click": "~/.config/waybar/scripts/bluetooth.sh gui",
-    "on-click-right": "~/.config/waybar/scripts/bluetooth.sh power"
+    "on-click-right": "~/.config/waybar/scripts/bluetooth.sh power",
+    "tooltip": true
   },
   "tray": {
-    "icon-size": 20,
-    "spacing": 10,
+    "icon-size": 18,
+    "spacing": 8,
     "show-passive": true,
     "tooltip": true
+  },
+  "custom/icon-power": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/power/main.sh pill",
+    "interval": 30,
+    "signal": 7,
+    "tooltip": true
+  },
+  "custom/power": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/power/main.sh status",
+    "interval": 30,
+    "signal": 7,
+    "on-click": "~/.config/waybar/scripts/power/main.sh cycle",
+    "on-click-right": "~/.config/waybar/scripts/power/main.sh select",
+    "tooltip": true
+  },
+  "custom/audio": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/audio-status.sh",
+    "interval": 2,
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "on-click-right": "~/.config/waybar/scripts/select-audio-device.sh select",
+    "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+",
+    "on-scroll-down": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%-",
+    "tooltip": true,
+    "signal": 5
   }
 }

@@ -31,7 +31,7 @@ test:
     echo ""
     echo "--- Module Outputs ---"
     printf "%-24s %s\n" "custom/temp:" "$(~/.config/waybar/scripts/temp-status.sh 2>/dev/null | jq -r .text 2>/dev/null || echo 'FAIL')"
-    printf "%-24s %s\n" "custom/audio-device:" "$(~/.config/waybar/scripts/select-audio-device.sh info 2>/dev/null | jq -r .text 2>/dev/null || echo 'FAIL')"
+    printf "%-24s %s\n" "wireplumber:" "$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '{printf "%d%%", $2 * 100}' || echo 'FAIL')"
     printf "%-24s %s\n" "backlight:" "$(brightnessctl -m 2>/dev/null | cut -d',' -f4 || echo 'FAIL')"
     printf "%-24s %s\n" "battery:" "$(cat /sys/class/power_supply/BAT*/capacity 2>/dev/null || echo 'N/A')"
     echo ""

@@ -1,241 +1,138 @@
 # =============================================================================
-# Mako Notification Daemon Configuration
-# =============================================================================
-# Theme: Catppuccin Mocha
-# Font: JetBrains Mono Nerd Font
+# Mako Notification Daemon
+# Hyprland-flavored: glassy, blurred, attached under the bar, mono + accents
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Appearance
 # -----------------------------------------------------------------------------
-
-font=Sono Nerd Font 11
-padding=16
-border-size=2
-border-radius=12
+font=JetBrainsMono Nerd Font 11
+padding=18
+margin=6
+outer-margin=0,12,12,12
+width=380
+border-size=1
+border-radius=0,0,14,14
 markup=1
 icons=1
 icon-location=left
+max-icon-size=34
+icon-border-radius=10
 
-# Progress bar styling
-progress-color=#f5c2e7
+# Progress bar (used by volume/brightness OSDs)
+progress-color=#89b4fa
 
 # Grouping
 group-by=app-name
 max-visible=5
 
 # -----------------------------------------------------------------------------
-# Colors (Catppuccin Mocha)
+# Colors (Catppuccin Mocha) — translucent glass, subtle accents
 # -----------------------------------------------------------------------------
-
-background-color=#1e1e2ef0
+background-color=#1e1e2ee6
 text-color=#cdd6f4
-border-color=#6c7086
+border-color=#45475a
 
 # -----------------------------------------------------------------------------
 # Position & Layer
 # -----------------------------------------------------------------------------
-
 anchor=top-right
 layer=overlay
-
-# -----------------------------------------------------------------------------
-# Default Timeout (milliseconds)
-# -----------------------------------------------------------------------------
-
 default-timeout=5000
 
 # -----------------------------------------------------------------------------
 # Urgency Levels
 # -----------------------------------------------------------------------------
-
 [urgency=low]
-background-color=#313244f0
-border-color=#89b4fa
+background-color=#1e1e2ee6
 text-color=#a6adc8
+border-color=#6c7086
 default-timeout=3000
 
 [urgency=normal]
-background-color=#313244f0
-border-color=#89dceb
+background-color=#1e1e2ee6
 text-color=#cdd6f4
+border-color=#89b4fa
 default-timeout=5000
 
 [urgency=high]
-background-color=#45475af0
-border-color=#f9e2af
+background-color=#1e1e2ee6
 text-color=#f9e2af
+border-color=#f9e2af
 default-timeout=8000
 
 [urgency=critical]
 background-color=#f38ba8f0
-border-color=#f38ba8
 text-color=#11111b
-border-size=3
+border-color=#f38ba8
+border-size=1
 default-timeout=0
 
 # -----------------------------------------------------------------------------
-# Application-Specific Overrides
+# OSD (volume / brightness) — thin bar centered at the top
 # -----------------------------------------------------------------------------
-
-# Battery notifications (UPower)
-[app-name=upower]
-border-color=#a6e3a1
-background-color=#1e1e2ef0
-
-[app-name=power-profiles-daemon]
-border-color=#a6e3a1
-
-# Music players
-[app-name=spotify]
-border-color=#1db954
-background-color=#191414f0
-
-[app-name=rhythmbox]
-border-color=#f38ba8
-
-[app-name=vlc]
-border-color=#ff8800
-
-# Browser notifications
-[app-name=firefox]
-border-color=#f9e2af
-
-[app-name=zen]
-border-color=#f9e2af
-
-[app-name=google-chrome]
-border-color=#89b4fa
-
-[app-name=chromium]
-border-color=#89b4fa
-
-# Terminal notifications
-[app-name=kitty]
-border-color=#a6e3a1
-
-[app-name=alacritty]
-border-color=#89b4fa
-
-[app-name=foot]
-border-color=#f5c2e7
-
-# System notifications
-[app-name=notify-send]
-border-color=#cba6f7
-
-[app-name=dunst]
-border-color=#89b4fa
-
-# IDE notifications
-[app-name=code]
-border-color=#58a6ff
-
-[app-name=code-insiders]
-border-color=#58a6ff
-
-[app-name=jetbrains-*]
-border-color=#f5c2e7
-
-# Messaging apps
-[app-name=telegram-desktop]
-border-color=#229ed9
-
-[app-name=discord]
-border-color=#5865f2
-
-[app-name=slack]
-border-color=#4a154b
-
-# Email
-[app-name=thunderbird]
-border-color=#f9e2af
-
-# File managers
-[app-name=nautilus]
-border-color=#89b4fa
-
-# Screenshots
-[app-name=grim]
-border-color=#cba6f7
-
-[app-name=swaync]
-border-color=#f5c2e7
-
 [app-name=volume]
 anchor=top-center
 width=20
 height=200
 progress-color=#89b4fa
-border-radius=5
+border-radius=0,0,10,10
 
 [app-name=brightness]
 anchor=top-center
 width=20
 height=200
 progress-color=#f9e2af
-border-radius=5
-# -----------------------------------------------------------------------------
-# Ignore Rules (silent notifications)
-# -----------------------------------------------------------------------------
-
-# Video players (usually don't need notifications)
-[app-name=mpv]
-invisible=1
+border-radius=0,0,10,10
 
 # -----------------------------------------------------------------------------
-# Custom Icons via Summary/Body Matching
+# Semantic accents (mono + accent, no brand rainbow)
 # -----------------------------------------------------------------------------
 
-# Battery level indicators
-[summary="*Battery*"]
+# Battery / power
+[app-name=upower]
 border-color=#a6e3a1
+
+[app-name=power-profiles-daemon]
+border-color=#a6e3a1
+
+[app-name=battery]
+border-color=#a6e3a1
+
+[summary="*low battery*"]
+border-color=#f38ba8
 
 [summary="*Charging*"]
 border-color=#a6e3a1
 
-[summary="*discharged*"]
-border-color=#a6e3a1
+# Screenshots
+[app-name=grim]
+border-color=#cba6f7
 
-# Low battery warning
-[summary="*low battery*"]
-border-color=#f38ba8
-
-# Volume notifications
-[summary="*Volume*"]
-border-color=#89b4fa
-
-[summary="*Muted*"]
-border-color=#89b4fa
-
-[summary="*volume*"]
-border-color=#89b4fa
-
-# Brightness notifications
-[summary="*Brightness*"]
-border-color=#f9e2af
-
-[summary="*brightness*"]
-border-color=#f9e2af
-
-# Screenshot notifications
 [summary="*Screenshot*"]
 border-color=#cba6f7
 
 [summary="*screenshot*"]
 border-color=#cba6f7
 
-# Update notifications
-[summary="*Update*"]
-border-color=#a6e3a1
+# Volume / brightness
+[summary="*Volume*"]
+border-color=#89b4fa
 
-[summary="*update*"]
+[summary="*Muted*"]
+border-color=#89b4fa
+
+[summary="*Brightness*"]
+border-color=#f9e2af
+
+# Updates
+[summary="*Update*"]
 border-color=#a6e3a1
 
 [summary="*Updates*"]
 border-color=#a6e3a1
 
-# Error notifications
+# Errors / failures
 [summary="*Error*"]
 border-color=#f38ba8
 
@@ -245,7 +142,7 @@ border-color=#f38ba8
 [summary="*Failed*"]
 border-color=#f38ba8
 
-# Success notifications
+# Success
 [summary="*Success*"]
 border-color=#a6e3a1
 
@@ -255,9 +152,15 @@ border-color=#a6e3a1
 [summary="*Done*"]
 border-color=#a6e3a1
 
-# Warning notifications
+# Warnings
 [summary="*Warning*"]
 border-color=#f9e2af
 
 [summary="*warning*"]
 border-color=#f9e2af
+
+# -----------------------------------------------------------------------------
+# Ignore Rules (silent notifications)
+# -----------------------------------------------------------------------------
+[app-name=mpv]
+invisible=1
