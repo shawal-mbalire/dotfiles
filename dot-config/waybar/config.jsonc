@@ -59,7 +59,7 @@
   "custom/icon-clock": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh clock",
+    "exec": "~/.config/waybar/scripts/pill-icon.py clock",
     "interval": 60,
     "tooltip": true
   },
@@ -72,22 +72,22 @@
   "custom/icon-temp": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh temp",
+    "exec": "~/.config/waybar/scripts/pill-icon.py temp",
     "interval": 5,
     "tooltip": true
   },
   "custom/temp": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/temp-status.sh",
+    "exec": "~/.config/waybar/scripts/temp-status.py",
     "interval": 5,
-    "on-click": "~/.config/waybar/scripts/toggle_temp.sh",
+    "on-click": "~/.config/waybar/scripts/toggle_temp.py",
     "tooltip": true
   },
   "custom/icon-network": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh network",
+    "exec": "~/.config/waybar/scripts/pill-icon.py network",
     "interval": 5,
     "tooltip": true
   },
@@ -103,7 +103,7 @@
   "custom/icon-volume": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh volume",
+    "exec": "~/.config/waybar/scripts/pill-icon.py volume",
     "interval": 5,
     "tooltip": true,
     "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+",
@@ -113,7 +113,7 @@
   "custom/icon-backlight": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh backlight",
+    "exec": "~/.config/waybar/scripts/pill-icon.py backlight",
     "interval": 5,
     "tooltip": true,
     "on-scroll-up": "~/.config/waybar/scripts/brightness-control.sh up",
@@ -131,7 +131,7 @@
   "custom/icon-battery": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh battery",
+    "exec": "~/.config/waybar/scripts/pill-icon.py battery",
     "interval": 5,
     "tooltip": true
   },
@@ -146,7 +146,7 @@
   "custom/icon-bluetooth": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh bluetooth",
+    "exec": "~/.config/waybar/scripts/pill-icon.py bluetooth",
     "interval": 5,
     "tooltip": true
   },

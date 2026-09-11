@@ -97,7 +97,6 @@ M.env = {
 
 M.autostart = {
   "nm-applet",
-  "gammastep-indicator",
   "swaync",
   "systemctl --user start hyprpolkitagent",
   "wl-paste --watch cliphist store",

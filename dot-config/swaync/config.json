@@ -70,8 +70,8 @@
           "label": "󰛨  Night",
           "type": "toggle",
           "active": true,
-          "command": "sh -c '[[ $SWAYNC_TOGGLE_STATE == true ]] && gammastep -x || gammastep -O 3500K'",
-          "update-command": "sh -c 'gammastep -p 2>/dev/null | grep -qi override && echo true || echo false'"
+          "command": "~/.config/waybar/scripts/toggle_temp.py",
+          "update-command": "~/.config/waybar/scripts/temp-status.py --bool"
         },
         {
           "label": "󰂛  DND",
