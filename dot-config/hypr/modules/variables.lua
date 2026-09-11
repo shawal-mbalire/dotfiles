@@ -7,10 +7,8 @@ local M = {}
 M.terminal = "kitty"
 M.browser = "flatpak run app.zen_browser.zen"
 M.note_taker = "obsidian"
-M.code_editor = "code-insiders"
 M.fileManager = "nautilus"
 M.menu = 'fuzzel'
-M.slack = "slack"
 M.mainMod = "SUPER"
 M.waybar_toggle = "~/.config/hypr/scripts/toggle_waybar.sh"
 M.display_toggle = "~/.config/hypr/scripts/toggle_display.sh"
@@ -63,8 +61,5 @@ M.animation_fadeLayersOut = "1,1.39,almostLinear"
 M.animation_workspaces = "1,1.94,almostLinear,fade"
 M.animation_workspacesIn = "1,1.21,almostLinear,fade"
 M.animation_workspacesOut = "1,1.94,almostLinear,fade"
-
--- Window rules
-M.blurls = "waybar"
 
 return M

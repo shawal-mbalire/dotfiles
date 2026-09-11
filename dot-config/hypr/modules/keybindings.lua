@@ -51,7 +51,7 @@ bind(v.mainMod, "CTRL + K", hl.dsp.window.resize({ x = 0, y = -20, relative = tr
 bind(v.mainMod, "CTRL + J", hl.dsp.window.resize({ x = 0, y = 20, relative = true }))
 
 -- Move workspace to another monitor
-bind(v.mainMod, "ALT + F", hl.dsp.workspace.move({ monitor = "l" }))
+bind(v.mainMod, "ALT + U", hl.dsp.workspace.move({ monitor = "l" }))
 bind(v.mainMod, "ALT + J", hl.dsp.workspace.move({ monitor = "r" }))
 bind(v.mainMod, "ALT + H", hl.dsp.workspace.move({ monitor = "u" }))
 bind(v.mainMod, "ALT + G", hl.dsp.workspace.move({ monitor = "d" }))

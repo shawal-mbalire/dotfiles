@@ -15,9 +15,6 @@
   "control-center-width": 380,
   "control-center-height": 600,
   "fit-to-screen": true,
-  "notification-icon-size": 40,
-  "notification-body-image-height": 80,
-  "notification-body-image-width": 80,
   "notification-2fa-action": true,
   "notification-inline-replies": true,
   "notification-grouping": true,
@@ -37,16 +34,11 @@
     "buttons-grid",
     "volume",
     "brightness",
-    "dnd",
     "notifications",
     "buttons-grid#clearbar"
   ],
   "widget-config": {
-    "dnd": {
-      "text": "Do Not Disturb"
-    },
     "mpris": {
-      "image-size": 96,
       "image-radius": 12,
       "autohide": true,
       "show-album-art": "always"
@@ -58,51 +50,58 @@
       "label": "󰃠"
     },
     "buttons-grid": {
-      "buttons-per-row": 3,
+      "buttons-per-row": 2,
       "actions": [
         {
-          "label": "󰤨",
+          "label": "󰤨  Wifi",
           "type": "toggle",
           "active": true,
           "command": "sh -c '[[ $SWAYNC_TOGGLE_STATE == true ]] && nmcli radio wifi off || nmcli radio wifi on'",
           "update-command": "sh -c 'nmcli radio wifi | grep -q enabled && echo true || echo false'"
         },
         {
-          "label": "󰂯",
+          "label": "󰂯  BT",
           "type": "toggle",
           "active": true,
           "command": "sh -c '[[ $SWAYNC_TOGGLE_STATE == true ]] && bluetoothctl power off || bluetoothctl power on'",
           "update-command": "sh -c 'bluetoothctl show | grep -q \"Powered: yes\" && echo true || echo false'"
         },
         {
-          "label": "󰛨",
+          "label": "󰛨  Night",
           "type": "toggle",
           "active": true,
           "command": "sh -c '[[ $SWAYNC_TOGGLE_STATE == true ]] && gammastep -x || gammastep -O 3500K'",
           "update-command": "sh -c 'gammastep -p 2>/dev/null | grep -qi override && echo true || echo false'"
         },
         {
-          "label": "󰐊",
+          "label": "󰂛  DND",
+          "type": "toggle",
+          "active": false,
+          "command": "swaync-client -d",
+          "update-command": "swaync-client -D"
+        },
+        {
+          "label": "󰐊  Power",
           "type": "normal",
           "command": "~/.config/waybar/scripts/power/main.sh select"
         },
         {
-          "label": "󰹑",
+          "label": "󰹑  Shot",
           "type": "normal",
           "command": "grimblast --freeze copysave area"
         },
         {
-          "label": "󰅌",
+          "label": "󰅌  Clip",
           "type": "normal",
           "command": "cliphist wipe"
         },
         {
-          "label": "󰌾",
+          "label": "󰌾  Lock",
           "type": "normal",
           "command": "hyprlock"
         },
         {
-          "label": "󰤄",
+          "label": "󰤄  Sleep",
           "type": "normal",
           "command": "systemctl suspend"
         }

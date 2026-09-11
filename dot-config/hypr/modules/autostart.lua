@@ -12,6 +12,5 @@ hl.on("hyprland.start", function()
   -- Hypr packages
   hl.exec_cmd("hypridle")
   hl.exec_cmd("hyprsunset")
-  hl.exec_cmd("systemctl --user start hyprpolkitagent")
   hl.exec_cmd("hyprpaper -c ~/.config/hypr/modules/hyprpaper.conf")
 end)

@@ -659,23 +659,34 @@ $env.config = {
     ]
 }
 
-def --env cx [arg] {
-    cd $arg
-    ls -l
+def up [] {
+  sudo dnf update -y 
+  sudo flatpak update 
+  brew upgrade 
+  brew update
 }
 
+def cleanup [] {
+  sudo dnf autoremove -y
+  sudo dnf clean all 
+  brew cleanup
+}
+
+def usage [] {
+  du -d 7 | sort-by --reverse physical | first 30
+
+} 
 alias la = ls --all
 alias c = clear
 alias ll = ls -l
 alias lt = eza --tree --level=2 --long --icons --git
-alias vim = nvim
 alias v = nvim .
 alias j = just
 alias oc = opencode 
 
 # Git
-alias gha = gh auth status --active
-alias ghs = gh auth switch
+alias ghs = gh auth status --active
+alias gha = gh auth switch
 alias lg = lazygit
 
 source ~/.zoxide.nu

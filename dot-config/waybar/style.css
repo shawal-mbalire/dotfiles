@@ -195,6 +195,45 @@ tooltip label {
 #custom-temp:hover { box-shadow: 0 0 8px alpha(@pink, 0.5); }
 #custom-power:hover { box-shadow: 0 0 8px alpha(@green, 0.5); }
 
+/* ============================================
+   SwayNC notification toggle — standalone pill
+   ============================================ */
+
+#custom-swaync {
+    background-color: alpha(@surface0, 0.5);
+    border: 1px solid alpha(@surface1, 0.6);
+    border-radius: 9px;
+    margin: 1px 2px;
+    padding: 0 10px;
+    color: @subtext1;
+    transition: all 0.25s ease;
+}
+
+#custom-swaync:hover {
+    border-color: alpha(@mauve, 0.8);
+    box-shadow: 0 0 8px alpha(@mauve, 0.5);
+    color: @text;
+}
+
+/* swaync-client -swb emits these as `class` */
+#custom-swaync.notification,
+#custom-swaync.dnd-notification {
+    color: @mauve;
+    box-shadow: 0 0 8px alpha(@mauve, 0.5);
+}
+
+#custom-swaync.none,
+#custom-swaync.inhibited-none,
+#custom-swaync.dnd-none,
+#custom-swaync.dnd-inhibited-none {
+    color: @subtext1;
+}
+
+#custom-swaync.dnd-none,
+#custom-swaync.dnd-inhibited-notification {
+    color: @overlay0;
+}
+
 /* Unused modules, kept for completeness */
 #cpu { color: @blue; }
 #memory { color: @mauve; }

@@ -1,42 +1,39 @@
 # Hyprland Config (12-Factor Style)
 
-This Hyprland config is structured like a 12-factor app for portability and maintainability. The base `hyprland.conf` defines variables and sources modular config files.
+This Hyprland config is structured like a 12-factor app for portability and maintainability. The base `hyprland.lua` defines variables and requires modular config files.
 
 ## Setup
 1. Install dependencies from `dependencies.txt` (includes hyprpolkitagent for polkit authentication).
-2. Ensure Hyprland is configured to use `~/.config/hypr/hyprland.conf`.
+2. Ensure Hyprland is configured to use `~/.config/hypr/hyprland.lua`.
 3. Check `portability.md` for distro/hardware-specific tweaks.
 
 ## Structure
-- `hyprland.conf`: Main config with variable definitions and sources.
-- `monitors.conf`: Monitor settings.
-- `autostart.conf`: Startup processes.
-- `env.conf`: Environment variables.
-- `look.conf`: Appearance (general, decoration, animations).
-- `input.conf`: Input devices.
-- `keybindings.conf`: Key bindings.
-- `windows.conf`: Window and workspace rules.
+- `hyprland.lua`: Main config entry point (desktop variant).
+- `hyprland-laptop.lua`: Laptop variant with different defaults.
+- `modules/variables.lua`: Shared variable definitions.
+- `modules/displays.lua`: Monitor settings (desktop).
+- `modules/displays-laptop.lua`: Monitor settings (laptop).
+- `modules/autostart.lua`: Startup processes.
+- `modules/env.lua`: Environment variables.
+- `modules/look.lua`: Appearance (general, decoration, animations).
+- `modules/input.lua`: Input devices.
+- `modules/keybindings.lua`: Key bindings.
+- `modules/windows.lua`: Window and workspace rules.
 - `hyprlock.conf`: Lock screen.
 - `hyprpaper.conf`: Wallpaper.
-- `hyprland-laptop.conf`: Example variant for laptop environment.
-- `scripts/toggle_waybar.sh`: Script to toggle waybar on/off (used in keybindings).
-- `portability.md`: Guide for adapting to different distros/hardware.
+- `hypridle.conf`: Idle management.
+- `hyprsunset.conf`: Night light.
+- `scripts/toggle_waybar.sh`: Script to toggle waybar on/off.
+- `scripts/toggle_display.sh`: Script to toggle mirror/extend display mode.
+- `scripts/battery-notify.sh`: Battery level notifications via swaync.
 
 ## Workflow
 ### Build (Edit)
-- Edit variables in `hyprland.conf` (e.g., change `$terminal`).
-- Modify sourced files as needed.
+- Edit variables in `modules/variables.lua` (e.g., change `M.terminal`).
+- Modify module files as needed.
 
 ### Release (Validate)
-- Run: `hyprland --config hyprland.conf --verify-config`
-
-### Deploy (Apply)
-- Restart Hyprland: `hyprctl reload` (or logout/login).
+- Run: `hyprctl reload`
 
 ### Environments
-- For different setups (e.g., laptop), copy `hyprland.conf` to `hyprland-laptop.conf`, edit vars/sources, and point Hyprland to it (e.g., via symlink or config path).
-
-## Notes
-- All changes are git-tracked for versioning.
-- For portability, use relative paths or env vars in variables.
-- The waybar toggle script is included for the binding to work.
+- For different setups (e.g., laptop), point Hyprland to `hyprland-laptop.lua` (e.g., via symlink or config path).
