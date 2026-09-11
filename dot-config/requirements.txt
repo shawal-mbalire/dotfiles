@@ -16,7 +16,7 @@ hyprpolkitagent
 
 # Status bar and launchers
 waybar
-rofi-wayland
+fuzzel
 
 # System utilities
 wl-clipboard        # wl-paste, wl-copy - clipboard management
@@ -30,7 +30,7 @@ pavucontrol         # volume control
 # System tray and notifications
 network-manager-applet  # nm-applet - network tray
 blueman             # blueman-applet - bluetooth tray
-mako                # notification daemon
+swaync              # notification daemon
 
 # Apps
 kitty               # terminal
@@ -77,15 +77,15 @@ brightnessctl
 gammastep
 
 # =============================================================================
-# ROFI (Application Launcher)
+# FUZZEL (Application Launcher)
 # =============================================================================
-rofi-wayland
+fuzzel
 cliphist            # for clipboard mode
 
 # =============================================================================
-# MAKO (Notification Daemon)
+# SWAYNC (Notification Daemon)
 # =============================================================================
-mako
+swaync
 
 # =============================================================================
 # LAZYGIT (Git TUI)
@@ -111,9 +111,9 @@ picom
 
 # Arch Linux / Manjaro:
 # sudo pacman -S hyprland hyprlock hyprpaper hypridle hyprpolkitagent \
-#                waybar rofi-wayland wl-clipboard cliphist grimblast \
+#                waybar fuzzel wl-clipboard cliphist grimblast \
 #                gammastep brightnessctl playerctl pavucontrol \
-#                network-manager-applet blueman mako kitty nautilus \
+#                network-manager-applet blueman swaync kitty nautilus \
 #                obsidian slack fish tmux lazygit git picom \
 #                ttf-sono ttf-jetbrains-mono-nerd gtk-engine-murrine
 #
@@ -121,18 +121,18 @@ picom
 # flatpak install flathub com.slack.Slack
 
 # Fedora:
-# sudo dnf install waybar rofi-wayland wl-clipboard cliphist \
+# sudo dnf install waybar fuzzel wl-clipboard cliphist \
 #                  gammastep brightnessctl playerctl pavucontrol \
-#                  NetworkManager-applet blueman mako kitty nautilus \
+#                  network-manager-applet blueman swaync kitty nautilus \
 #                  fish tmux lazygit git picom \
 #                  jetbrains-mono-fonts
 #
 # hyprland is available via copr or from source
 
 # Debian / Ubuntu:
-# sudo apt install waybar rofi wl-clipboard cliphist \
+# sudo apt install waybar fuzzel wl-clipboard cliphist \
 #                  gammastep brightnessctl playerctl pavucontrol \
-#                  network-manager-gnome blueman mako kitty nautilus \
+#                  network-manager-gnome blueman swaync kitty nautilus \
 #                  fish tmux lazygit git picom \
 #                  fonts-jetbrains-mono
 #

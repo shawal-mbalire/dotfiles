@@ -12,8 +12,8 @@ Major packages required for this dotfiles configuration.
 | Editor | `nvim` | Neovim (configured via LazyVim) |
 | Compositor | `hyprland` | Wayland compositor |
 | Bar | `waybar` | Status bar |
-| Launcher | `rofi-wayland` | Application launcher |
-| Notifications | `mako` | Notification daemon |
+| Launcher | `fuzzel` | Application launcher |
+| Notifications | `swaync` | Notification daemon |
 | File Manager | `nautilus` | GUI file manager |
 | Git TUI | `lazygit` | Git interface |
 | Git | `git` | Version control |
@@ -65,23 +65,26 @@ Major packages required for this dotfiles configuration.
 ### Fedora
 ```sh
 sudo dnf install fish kitty tmux git lazygit \
-  waybar rofi-wayland wl-clipboard cliphist grimblast \
+  waybar fuzzel wl-clipboard cliphist grimblast \
   gammastep brightnessctl playerctl pavucontrol \
-  NetworkManager-applet blueman mako nautilus \
+  network-manager-applet blueman swaync nautilus \
   hyprland hyprlock hypridle hyprpolkitagent hyprpaper \
   lua lua-devel luarocks go \
   jetbrains-mono-fonts
 
 # Enable Hyprland COPR
-sudo dnf copr enable solopasha/hypr
+sudo dnf copr enable lionheartp/Hyprland
+
+# Enable SwayNC COPR
+sudo dnf copr enable erikreider/SwayNotificationCenter
 ```
 
 ### Arch Linux
 ```sh
 sudo pacman -S fish kitty tmux git lazygit \
-  waybar rofi-wayland wl-clipboard cliphist grimblast \
+  waybar fuzzel wl-clipboard cliphist grimblast \
   gammastep brightnessctl playerctl pavucontrol \
-  network-manager-applet blueman mako nautilus \
+  network-manager-applet blueman swaync nautilus \
   hyprland hyprlock hypridle hyprpolkitagent hyprpaper \
   lua luarocks go \
   ttf-jetbrains-mono-nerd ttf-sono
@@ -90,9 +93,9 @@ sudo pacman -S fish kitty tmux git lazygit \
 ### Debian/Ubuntu
 ```sh
 sudo apt install fish kitty tmux git lazygit \
-  waybar rofi wl-clipboard cliphist \
+  waybar fuzzel wl-clipboard cliphist \
   brightnessctl playerctl pavucontrol \
-  network-manager-gnome blueman mako nautilus \
+  network-manager-gnome blueman swaync nautilus \
   fonts-jetbrains-mono
 
 # Hyprland may need to be built from source

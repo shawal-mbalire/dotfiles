@@ -257,6 +257,31 @@ tooltip label {
 }
 
 /* ============================================
+   SwayNC notification indicator
+   ============================================ */
+
+#swaync {
+    background-color: alpha(@surface0, 0.5);
+    border: 1px solid alpha(@surface1, 0.6);
+    border-radius: 0 9px 9px 0;
+    margin: 1px 2px 1px 0;
+    padding: 0 10px;
+    color: @subtext1;
+    transition: all 0.25s ease;
+}
+
+#swaync:hover {
+    border-color: alpha(@overlay1, 0.8);
+    box-shadow: 0 0 8px alpha(@mauve, 0.5);
+    color: @text;
+}
+
+#swaync.has-notifications {
+    color: @mauve;
+    box-shadow: 0 0 8px alpha(@mauve, 0.5);
+}
+
+/* ============================================
    Tray
    ============================================ */
 

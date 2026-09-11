@@ -25,6 +25,7 @@
     "battery",
     "custom/icon-bluetooth",
     "bluetooth",
+    "swaync",
     "tray"
   ],
   "hyprland/workspaces": {
@@ -116,10 +117,14 @@
   "battery": {
     "bat": "BAT0",
     "format": "{capacity}%",
-    "format-charging": "{capacity}%",
-    "format-plugged": "{capacity}%",
-    "tooltip-format": "<span foreground='#a6e3a1' font_weight='bold'>BATTERY</span>\n<span foreground='#6c7086'>Capacity</span>  <span foreground='#cdd6f4'>{capacity}%</span>\n<span foreground='#6c7086'>Time</span>  <span foreground='#cdd6f4'>{timeTo}</span>",
-    "tooltip": true
+    "format-charging": "󰂄 {capacity}%",
+    "format-plugged": "󰚥 {capacity}%",
+    "format-full": "󰁹 {capacity}%",
+    "format-icons": ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
+    "format-charging-icons": ["󰂄"],
+    "tooltip-format": "<span foreground='#a6e3a1' font_weight='bold'>BATTERY</span>\n<span foreground='#6c7086'>Status</span>  <span foreground='#cdd6f4'>{power}W</span>\n<span foreground='#6c7086'>Capacity</span>  <span foreground='#cdd6f4'>{capacity}%</span>\n<span foreground='#6c7086'>Time</span>  <span foreground='#cdd6f4'>{timeTo}</span>",
+    "tooltip": true,
+    "on-update": "bash ~/.config/hypr/scripts/battery-notify.sh"
   },
   "custom/icon-bluetooth": {
     "format": "{}",
@@ -172,5 +177,20 @@
     "on-scroll-down": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%-",
     "tooltip": true,
     "signal": 5
+  },
+  "swaync": {
+    "format": "{icon}",
+    "format-icons": {
+      "notification": "󰂜",
+      "none": "󰂜",
+      "dnd-notification": "󰂜",
+      "dnd-none": "󰂜",
+      "dnd-inhibited-notification": "󰂜",
+      "dnd-inhibited-none": "󰂜"
+    },
+    "tooltip": true,
+    "tooltip-format": "{title}",
+    "on-click": "swaync-client -t",
+    "on-click-right": "swaync-client -C"
   }
 }
