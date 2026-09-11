@@ -4,3 +4,9 @@ dot-config/nushell/history.txt
 # Ignore UUID files and icons
 **/.uuid
 dot-local/share/icons/
+
+# Build artifacts (recreatable from source)
+build/
+*.luac
+__pycache__/
+*.pyc

@@ -77,3 +77,23 @@ waybar-reload:
 # Restart swaync
 swaync-restart:
   swaync-client -R && swaync-client -rs
+
+# ──────────────────────────────────────────────
+# Hyprland
+# ──────────────────────────────────────────────
+
+# Lint the Hyprland config (luacheck, else syntax check)
+hypr-lint:
+  just -f dot-config/hypr/justfile lint
+
+# Run Hyprland config tests (unit + integration)
+hypr-test:
+  just -f dot-config/hypr/justfile test
+
+# Apply the Hyprland config to the running compositor
+hypr-reload:
+  just -f dot-config/hypr/justfile reload
+
+# Full Hyprland pre-commit check
+hypr-check:
+  just -f dot-config/hypr/justfile check

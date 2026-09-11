@@ -1,0 +1,73 @@
+# Hyprland config (hexagonal architecture) — DX commands
+
+root := justfile_directory()
+devtools := root / "scripts" / "dev.py"
+
+default:
+    @just --list
+
+# ──────────────────────────────────────────────
+# Run
+# ──────────────────────────────────────────────
+
+# Apply the on-disk config to the running compositor
+reload:
+    hyprctl reload
+
+run: reload
+
+# Reload on every change to the config tree (falls back to tailing logs)
+dev:
+    @{{devtools}} watch
+
+# Stream the Hyprland log
+logs:
+    @{{devtools}} logs
+
+# ──────────────────────────────────────────────
+# Test
+# ──────────────────────────────────────────────
+
+test: test-unit test-integration
+
+test-unit:
+    cd {{root}} && lua tests/run.lua
+
+test-integration:
+    cd {{root}} && lua tests/integration/run.lua
+
+# End-to-end: reload a live Hyprland session (skips if none is running)
+test-e2e:
+    @{{devtools}} e2e
+
+# ──────────────────────────────────────────────
+# Code quality
+# ──────────────────────────────────────────────
+
+lint:
+    @{{devtools}} lint
+
+typecheck:
+    @{{devtools}} typecheck
+
+format:
+    @{{devtools}} format
+
+# ──────────────────────────────────────────────
+# Build / deps
+# ──────────────────────────────────────────────
+
+build:
+    @echo "Nothing to build: Lua config is interpreted at runtime"
+
+clean:
+    @{{devtools}} clean
+
+install:
+    @echo "Install runtime deps from the repo root: just deps"
+
+update:
+    @echo "Update runtime deps via your package manager (e.g. sudo dnf upgrade)"
+
+# Full pre-commit check
+check: lint typecheck test
