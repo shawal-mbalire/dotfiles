@@ -1,44 +1,87 @@
-# Install all dependencies for Fedora
-install:
-    @echo "Installing waybar dependencies..."
-    sudo dnf install -y waybar jetbrains-mono-fonts sono-fonts brightnessctl grimblast wireplumber pipewire-utils
+# Waybar configuration (hexagonal architecture) — DX commands
 
-# Install optional dependencies
-install-extra:
-    @echo "Installing optional dependencies..."
-    sudo dnf install -y kitty network-manager-applet tuned-ppd bluez bluez-tools
+root := justfile_directory()
+scripts := root / "scripts"
 
-# Restart waybar
+default:
+    @just --list
+
+# ──────────────────────────────────────────────
+# Run
+# ──────────────────────────────────────────────
+
+# Restart waybar with the on-disk config
 restart:
     @echo "Restarting waybar..."
     killall waybar || true
     waybar &
 
-# Reload waybar (soft reload)
+# Soft reload waybar
 reload:
     @echo "Reloading waybar..."
-    killall -SIGUSR2 waybar
+    killall -SIGUSR2 waybar || true
 
-# Test all modules and scripts
-test:
-    #!/usr/bin/env bash
-    echo "=== Waybar Module Test ==="
-    echo ""
-    echo "--- Dependencies ---"
-    for cmd in waybar brightnessctl grimblast wpctl nm-connection-editor tuned-adm kitty bluetoothctl rofi pw-play; do
-        printf "%-24s %s\n" "$cmd:" "$(which $cmd 2>/dev/null && echo '✓' || echo '✗ MISSING')"
-    done
-    echo ""
-    echo "--- Module Outputs ---"
-    printf "%-24s %s\n" "custom/temp:" "$(~/.config/waybar/scripts/temp-status.sh 2>/dev/null | jq -r .text 2>/dev/null || echo 'FAIL')"
-    printf "%-24s %s\n" "wireplumber:" "$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '{printf "%d%%", $2 * 100}' || echo 'FAIL')"
-    printf "%-24s %s\n" "backlight:" "$(brightnessctl -m 2>/dev/null | cut -d',' -f4 || echo 'FAIL')"
-    printf "%-24s %s\n" "battery:" "$(cat /sys/class/power_supply/BAT*/capacity 2>/dev/null || echo 'N/A')"
-    echo ""
-    echo "--- Services ---"
-    printf "%-24s %s\n" "bluetooth:" "$(systemctl is-active bluetooth 2>/dev/null || echo 'inactive')"
-    printf "%-24s %s\n" "gammastep:" "$(pgrep -x gammastep >/dev/null && echo 'running' || echo 'not running')"
-    printf "%-24s %s\n" "power-profiles:" "$(tuned-adm active 2>/dev/null | awk '{print $NF}' || echo 'N/A')"
-    printf "%-24s %s\n" "upower:" "$(systemctl is-active upower 2>/dev/null || echo 'inactive')"
-    echo ""
-    echo "=== Done ==="
+run: restart
+
+# Warm the cache and verify every polled module stays inside budget
+dev:
+    @{{scripts}}/main.py refresh
+    @{{scripts}}/bench.py
+
+# Stream the waybar process log
+logs:
+    @journalctl --user -f -t waybar
+
+# ──────────────────────────────────────────────
+# Test
+# ──────────────────────────────────────────────
+
+test: test-unit test-integration
+
+test-unit:
+    cd {{root}} && uv run --with pytest pytest scripts/tests/unit -q
+
+test-integration:
+    cd {{root}} && uv run --with pytest pytest scripts/tests/integration -q
+
+# Time-budget contract: every polled module must return within 50ms
+test-e2e:
+    @{{scripts}}/bench.py --budget 50
+
+# ──────────────────────────────────────────────
+# Code quality
+# ──────────────────────────────────────────────
+
+lint:
+    cd {{root}} && uvx ruff check scripts
+
+format:
+    cd {{root}} && uvx ruff format scripts
+
+typecheck:
+    @/usr/bin/python3 -m compileall -q {{scripts}} && echo "compileall: ok"
+
+# ──────────────────────────────────────────────
+# Build / deps
+# ──────────────────────────────────────────────
+
+build:
+    @echo "Nothing to build: Python is interpreted at runtime"
+
+clean:
+    cd {{root}} && rm -rf .pytest_cache .ruff_cache build
+    find {{root}} -type d -name __pycache__ -prune -exec rm -rf {} +
+
+install:
+    @echo "Installing waybar dependencies..."
+    sudo dnf install -y waybar jetbrains-mono-fonts sono-fonts brightnessctl grimblast wireplumber pipewire-utils
+
+install-extra:
+    @echo "Installing optional dependencies..."
+    sudo dnf install -y kitty network-manager-applet tuned-ppd bluez bluez-tools
+
+update:
+    @echo "Update runtime deps via your package manager (e.g. sudo dnf upgrade)"
+
+# Full pre-commit check
+check: lint typecheck test

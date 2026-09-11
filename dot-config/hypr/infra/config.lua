@@ -23,9 +23,9 @@ M.apps = {
 
 -- Commands invoked by binds and autostart (single source of truth).
 M.commands = {
-  volume_up     = os.getenv("HYPR_VOLUME_UP") or "~/.config/waybar/scripts/volume-control.sh up",
-  volume_down   = os.getenv("HYPR_VOLUME_DOWN") or "~/.config/waybar/scripts/volume-control.sh down",
-  volume_mute   = os.getenv("HYPR_VOLUME_MUTE") or "~/.config/waybar/scripts/volume-control.sh mute",
+  volume_up     = os.getenv("HYPR_VOLUME_UP") or "~/.config/waybar/scripts/main.py audio volume up",
+  volume_down   = os.getenv("HYPR_VOLUME_DOWN") or "~/.config/waybar/scripts/main.py audio volume down",
+  volume_mute   = os.getenv("HYPR_VOLUME_MUTE") or "~/.config/waybar/scripts/main.py audio volume mute",
   mic_mute      = "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
   brightness_up = os.getenv("HYPR_BRIGHTNESS_UP") or "brightnessctl s 10%+",
   brightness_down = os.getenv("HYPR_BRIGHTNESS_DOWN") or "brightnessctl s 10%-",

@@ -2,6 +2,9 @@
 
 Catppuccin Mocha themed waybar with pill-style modules and 1px borders.
 
+The modules are driven by one Python CLI (`scripts/main.py`) built with a
+hexagonal (ports and adapters) architecture. There are no shell scripts.
+
 ## Install Dependencies (Fedora)
 
 ```bash
@@ -13,85 +16,135 @@ sudo dnf install waybar jetbrains-mono-fonts sono-fonts brightnessctl grimblast 
 - **Screenshots**: `grimblast` (from AUR or COPR)
 - **Terminal**: `kitty`
 - **Network**: `network-manager-applet` (for `nm-connection-editor`)
-- **Power Management**: `tuned-ppd` (uses `tuned-adm` under the hood)
+- **Power Management**: `tuned-ppd` (provides the `net.hadess.PowerProfiles` D-Bus service)
 - **Bluetooth**: `bluez` + `bluez-tools`
-- **Audio**: `pipewire` + `wireplumber` (uses `wpctl`)
+- **Audio**: `pipewire` + `wireplumber` (uses `wpctl`/`pactl`)
+- **Menus**: `fuzzel`
+- **Night light**: `gammastep`
 
-## Scripts
+## Architecture
 
-All scripts are in `scripts/`:
+```
+scripts/
+├── main.py              # composition root + CLI (the only entry point)
+├── cachefile.py         # pure cache reader/writer (no env access)
+├── bench.py             # verifies the 50ms poll budget
+├── domain/              # pure: models, constants, errors, ports, workflows
+├── infra/               # config: env vars and user paths are read only here
+│   ├── config.py        # typed settings loaded from the environment
+│   └── paths.py         # lightweight XDG path resolution for the poll path
+└── adapters/            # plumbing: wpctl, pactl, busctl, sysfs, bluetoothctl...
+```
 
-| Script | Purpose |
+**Dependencies point inward.** The domain never imports an adapter or an
+external command; adapters implement the ports and map external data to domain
+models; `main.py` is the only place that reads config and wires them together.
+Configurable values (battery name, volume step, waybar signal offsets, gammastep
+temperature) are loaded in `infra/config.py` and injected into workflows as
+arguments — the domain hardcodes no deployment-specific numbers.
+
+### Why poll commands are tiny
+
+Waybar re-runs each `custom/*` module on an interval (2–60s). Those commands
+must return within **50ms**, but a Python interpreter plus the full framework
+already costs more than that (interpreter startup alone is ~30ms here).
+
+So the poll commands do almost nothing: they print a pre-rendered payload from
+`$XDG_RUNTIME_DIR/waybar-cache-<uid>/` and, when it is stale, fork a detached
+`main.py refresh` process. The full hexagon runs in that refresher; when done,
+it signals waybar (RTMIN+5/7/8) so the module updates immediately.
+
+- **Poll path** (`pill`, `power status`, `audio status`, `nightlight status`):
+  stdlib only, no framework import, measured at ~31–40ms.
+- **Refresh path** (`main.py refresh`): reads slow sources (`wpctl`, `busctl`)
+  and fast sources (sysfs `/proc`) once, renders every module, writes the cache.
+- **Action path** (`cycle`, `select`, `toggle`, `menu`, volume keys): runs the
+  full stack synchronously; these may block on menus/scans.
+
+Run `just test-e2e` (or `scripts/bench.py`) to verify the budget.
+
+## Commands
+
+All modules and keybindings call `scripts/main.py`:
+
+| Command | Purpose |
 |---|---|
-| `power/main.sh` | Power-profile hexagon: `status` (waybar JSON), `cycle`, `select`, `set` |
-| `power/domain.sh` | Pure power-profile rules (cycle order, labels, icons) |
-| `power/adapters/tuned.sh` | `tuned-adm` backend for the power-profile gateway |
-| `power/adapters/notify.sh` | `notify-send` backend |
-| `power/adapters/prompt.sh` | rofi selection menu |
-| `power/tests/domain_test.sh` | Unit tests for the pure domain |
-| `bluetooth.sh` | Bluetooth device menu and power toggle |
-| `select-audio-device.sh` | Audio device selector (rofi) |
-| `toggle_temp.sh` | Toggle gammastep (night light) |
-| `temp-status.sh` | Gammastep on/off status for the bar |
-| `volume-control.sh` | Volume control with feedback tone |
-| `volume-tone.sh` | Play volume feedback tone |
+| `main.py pill <clock\|temp\|network\|volume\|backlight\|battery\|bluetooth>` | Icon chip JSON for a pill |
+| `main.py nightlight status\|toggle` | Gammastep on/off status and toggle |
+| `main.py power status\|pill\|cycle\|select\|set <profile>` | Power-profile module and actions |
+| `main.py audio status\|select\|volume <up\|down\|mute>\|tone` | Audio module, device menu, volume keys |
+| `main.py brightness up\|down\|menu` | Backlight steps and presets |
+| `main.py bluetooth gui\|menu\|power` | Device menu, bluetoothctl, power toggle |
+| `main.py refresh` / `warm` | Re-render every module into the cache (internal) |
 
-### Power profile module
+## Power profile module
 
-The power module is a small hexagonal application instead of waybar's
-`power-profiles-daemon` module (which requires the `net.hadess.PowerProfiles`
-D-Bus service that isn't present on this machine). The domain (`domain.sh`)
-owns the profile rules; `tuned-adm` is the driven adapter behind a port, so the
-backend can be swapped without touching the domain. The composition root is
-`power/main.sh status`, which waybar polls via the `custom/power` module.
+The power module replaces waybar's native `power-profiles-daemon` module (which
+needs the `net.hadess.PowerProfiles` D-Bus service). The domain owns the profile
+rules (order, labels, icons, colours); `busctl` is the driven adapter behind the
+`PowerGateway` port, so the backend can be swapped without touching the domain.
 
 ## Volume
 
-Volume is shown by waybar's native `wireplumber` module, capped at 100% via
-`max-volume`. Left-click opens the device selector, middle-click toggles mute,
-and scrolling changes volume in 5% steps. The keyboard volume keys use
-`scripts/volume-control.sh`, which also clamps to 100% with `wpctl -l 1.0`.
+Volume is shown by the `custom/audio` and `custom/icon-volume` modules. The
+`audio` domain workflow clamps to 100% via `wpctl -l 1.0`. Left-click toggles
+mute, right-click opens the device selector, scrolling changes volume in 5%
+steps, and the keyboard volume keys call `main.py audio volume ...`, which also
+plays the feedback tone.
 
 ### Loudness boost
 
 The ThinkPad E16 Gen 3 (Conexant SN6140 + `sof-hda-dsp`) reaches its hardware
-`Speaker Playback Volume` 0 dB ceiling at 100% — there is no analog headroom
-left, which is why 100% used to sound weak and pushing past 100% (software
-overamplification) sounded better.
-
-To make 100% actually loud, a PipeWire smart filter applies a fixed digital
-gain between apps and the internal Speaker sink. The config lives at:
+`Speaker Playback Volume` 0 dB ceiling at 100%, so a PipeWire smart filter adds
+a fixed digital gain between apps and the internal Speaker sink:
 
 ```
 ~/.config/pipewire/pipewire.conf.d/10-speaker-boost.conf
 ```
 
-Tune the boost by editing `"Gain 1"` (linear amplitude: `1.0` = 0 dB,
-`1.41` = +3 dB, `2.0` = +6 dB), then:
+Tune `"Gain 1"` (`1.0` = 0 dB, `1.41` = +3 dB, `2.0` = +6 dB) and restart:
 
 ```bash
 systemctl --user restart pipewire pipewire-pulse wireplumber
 ```
 
-The filter only applies to the internal speakers; Bluetooth/HDMI are unaffected.
-
 ## Volume Feedback Tone
 
-The volume keys play a short beep using PipeWire. Sound file used:
+The volume keys play a short beep via PipeWire:
 
 ```
 /usr/share/sounds/alsa/Front_Center.wav
 ```
 
-If the file doesn't exist on your system, check:
-- `/usr/share/sounds/alsa/`
-- `/usr/share/sounds/freedesktop/`
-- `/usr/share/sounds/gnome/`
+Override the file with the `WAYBAR_SOUND` environment variable.
 
-Update the `SOUND` variable in `scripts/volume-control.sh` to use a different file.
+## Configuration
+
+Environment variables (read once in `infra/config.py`):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `WAYBAR_TIME_BUDGET_MS` | `50` | Poll budget enforced by `bench.py` |
+| `WAYBAR_LOG_LEVEL` | `warning` | `debug`, `info`, `warning`, `error` (stderr only) |
+| `WAYBAR_BATTERY` | `BAT0` | Battery sysfs name |
+| `WAYBAR_BACKLIGHT_DEVICE` | `intel_backlight` | Backlight sysfs name |
+| `WAYBAR_AUDIO_SINK` | `@DEFAULT_AUDIO_SINK@` | wpctl sink |
+| `WAYBAR_VOLUME_STEP` | `5` | Volume step percent |
+| `WAYBAR_SOUND` | `/usr/share/sounds/alsa/Front_Center.wav` | Feedback tone |
+
+## Development
+
+```bash
+just test          # unit + integration tests
+just test-e2e      # verify the 50ms poll budget
+just lint          # ruff
+just format        # ruff format
+just check         # lint + typecheck + test
+just dev           # warm the cache and run the budget check
+```
 
 ## Reload Waybar
 
 ```bash
-killall waybar && waybar &
+just restart
 ```

@@ -59,8 +59,9 @@
   "custom/icon-clock": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh clock",
+    "exec": "~/.config/waybar/scripts/main.py pill clock",
     "interval": 60,
+    "signal": 8,
     "tooltip": true
   },
   "clock": {
@@ -72,23 +73,26 @@
   "custom/icon-temp": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh temp",
+    "exec": "~/.config/waybar/scripts/main.py pill temp",
     "interval": 5,
+    "signal": 8,
     "tooltip": true
   },
   "custom/temp": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/temp-status.sh",
+    "exec": "~/.config/waybar/scripts/main.py nightlight status",
     "interval": 5,
-    "on-click": "~/.config/waybar/scripts/toggle_temp.sh",
+    "signal": 8,
+    "on-click": "~/.config/waybar/scripts/main.py nightlight toggle",
     "tooltip": true
   },
   "custom/icon-network": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh network",
+    "exec": "~/.config/waybar/scripts/main.py pill network",
     "interval": 5,
+    "signal": 8,
     "tooltip": true
   },
   "network": {
@@ -103,7 +107,7 @@
   "custom/icon-volume": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh volume",
+    "exec": "~/.config/waybar/scripts/main.py pill volume",
     "interval": 5,
     "tooltip": true,
     "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+",
@@ -113,26 +117,28 @@
   "custom/icon-backlight": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh backlight",
+    "exec": "~/.config/waybar/scripts/main.py pill backlight",
     "interval": 5,
+    "signal": 8,
     "tooltip": true,
-    "on-scroll-up": "~/.config/waybar/scripts/brightness-control.sh up",
-    "on-scroll-down": "~/.config/waybar/scripts/brightness-control.sh down"
+    "on-scroll-up": "~/.config/waybar/scripts/main.py brightness up",
+    "on-scroll-down": "~/.config/waybar/scripts/main.py brightness down"
   },
   "backlight": {
     "device": "intel_backlight",
     "format": "{percent}%",
     "tooltip-format": "Brightness: {percent}%\nScroll: Adjust\nRight-click: Presets",
-    "on-scroll-up": "~/.config/waybar/scripts/brightness-control.sh up",
-    "on-scroll-down": "~/.config/waybar/scripts/brightness-control.sh down",
-    "on-click-right": "~/.config/waybar/scripts/brightness-menu.sh",
+    "on-scroll-up": "~/.config/waybar/scripts/main.py brightness up",
+    "on-scroll-down": "~/.config/waybar/scripts/main.py brightness down",
+    "on-click-right": "~/.config/waybar/scripts/main.py brightness menu",
     "tooltip": true
   },
   "custom/icon-battery": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh battery",
+    "exec": "~/.config/waybar/scripts/main.py pill battery",
     "interval": 5,
+    "signal": 8,
     "tooltip": true
   },
   "battery": {
@@ -146,8 +152,9 @@
   "custom/icon-bluetooth": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh bluetooth",
+    "exec": "~/.config/waybar/scripts/main.py pill bluetooth",
     "interval": 5,
+    "signal": 8,
     "tooltip": true
   },
   "bluetooth": {
@@ -155,8 +162,8 @@
     "format-connected": "{device_alias}",
     "format-disconnected": "off",
     "tooltip-format": "<span foreground='#89b4fa' font_weight='bold'>BLUETOOTH</span>\n<span foreground='#6c7086'>Left-click</span>  <span foreground='#cdd6f4'>Devices</span>\n<span foreground='#6c7086'>Right-click</span>  <span foreground='#cdd6f4'>Power toggle</span>",
-    "on-click": "~/.config/waybar/scripts/bluetooth.sh gui",
-    "on-click-right": "~/.config/waybar/scripts/bluetooth.sh power",
+    "on-click": "~/.config/waybar/scripts/main.py bluetooth gui",
+    "on-click-right": "~/.config/waybar/scripts/main.py bluetooth power",
     "tooltip": true
   },
   "tray": {
@@ -168,7 +175,7 @@
   "custom/icon-power": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/power/main.sh pill",
+    "exec": "~/.config/waybar/scripts/main.py power pill",
     "interval": 30,
     "signal": 7,
     "tooltip": true
@@ -176,20 +183,20 @@
   "custom/power": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/power/main.sh status",
+    "exec": "~/.config/waybar/scripts/main.py power status",
     "interval": 30,
     "signal": 7,
-    "on-click": "~/.config/waybar/scripts/power/main.sh cycle",
-    "on-click-right": "~/.config/waybar/scripts/power/main.sh select",
+    "on-click": "~/.config/waybar/scripts/main.py power cycle",
+    "on-click-right": "~/.config/waybar/scripts/main.py power select",
     "tooltip": true
   },
   "custom/audio": {
     "format": "{}",
     "return-type": "json",
-    "exec": "~/.config/waybar/scripts/audio-status.sh",
+    "exec": "~/.config/waybar/scripts/main.py audio status",
     "interval": 2,
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "on-click-right": "~/.config/waybar/scripts/select-audio-device.sh select",
+    "on-click-right": "~/.config/waybar/scripts/main.py audio select",
     "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%-",
     "tooltip": true,
