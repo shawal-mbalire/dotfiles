@@ -27,10 +27,10 @@ All scripts are in `scripts/`:
 | `power/domain.sh` | Pure power-profile rules (cycle order, labels, icons) |
 | `power/adapters/tuned.sh` | `tuned-adm` backend for the power-profile gateway |
 | `power/adapters/notify.sh` | `notify-send` backend |
-| `power/adapters/prompt.sh` | fuzzel selection menu |
+| `power/adapters/prompt.sh` | rofi selection menu |
 | `power/tests/domain_test.sh` | Unit tests for the pure domain |
 | `bluetooth.sh` | Bluetooth device menu and power toggle |
-| `select-audio-device.sh` | Audio device selector (fuzzel) |
+| `select-audio-device.sh` | Audio device selector (rofi) |
 | `toggle_temp.sh` | Toggle gammastep (night light) |
 | `temp-status.sh` | Gammastep on/off status for the bar |
 | `volume-control.sh` | Volume control with feedback tone |

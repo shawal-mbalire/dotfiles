@@ -71,16 +71,56 @@ tooltip label {
 }
 
 /* ============================================
-   Modules — unified zen pills
+   Icon chip modules — centered glyph on a colored field,
+   rounded on the left (outer), square on the right (join).
+   ============================================ */
+
+#custom-icon-clock,
+#custom-icon-temp,
+#custom-icon-network,
+#custom-icon-power,
+#custom-icon-volume,
+#custom-icon-backlight,
+#custom-icon-battery,
+#custom-icon-bluetooth {
+    padding: 0 8px;
+    border: 1px solid alpha(@surface1, 0.6);
+    border-radius: 9px 0 0 9px;
+    margin: 1px 0 1px 2px;
+    color: @crust;
+    font-weight: bold;
+    transition: all 0.25s ease;
+}
+
+#custom-icon-clock     { background-color: @peach; }
+#custom-icon-temp      { background-color: @pink; }
+#custom-icon-network   { background-color: @lavender; }
+#custom-icon-power     { background-color: @green; }
+#custom-icon-power.power-saver { background-color: @blue; }
+#custom-icon-power.balanced    { background-color: @green; }
+#custom-icon-power.performance { background-color: @red; }
+#custom-icon-volume    { background-color: @sapphire; }
+#custom-icon-backlight { background-color: @yellow; }
+#custom-icon-battery   { background-color: @green; }
+#custom-icon-bluetooth { background-color: @blue; }
+
+/* ============================================
+   Info modules — centered text on a surface0 field,
+   rounded on the right (outer), square on the left (join).
    ============================================ */
 
 #clock,
 #battery,
-#custom-swaync {
+#backlight,
+#network,
+#custom-power,
+#custom-audio,
+#bluetooth,
+#custom-temp {
     background-color: alpha(@surface0, 0.5);
     border: 1px solid alpha(@surface1, 0.6);
-    border-radius: 9px;
-    margin: 1px 2px;
+    border-radius: 0 9px 9px 0;
+    margin: 1px 2px 1px 0;
     padding: 0 10px;
     color: @subtext1;
     transition: all 0.25s ease;
@@ -138,11 +178,22 @@ tooltip label {
 
 #clock:hover,
 #battery:hover,
-#custom-swaync:hover {
+#backlight:hover,
+#network:hover,
+#custom-power:hover,
+#custom-audio:hover,
+#bluetooth:hover,
+#custom-temp:hover {
     border-color: alpha(@overlay1, 0.8);
 }
 
 #battery:hover { box-shadow: 0 0 8px alpha(@green, 0.5); }
+#backlight:hover { box-shadow: 0 0 8px alpha(@yellow, 0.5); }
+#network:hover { box-shadow: 0 0 8px alpha(@lavender, 0.5); }
+#custom-audio:hover { box-shadow: 0 0 8px alpha(@sapphire, 0.5); }
+#bluetooth:hover { box-shadow: 0 0 8px alpha(@blue, 0.5); }
+#custom-temp:hover { box-shadow: 0 0 8px alpha(@pink, 0.5); }
+#custom-power:hover { box-shadow: 0 0 8px alpha(@green, 0.5); }
 
 /* Unused modules, kept for completeness */
 #cpu { color: @blue; }
@@ -203,35 +254,6 @@ tooltip label {
     margin: 1px 2px;
     padding: 0 8px;
     box-shadow: 0 0 10px alpha(@yellow, 0.7);
-}
-
-/* ============================================
-   SwayNC notification indicator
-   ============================================ */
-
-#custom-swaync:hover {
-    border-color: alpha(@overlay1, 0.8);
-    box-shadow: 0 0 8px alpha(@mauve, 0.5);
-    color: @text;
-}
-
-/* swaync-client -swb emits these as `class` */
-#custom-swaync.notification,
-#custom-swaync.dnd-notification {
-    color: @mauve;
-    box-shadow: 0 0 8px alpha(@mauve, 0.5);
-}
-
-#custom-swaync.none,
-#custom-swaync.inhibited-none,
-#custom-swaync.dnd-none,
-#custom-swaync.dnd-inhibited-none {
-    color: @subtext1;
-}
-
-#custom-swaync.dnd-none,
-#custom-swaync.dnd-inhibited-notification {
-    color: @overlay0;
 }
 
 /* ============================================

@@ -40,7 +40,7 @@
 .control-center .notification-row .notification-background {
   background-color: @base;
   border: 1px solid @surface1;
-  border-radius: 10px;
+  border-radius: 12px;
   margin: 6px 0;
   padding: 0;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
@@ -177,9 +177,9 @@
 .notification-group-header {
   background-color: @surface0;
   border: 1px solid @surface1;
-  border-radius: 7px;
+  border-radius: 12px;
   padding: 6px 10px;
-  margin: 2px 0;
+  margin: 4px 0;
 }
 
 .notification-group-header .notification-group-title {
@@ -214,9 +214,9 @@
 .widget-brightness {
   background-color: @surface0;
   border: 1px solid @surface1;
-  border-radius: 9px;
-  padding: 6px 10px;
-  margin: 2px 0;
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin: 6px 0;
 }
 
 .slider {
@@ -232,11 +232,11 @@
 
 .widget-dnd {
   color: @text;
-  padding: 6px 10px;
-  border-radius: 7px;
+  padding: 8px 12px;
+  border-radius: 12px;
   background-color: @surface0;
   border: 1px solid @surface1;
-  margin: 2px 0;
+  margin: 6px 0;
 }
 
 .widget-dnd:hover {
@@ -258,9 +258,9 @@
   background-color: @surface0;
   color: @text;
   border: 1px solid @surface1;
-  border-radius: 7px;
+  border-radius: 12px;
   padding: 6px 12px;
-  margin: 2px;
+  margin: 4px;
 }
 
 .menubar button:hover {
@@ -319,7 +319,7 @@ scrollbar slider:hover {
   background-color: @surface0;
   color: @text;
   border: 1px solid @surface1;
-  border-radius: 7px;
+  border-radius: 12px;
   padding: 8px 12px;
   margin-bottom: 8px;
   font-weight: bold;
@@ -344,9 +344,9 @@ scrollbar slider:hover {
 .widget-mpris {
   background-color: @surface0;
   border: 1px solid @surface1;
-  border-radius: 9px;
-  margin: 2px 0;
-  padding: 6px;
+  border-radius: 12px;
+  margin: 6px 0;
+  padding: 8px;
 }
 
 .widget-mpris-player {
@@ -396,12 +396,12 @@ scrollbar slider:hover {
   background-color: @surface0;
   color: @text;
   border: 1px solid @surface1;
-  border-radius: 16px;
-  min-width: 44px;
-  min-height: 44px;
+  border-radius: 12px;
+  min-width: 56px;
+  min-height: 56px;
   padding: 0;
-  margin: 2px;
-  font-size: 17px;
+  margin: 4px;
+  font-size: 24px;
 }
 
 .widget-buttons-grid flowboxchild > button:hover {
@@ -427,7 +427,7 @@ scrollbar slider:hover {
 .widget-buttons-grid.clearbar flowboxchild > button {
   min-width: 100%;
   min-height: 38px;
-  border-radius: 9px;
+  border-radius: 12px;
   background-color: @surface0;
   color: @red;
   border: 1px solid @surface1;
@@ -447,8 +447,8 @@ scrollbar slider:hover {
 .widget-inhibitors {
   background-color: @surface0;
   border: 1px solid @surface1;
-  border-radius: 9px;
-  margin: 4px 0;
+  border-radius: 12px;
+  margin: 6px 0;
   padding: 8px 12px;
 }
 
@@ -471,7 +471,7 @@ scrollbar slider:hover {
   border-color: @red;
 }
 
-/* ── Section layout — 90% width, uniform gaps ────────────────────────── */
+/* ── Section layout — 100% width, uniform gaps ───────────────────────── */
 
 .control-center > .widget-title,
 .control-center > .widget-mpris,
@@ -480,9 +480,9 @@ scrollbar slider:hover {
 .control-center > .widget-brightness,
 .control-center > .widget-dnd,
 .control-center > .widget-notifications {
-  width: 90%;
-  margin-left: 5%;
-  margin-right: 5%;
-  margin-top: 4px;
-  margin-bottom: 4px;
+  width: calc(100% - 16px);
+  margin-left: 8px;
+  margin-right: 8px;
+  margin-top: 6px;
+  margin-bottom: 6px;
 }
