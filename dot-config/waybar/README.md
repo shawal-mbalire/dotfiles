@@ -31,22 +31,10 @@ All scripts are in `scripts/`:
 | `power/tests/domain_test.sh` | Unit tests for the pure domain |
 | `bluetooth.sh` | Bluetooth device menu and power toggle |
 | `select-audio-device.sh` | Audio device selector (rofi) |
-| `toggle_temp.py` | Toggle gammastep (night light), `NIGHT_TEMP` at the top |
-| `temp-status.py` | Gammastep on/off status for waybar / swaync (`--bool`) |
-| `night_light.py` | Shared night-light state (one-shot gammastep has no process) |
-| `pill-icon.py` | Pill chip icons + shared tooltips |
+| `toggle_temp.sh` | Toggle gammastep (night light) |
+| `temp-status.sh` | Gammastep on/off status for the bar |
 | `volume-control.sh` | Volume control with feedback tone |
 | `volume-tone.sh` | Play volume feedback tone |
-
-### Night light (gammastep)
-
-`toggle_temp.py` uses `gammastep -O` (one-shot) to apply `NIGHT_TEMP` and
-`gammastep -x` to reset. Because one-shot mode exits immediately, the on/off
-state is persisted to `$XDG_STATE_HOME/gammastep/night` rather than detected by
-process name. `temp-status.py` reads that file, so waybar and the swaync Night
-toggle (which passes `SWAYNC_TOGGLE_STATE`) stay in sync. The
-`gammastep-indicator` autostart was removed since it continuously overwrote the
-manual setting.
 
 ### Power profile module
 
