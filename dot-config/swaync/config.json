@@ -1,0 +1,50 @@
+{
+  "$schema": "/dev/null",
+  "positionX": "right",
+  "positionY": "top",
+  "layer": "overlay",
+  "control-center-layer": "overlay",
+  "layer-shell": true,
+  "cssPriority": "override",
+  "control-center-margin-top": 8,
+  "control-center-margin-bottom": 8,
+  "control-center-margin-right": 8,
+  "control-center-margin-left": 0,
+  "notification-window-width": 380,
+  "keyboard-shortcuts": true,
+  "fade-in": 0.25,
+  "fade-out": 0.2,
+  "fade-in-step": 0.15,
+  "fade-out-step": 0.15,
+  "slide": "slide-down",
+  "timeout": 5,
+  "timeout-low": 3,
+  "timeout-critical": 0,
+  "scroll-to-delete": true,
+  "widget-window-title": {
+    "max-chars": 30
+  },
+  "widgets": [
+    "menubar",
+    "volume",
+    "brightness",
+    "dnd",
+    "notifications"
+  ],
+  "widget-config": {
+    "inhibitor": {
+      "title": "Inhibitor",
+      "active": "Inhibiting",
+      "inactive": "Not Inhibiting"
+    },
+    "dnd": {
+      "text": "Do Not Disturb"
+    },
+    "volume": {
+      "label": "󰕾"
+    },
+    "brightness": {
+      "label": "󰃠"
+    }
+  }
+}

@@ -7,17 +7,17 @@ hl.layer_rule({
   blur = true,
 })
 
--- Notifications drop down from the bar
+-- SwayNC notifications
 hl.layer_rule({
-  match = { namespace = "notifications" },
+  match = { namespace = "swaync" },
   blur = true,
-  ignore_alpha = 0.5,
+  ignore_alpha = 0,
   animation = "slide top",
 })
 
--- Rofi menus (launcher, bluetooth, audio) drop down from the bar
+-- Fuzzel menus (launcher, bluetooth, audio) drop down from the bar
 hl.layer_rule({
-  match = { namespace = "rofi" },
+  match = { namespace = "fuzzel" },
   blur = true,
   ignore_alpha = 0,
   animation = "slide top",

@@ -94,15 +94,15 @@
     "exec": "~/.config/waybar/scripts/pill-icon.sh backlight",
     "interval": 5,
     "tooltip": true,
-    "on-scroll-up": "brightnessctl s 5%+",
-    "on-scroll-down": "brightnessctl s 5%-"
+    "on-scroll-up": "~/.config/waybar/scripts/brightness-control.sh up",
+    "on-scroll-down": "~/.config/waybar/scripts/brightness-control.sh down"
   },
   "backlight": {
     "device": "intel_backlight",
     "format": "{percent}%",
     "tooltip-format": "Brightness: {percent}%\nScroll: Adjust\nRight-click: Presets",
-    "on-scroll-up": "brightnessctl s 5%+",
-    "on-scroll-down": "brightnessctl s 5%-",
+    "on-scroll-up": "~/.config/waybar/scripts/brightness-control.sh up",
+    "on-scroll-down": "~/.config/waybar/scripts/brightness-control.sh down",
     "on-click-right": "~/.config/waybar/scripts/brightness-menu.sh",
     "tooltip": true
   },

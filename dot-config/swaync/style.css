@@ -1,0 +1,275 @@
+/* ============================================
+   SwayNC — matching waybar aesthetic
+   Catppuccin Mocha + glassy gradient style
+   ============================================ */
+
+@define-color base     #1e1e2e;
+@define-color mantle   #181825;
+@define-color crust    #11111b;
+@define-color text     #cdd6f4;
+@define-color subtext0 #a6adc8;
+@define-color subtext1 #bac2de;
+@define-color overlay0 #6c7086;
+@define-color overlay1 #7f849c;
+@define-color surface0 #313244;
+@define-color surface1 #45475a;
+@define-color surface2 #585b70;
+@define-color blue     #89b4fa;
+@define-color lavender #b4befe;
+@define-color sapphire #74c7ec;
+@define-color sky      #89dceb;
+@define-color teal     #94e2d5;
+@define-color green    #a6e3a1;
+@define-color yellow   #f9e2af;
+@define-color peach    #fab387;
+@define-color maroon   #eba0ac;
+@define-color red      #f38ba8;
+@define-color mauve    #cba6f7;
+@define-color pink     #f5c2e7;
+@define-color flamingo #f2cdcd;
+
+* {
+  font-family: "Sono Medium", "JetBrainsMono Nerd Font", sans-serif;
+  font-size: 13px;
+  transition: all 0.25s ease;
+}
+
+/* ── Notification card ──────────────────────────────────────────────────── */
+
+.notification {
+  background-image: linear-gradient(
+    120deg,
+    alpha(@crust, 0.95),
+    alpha(@base, 0.9) 45%,
+    alpha(@mantle, 0.95)
+  );
+  border: 1px solid alpha(@surface1, 0.6);
+  border-radius: 9px;
+  padding: 12px;
+  margin: 6px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.notification:hover {
+  border-color: alpha(@overlay1, 0.8);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+}
+
+.notification-content {
+  background: transparent;
+  padding: 0;
+}
+
+/* ── Close button ───────────────────────────────────────────────────────── */
+
+.close-button {
+  background: alpha(@surface0, 0.5);
+  color: @subtext0;
+  border: 1px solid alpha(@surface1, 0.6);
+  border-radius: 50%;
+  padding: 4px;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+.close-button:hover {
+  background: @red;
+  color: @crust;
+  border-color: @red;
+  box-shadow: 0 0 10px alpha(@red, 0.7);
+}
+
+/* ── Notification text ──────────────────────────────────────────────────── */
+
+.body {
+  color: @text;
+  margin-top: 4px;
+}
+
+.summary {
+  color: @text;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.time {
+  color: @subtext0;
+  font-size: 11px;
+  margin-right: 8px;
+}
+
+.app-name {
+  color: @blue;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* ── Action buttons ─────────────────────────────────────────────────────── */
+
+.notification-action {
+  background-image: linear-gradient(
+    135deg,
+    alpha(@surface0, 0.8),
+    alpha(@surface1, 0.6)
+  );
+  color: @text;
+  border: 1px solid alpha(@surface1, 0.6);
+  border-radius: 7px;
+  padding: 8px 16px;
+  margin: 4px 2px;
+  min-width: 80px;
+}
+
+.notification-action:hover {
+  background-image: linear-gradient(135deg, @blue, @sapphire);
+  color: @crust;
+  border-color: @blue;
+  box-shadow: 0 0 10px alpha(@blue, 0.75);
+}
+
+/* ── Control center ─────────────────────────────────────────────────────── */
+
+.control-center {
+  background-image: linear-gradient(
+    120deg,
+    alpha(@crust, 0.95),
+    alpha(@base, 0.9) 45%,
+    alpha(@mantle, 0.95)
+  );
+  border: 1px solid alpha(@surface1, 0.6);
+  border-radius: 9px;
+  padding: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Widget title bar ───────────────────────────────────────────────────── */
+
+.widget-title {
+  background-image: linear-gradient(135deg, @blue, @sapphire);
+  color: @crust;
+  border-radius: 7px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  font-weight: bold;
+  box-shadow: 0 0 10px alpha(@blue, 0.5);
+}
+
+/* ── Volume / Brightness widgets ────────────────────────────────────────── */
+
+.widget-volume,
+.widget-brightness {
+  background-color: alpha(@surface0, 0.5);
+  border: 1px solid alpha(@surface1, 0.6);
+  border-radius: 9px;
+  padding: 10px 12px;
+  margin: 4px 0;
+}
+
+.widget-volume:hover {
+  box-shadow: 0 0 8px alpha(@sapphire, 0.5);
+  border-color: alpha(@sapphire, 0.7);
+}
+
+.widget-brightness:hover {
+  box-shadow: 0 0 8px alpha(@yellow, 0.5);
+  border-color: alpha(@yellow, 0.7);
+}
+
+/* ── Sliders ────────────────────────────────────────────────────────────── */
+
+.slider {
+  background-color: alpha(@surface1, 0.5);
+  border-radius: 4px;
+  min-height: 8px;
+}
+
+.slider:hover {
+  background-color: alpha(@surface2, 0.5);
+}
+
+.slider-selected {
+  background-image: linear-gradient(90deg, @blue, @sapphire);
+  box-shadow: 0 0 6px alpha(@blue, 0.5);
+}
+
+/* ── DND toggle ─────────────────────────────────────────────────────────── */
+
+.widget-dnd {
+  color: @text;
+  padding: 8px 12px;
+  border-radius: 7px;
+  background-color: alpha(@surface0, 0.5);
+  border: 1px solid alpha(@surface1, 0.6);
+}
+
+.widget-dnd:hover {
+  box-shadow: 0 0 8px alpha(@mauve, 0.5);
+  border-color: alpha(@mauve, 0.7);
+}
+
+.widget-dnd label {
+  color: @text;
+}
+
+/* ── Menubar ────────────────────────────────────────────────────────────── */
+
+.menubar {
+  background: transparent;
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.menubar button {
+  background-image: linear-gradient(
+    135deg,
+    alpha(@surface0, 0.8),
+    alpha(@surface1, 0.6)
+  );
+  color: @text;
+  border: 1px solid alpha(@surface1, 0.6);
+  border-radius: 7px;
+  padding: 6px 12px;
+  margin: 2px;
+}
+
+.menubar button:hover {
+  background-image: linear-gradient(135deg, @blue, @sapphire);
+  color: @crust;
+  border-color: @blue;
+  box-shadow: 0 0 8px alpha(@blue, 0.5);
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+
+.empty-state {
+  color: @overlay0;
+  padding: 20px;
+  font-style: italic;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+
+scrollbar {
+  background: transparent;
+}
+
+scrollbar slider {
+  background: alpha(@surface1, 0.5);
+  border-radius: 4px;
+  min-width: 6px;
+}
+
+scrollbar slider:hover {
+  background: alpha(@surface2, 0.7);
+}
+
+/* ── Notification widget list ───────────────────────────────────────────── */
+
+.widget-notifications-scroll {
+  padding: 0;
+}
+
+.notification-card {
+  padding: 0;
+  margin: 0;
+}

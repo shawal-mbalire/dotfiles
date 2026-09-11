@@ -1,0 +1,172 @@
+---
+# Dotfiles Ansible playbook
+# Full system provision: deps + stow + services
+
+- name: Provision dotfiles
+  hosts: localhost
+  become: true
+  vars:
+    dotfiles_dir: "{{ lookup('env', 'HOME') }}/dotfiles"
+
+  tasks:
+    # ── Core packages (Fedora) ──────────────────────────────────────────────
+
+    - name: Enable Hyprland COPR
+      community.general.copr:
+        name: solopasha/hypr
+        state: present
+      tags: [hyprland, copr]
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Fedora packages
+      ansible.builtin.dnf:
+        name:
+          # Core
+          - fish
+          - kitty
+          - tmux
+          - git
+          - lazygit
+          - neovim
+          - python3
+          - just
+          - stow
+          # Hyprland
+          - hyprland
+          - hyprlock
+          - hypridle
+          - hyprpaper
+          - hyprpolkitagent
+          - hyprsunset
+          # Desktop
+          - waybar
+          - swaync
+          - fuzzel
+          - wl-clipboard
+          - cliphist
+          - grimblast
+          - gammastep
+          - brightnessctl
+          - playerctl
+          - pavucontrol
+          - NetworkManager-applet
+          - blueman
+          - nautilus
+          # Fonts
+          - jetbrains-mono-fonts
+          # Dev
+          - lua
+          - lua-devel
+          - luarocks
+          - go
+          - nodejs
+          - npm
+          # Utils
+          - jq
+          - ripgrep
+          - fd-find
+          - unzip
+          - curl
+          - wget
+        state: present
+      tags: [packages, dnf]
+      when: ansible_os_family == "RedHat"
+
+    # ── Brew (cross-platform) ───────────────────────────────────────────────
+
+    - name: Check if brew is installed
+      ansible.builtin.stat:
+        path: "/home/{{ ansible_user_id }}/.linuxbrew/bin/brew"
+      register: brew_check
+      tags: [brew]
+
+    - name: Install Homebrew (Linux)
+      ansible.builtin.shell: |
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      args:
+        creates: "/home/{{ ansible_user_id }}/.linuxbrew/bin/brew"
+      become: false
+      tags: [brew]
+      when: not brew_check.stat.exists and ansible_system == "Linux"
+
+    - name: Install brew packages
+      community.general.homebrew:
+        name:
+          - fish
+          - kitty
+          - tmux
+          - git
+          - lazygit
+          - neovim
+          - just
+          - stow
+          - jq
+          - ripgrep
+          - fd
+          - node
+          - go
+        state: present
+      become: false
+      tags: [brew]
+      when: brew_check.stat.exists or ansible_system == "Darwin"
+
+    # ── Flatpak ─────────────────────────────────────────────────────────────
+
+    - name: Add Flathub remote
+      community.general.flatpak_remote:
+        name: flathub
+        state: present
+        flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
+      tags: [flatpak]
+
+    - name: Install Flatpak apps
+      community.general.flatpak:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - app.zen_browser.zen
+        - com.slack.Slack
+        - com.obsidian.Obsidian
+      tags: [flatpak]
+
+    # ── Dotfiles (stow) ─────────────────────────────────────────────────────
+
+    - name: Symlink dotfiles via Stow
+      ansible.builtin.command: stow --dotfiles .
+      args:
+        chdir: "{{ dotfiles_dir }}"
+        creates: "{{ dotfiles_dir }}/dot-config/.stowed"
+      become: false
+      tags: [stow]
+
+    # ── Shell setup ──────────────────────────────────────────────────────────
+
+    - name: Set fish as default shell
+      ansible.builtin.user:
+        name: "{{ ansible_user_id }}"
+        shell: /usr/bin/fish
+      tags: [shell]
+
+    # ── Services ─────────────────────────────────────────────────────────────
+
+    - name: Enable NetworkManager
+      ansible.builtin.systemd:
+        name: NetworkManager
+        enabled: true
+        state: started
+      tags: [services]
+
+    - name: Enable pipewire
+      ansible.builtin.systemd:
+        name: pipewire
+        enabled: true
+        state: started
+      become: false
+      tags: [services]
+
+    # ── Fonts ────────────────────────────────────────────────────────────────
+
+    - name: Rebuild font cache
+      ansible.builtin.command: fc-cache -fv
+      changed_when: true
+      tags: [fonts]

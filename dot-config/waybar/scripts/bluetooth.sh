@@ -1,7 +1,5 @@
 #!/bin/bash
 
-ROFI_THEME="$HOME/.config/rofi/themes/bluetooth-menu.rasi"
-
 get_all_devices() {
     bluetoothctl devices 2>/dev/null | awk '{print $2"|"$3}'
 }
@@ -37,8 +35,8 @@ get_power_state() {
 
 case "${1:-gui}" in
     gui)
-        if ! command -v bluetoothctl &> /dev/null || ! command -v rofi &> /dev/null; then
-            notify-send "Bluetooth" "Error: bluetoothctl or rofi not found"
+        if ! command -v bluetoothctl &> /dev/null || ! command -v fuzzel &> /dev/null; then
+            notify-send "Bluetooth" "Error: bluetoothctl or fuzzel not found"
             exit 1
         fi
 
@@ -47,7 +45,7 @@ case "${1:-gui}" in
             MENU="  Bluetooth is OFF\n"
             MENU="${MENU}─────────────────\n"
             MENU="${MENU}  Turn On\n"
-            CHOSEN=$(echo -e "$MENU" | rofi -dmenu -p "Bluetooth" -i -theme "$ROFI_THEME" 2>/dev/null)
+            CHOSEN=$(echo -e "$MENU" | fuzzel --dmenu -p "Bluetooth" 2>/dev/null)
             [ -z "$CHOSEN" ] && exit 0
             if [[ "$CHOSEN" == *"Turn On"* ]]; then
                 bluetoothctl power on 2>/dev/null
@@ -100,7 +98,7 @@ case "${1:-gui}" in
         MENU="${MENU} 󰂯 Toggle Power\n"
         MENU="${MENU}  Scan & Pair New Device"
 
-        CHOSEN=$(echo -e "$MENU" | rofi -dmenu -p "Bluetooth" -i -theme "$ROFI_THEME" 2>/dev/null)
+        CHOSEN=$(echo -e "$MENU" | fuzzel --dmenu -p "Bluetooth" 2>/dev/null)
 
         [ -z "$CHOSEN" ] && exit 0
 
@@ -132,7 +130,7 @@ case "${1:-gui}" in
                     exit 0
                 fi
 
-                DEVICE_CHOSEN=$(echo -e "$SCAN_MENU" | rofi -dmenu -p "Pair Device" -i -theme "$ROFI_THEME" 2>/dev/null)
+                DEVICE_CHOSEN=$(echo -e "$SCAN_MENU" | fuzzel --dmenu -p "Pair Device" 2>/dev/null)
                 [ -z "$DEVICE_CHOSEN" ] && exit 0
 
                 DEVICE_MAC=$(get_all_devices | grep "|${DEVICE_CHOSEN}$" | cut -d'|' -f1 | head -1)

@@ -13,7 +13,7 @@ nm-applet
 blueman
 pipewire
 wireplumber
-mako
+swaync
 
 # Polkit agent
 hyprpolkitagent
@@ -27,7 +27,7 @@ hyprsunset
 hypridle
 
 # Launcher and media
-rofi
+fuzzel
 playerctl
 brightnessctl
 

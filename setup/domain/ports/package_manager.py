@@ -1,0 +1,23 @@
+from typing import Protocol
+from domain.models.package import Package, PackageStatus
+
+
+class PackageManager(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    def is_available(self) -> bool: ...
+
+    def is_installed(self, package: Package) -> bool: ...
+
+    def search_available(self, package: Package) -> bool: ...
+
+    def get_package_name(self, package: Package) -> str: ...
+
+    def install_batch(self, names: list[str], dry_run: bool = False) -> list[str]:
+        """Install packages. Returns list of failed packages."""
+        ...
+
+    def mark_status(self, package: Package) -> Package:
+        """Return package with status set based on availability."""
+        ...

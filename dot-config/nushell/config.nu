@@ -684,3 +684,4 @@ source ~/.local/share/atuin/init.nu
 use ~/.cache/starship/init.nu
 
 $env.DIRENV_LOG_FORMAT = ""
+source "~/.cargo/env.nu"
