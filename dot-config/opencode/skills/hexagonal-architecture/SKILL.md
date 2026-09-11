@@ -513,6 +513,10 @@ Every language implementation must include these ports:
 ```just
 # Copy this justfile and replace tool commands for your language
 
+# Path vars — root is this justfile's directory.
+# Multi-project repos: add one var per project below root.
+root := justfile_directory()
+
 default:
     @just --list
 
@@ -744,7 +748,7 @@ Every request gets an ID that follows it through every adapter and layer:
 13. **TimePort Everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
 14. **Pure Domain Functions** — Domain workflows are pure functions: same input → same output, no side effects. I/O happens in adapters only. Testing becomes trivial.
 15. **Pure Adapter Helpers** — Extract mapping/transformation logic from adapter methods into pure functions. Test pure helpers without mocks; test I/O methods with integration tests.
-16. **Root Justfile for DX** — Every project has a root justfile with: run, dev, test, lint, format, typecheck, build, clean, check.
+16. **Root Justfile for DX** — Every project has a root justfile with: run, dev, test, lint, format, typecheck, build, clean, check. It defines `root := justfile_directory()` plus one path variable per project, and recipes `cd` into the project working dir before running commands.
 17. **LifetimePort for Graceful Exits** — Every workflow registers cleanup via LifetimePort. No resource left behind, no matter the exit reason (crash, user exit, normal, timeout).
 
 ## 12FA Compliance
@@ -795,6 +799,7 @@ Multiple languages?
 ├─ Each language gets its own folder with full hexagonal arch
 ├─ Shared contracts via proto/openapi in shared/
 ├─ Workspace-level justfile for cross-service commands
+│  └─ defines root := justfile_directory() + one path var per project; commands cd into project dirs
 └─ No direct imports between languages — communicate via ports
 
 Multiple bounded contexts?
@@ -867,6 +872,32 @@ update:             # Update dependencies to latest versions
 
 # Combined
 check: lint typecheck test    # Full pre-commit check
+```
+
+**Path variables:** Every justfile defines `root := justfile_directory()` at the top — the directory the justfile lives in. Multi-project repos define one path variable per project below it. Recipes `cd` into their target working directory before running commands, so a command never depends on the caller's cwd:
+
+```just
+# Single project — root is this project's directory
+root := justfile_directory()
+
+test:
+    cd {{root}} && uv run pytest
+
+build:
+    cd {{root}}/infra && docker compose build
+```
+
+```just
+# Multi-project workspace — one path var per project
+root := justfile_directory()
+backend_dir := root / "backend"
+frontend_dir := root / "frontend"
+
+test-backend:
+    cd {{backend_dir}} && just test
+
+test-frontend:
+    cd {{frontend_dir}} && just test
 ```
 
 **Why these commands matter:**
@@ -1067,6 +1098,7 @@ project/
 3. **Shared infra at root** — Docker, shared config, workspace commands live at workspace root
 4. **No direct imports across languages** — communicate via ports (HTTP, gRPC, message queues)
 5. **Workspace logs** — each service gets a color-coded log stream (see Workspace Log Streaming)
+6. **Workspace justfile owns paths** — define `root := justfile_directory()` plus one path variable per project (`backend_dir`, `frontend_dir`, ...). Every recipe `cd`s into the target project directory before running its commands — never rely on the caller's working directory
 
 ### Workspace Justfile
 
@@ -1074,14 +1106,20 @@ project/
 # project/justfile
 set dotenv-load
 
+# Path variables — workspace root plus one per project
+root := justfile_directory()
+backend_dir := root / "backend"
+frontend_dir := root / "frontend"
+mobile_dir := root / "mobile"
+
 default:
     @just --list
 
 # Run all services
 up:
-    just backend/up &
-    just frontend/up &
-    just mobile/run &
+    cd {{backend_dir}} && just run &
+    cd {{frontend_dir}} && just run &
+    cd {{mobile_dir}} && just run &
 
 # Stop all services
 down:
@@ -1091,20 +1129,20 @@ down:
 # Stream logs from all services
 logs:
     @echo "Starting log streams..."
-    just backend/logs &
-    just frontend/logs &
+    cd {{backend_dir}} && just logs &
+    cd {{frontend_dir}} && just logs &
 
 # Run all tests
 test:
-    just backend/test &
-    just frontend/test &
-    just mobile/test
+    cd {{backend_dir}} && just test &
+    cd {{frontend_dir}} && just test &
+    cd {{mobile_dir}} && just test
 
 # Lint all services
 lint:
-    just backend/lint &
-    just frontend/lint &
-    just mobile/lint
+    cd {{backend_dir}} && just lint &
+    cd {{frontend_dir}} && just lint &
+    cd {{mobile_dir}} && just lint
 ```
 
 ## TimePort
