@@ -97,3 +97,15 @@ hypr-reload:
 # Full Hyprland pre-commit check
 hypr-check:
   just -f dot-config/hypr/justfile check
+
+# ──────────────────────────────────────────────
+# SwayNC
+# ──────────────────────────────────────────────
+
+# Regenerate swaync config.json + style.css from the domain models
+swaync-generate:
+  just -f dot-config/swaync/Justfile generate
+
+# Full swaync pre-commit check (lint + typecheck + tests)
+swaync-check:
+  just -f dot-config/swaync/Justfile check

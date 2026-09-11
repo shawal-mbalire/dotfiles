@@ -33,7 +33,7 @@
     "mpris",
     "buttons-grid",
     "volume",
-    "brightness",
+    "backlight",
     "notifications",
     "buttons-grid#clearbar"
   ],
@@ -43,35 +43,29 @@
       "autohide": true,
       "show-album-art": "always"
     },
-    "volume": {
-      "label": "󰕾"
-    },
-    "brightness": {
-      "label": "󰃠"
-    },
     "buttons-grid": {
-      "buttons-per-row": 2,
+      "buttons-per-row": 3,
       "actions": [
         {
           "label": "󰤨  Wifi",
           "type": "toggle",
           "active": true,
-          "command": "sh -c '[[ $SWAYNC_TOGGLE_STATE == true ]] && nmcli radio wifi off || nmcli radio wifi on'",
-          "update-command": "sh -c 'nmcli radio wifi | grep -q enabled && echo true || echo false'"
+          "command": "[ $SWAYNC_TOGGLE_STATE = true ] && nmcli radio wifi off || nmcli radio wifi on",
+          "update-command": "nmcli radio wifi | grep -q enabled && echo true || echo false"
         },
         {
           "label": "󰂯  BT",
           "type": "toggle",
           "active": true,
-          "command": "sh -c '[[ $SWAYNC_TOGGLE_STATE == true ]] && bluetoothctl power off || bluetoothctl power on'",
-          "update-command": "sh -c 'bluetoothctl show | grep -q \"Powered: yes\" && echo true || echo false'"
+          "command": "[ $SWAYNC_TOGGLE_STATE = true ] && bluetoothctl power off || bluetoothctl power on",
+          "update-command": "bluetoothctl show | grep -qi 'powered: yes' && echo true || echo false"
         },
         {
           "label": "󰛨  Night",
           "type": "toggle",
           "active": true,
-          "command": "sh -c '[[ $SWAYNC_TOGGLE_STATE == true ]] && gammastep -x || gammastep -O 3500K'",
-          "update-command": "sh -c 'gammastep -p 2>/dev/null | grep -qi override && echo true || echo false'"
+          "command": "[ $SWAYNC_TOGGLE_STATE = true ] && gammastep -x || gammastep -O 3500K",
+          "update-command": "gammastep -p 2>/dev/null | grep -qi override && echo true || echo false"
         },
         {
           "label": "󰂛  DND",
@@ -83,7 +77,7 @@
         {
           "label": "󰐊  Power",
           "type": "normal",
-          "command": "~/.config/waybar/scripts/power/main.sh select"
+          "command": "~/.config/waybar/scripts/main.py power select"
         },
         {
           "label": "󰹑  Shot",
@@ -107,6 +101,15 @@
         }
       ]
     },
+    "volume": {
+      "label": "󰕾"
+    },
+    "backlight": {
+      "label": "󰃠"
+    },
+    "notifications": {
+      "vexpand": true
+    },
     "buttons-grid#clearbar": {
       "buttons-per-row": 1,
       "actions": [
@@ -116,9 +119,6 @@
           "command": "swaync-client -C"
         }
       ]
-    },
-    "notifications": {
-      "vexpand": true
     }
   }
 }
