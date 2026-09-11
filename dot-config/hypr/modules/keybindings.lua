@@ -28,6 +28,10 @@ bind(v.mainMod, "R", hl.dsp.window.pseudo())
 bind(v.mainMod, "B", exec_cmd(v.waybar_toggle))
 bind(v.mainMod, "M", exec_cmd(v.display_toggle))
 
+-- Notifications (swaync)
+bind(v.mainMod, "N", exec_cmd("swaync-client -t -sw"))
+bind(v.mainMod, "SHIFT + N", exec_cmd("swaync-client -d -sw"))
+
 -- Focus movement (vim-style)
 bind(v.mainMod, "H", hl.dsp.focus({ direction = "l" }))
 bind(v.mainMod, "J", hl.dsp.focus({ direction = "d" }))

@@ -25,7 +25,7 @@ test:
     echo "=== Waybar Module Test ==="
     echo ""
     echo "--- Dependencies ---"
-    for cmd in waybar brightnessctl grimblast wpctl nm-connection-editor tuned-adm kitty bluetoothctl rofi pw-play; do
+    for cmd in waybar brightnessctl grimblast wpctl nm-connection-editor tuned-adm kitty bluetoothctl fuzzel swaync-client pw-play; do
         printf "%-24s %s\n" "$cmd:" "$(which $cmd 2>/dev/null && echo '✓' || echo '✗ MISSING')"
     done
     echo ""

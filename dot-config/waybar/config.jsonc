@@ -7,25 +7,11 @@
     "hyprland/workspaces"
   ],
   "modules-center": [
-    "custom/icon-clock",
     "clock"
   ],
   "modules-right": [
-    "custom/icon-temp",
-    "custom/temp",
-    "custom/icon-network",
-    "network",
-    "custom/icon-power",
-    "custom/power",
-    "custom/icon-volume",
-    "custom/audio",
-    "custom/icon-backlight",
-    "backlight",
-    "custom/icon-battery",
+    "custom/swaync",
     "battery",
-    "custom/icon-bluetooth",
-    "bluetooth",
-    "swaync",
     "tray"
   ],
   "hyprland/workspaces": {
@@ -35,83 +21,10 @@
     "on-click": "activate",
     "sort-by-number": true
   },
-  "custom/icon-clock": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh clock",
-    "interval": 60,
-    "tooltip": true
-  },
   "clock": {
     "format": "{:%H:%M}",
     "format-alt": "{:%A, %B %d, %Y}",
     "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
-    "tooltip": true
-  },
-  "custom/icon-temp": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh temp",
-    "interval": 5,
-    "tooltip": true
-  },
-  "custom/temp": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/temp-status.sh",
-    "interval": 5,
-    "on-click": "~/.config/waybar/scripts/toggle_temp.sh",
-    "tooltip": true
-  },
-  "custom/icon-network": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh network",
-    "interval": 5,
-    "tooltip": true
-  },
-  "network": {
-    "format-wifi": "{signalStrength}%",
-    "format-ethernet": "{ifname}",
-    "format-linked": "{ifname} (No IP)",
-    "format-disconnected": "Offline",
-    "tooltip-format": "<span foreground='#b4befe' font_weight='bold'>NETWORK</span>\n<span foreground='#6c7086'>Interface</span>  <span foreground='#cdd6f4'>{ifname}</span>\n<span foreground='#6c7086'>IP</span>  <span foreground='#cdd6f4'>{ipaddr}/{cidr}</span>\n<span foreground='#6c7086'>Signal</span>  <span foreground='#cdd6f4'>{signalStrength}%</span>",
-    "on-click": "nm-connection-editor",
-    "tooltip": true
-  },
-  "custom/icon-volume": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh volume",
-    "interval": 5,
-    "tooltip": true,
-    "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+",
-    "on-scroll-down": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%-",
-    "signal": 5
-  },
-  "custom/icon-backlight": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh backlight",
-    "interval": 5,
-    "tooltip": true,
-    "on-scroll-up": "~/.config/waybar/scripts/brightness-control.sh up",
-    "on-scroll-down": "~/.config/waybar/scripts/brightness-control.sh down"
-  },
-  "backlight": {
-    "device": "intel_backlight",
-    "format": "{percent}%",
-    "tooltip-format": "Brightness: {percent}%\nScroll: Adjust\nRight-click: Presets",
-    "on-scroll-up": "~/.config/waybar/scripts/brightness-control.sh up",
-    "on-scroll-down": "~/.config/waybar/scripts/brightness-control.sh down",
-    "on-click-right": "~/.config/waybar/scripts/brightness-menu.sh",
-    "tooltip": true
-  },
-  "custom/icon-battery": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh battery",
-    "interval": 5,
     "tooltip": true
   },
   "battery": {
@@ -126,71 +39,31 @@
     "tooltip": true,
     "on-update": "bash ~/.config/hypr/scripts/battery-notify.sh"
   },
-  "custom/icon-bluetooth": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/pill-icon.sh bluetooth",
-    "interval": 5,
-    "tooltip": true
-  },
-  "bluetooth": {
-    "format": "",
-    "format-connected": "{device_alias}",
-    "format-disconnected": "off",
-    "tooltip-format": "<span foreground='#89b4fa' font_weight='bold'>BLUETOOTH</span>\n<span foreground='#6c7086'>Left-click</span>  <span foreground='#cdd6f4'>Devices</span>\n<span foreground='#6c7086'>Right-click</span>  <span foreground='#cdd6f4'>Power toggle</span>",
-    "on-click": "~/.config/waybar/scripts/bluetooth.sh gui",
-    "on-click-right": "~/.config/waybar/scripts/bluetooth.sh power",
-    "tooltip": true
-  },
   "tray": {
     "icon-size": 18,
     "spacing": 8,
     "show-passive": true,
     "tooltip": true
   },
-  "custom/icon-power": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/power/main.sh pill",
-    "interval": 30,
-    "signal": 7,
-    "tooltip": true
-  },
-  "custom/power": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/power/main.sh status",
-    "interval": 30,
-    "signal": 7,
-    "on-click": "~/.config/waybar/scripts/power/main.sh cycle",
-    "on-click-right": "~/.config/waybar/scripts/power/main.sh select",
-    "tooltip": true
-  },
-  "custom/audio": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.config/waybar/scripts/audio-status.sh",
-    "interval": 2,
-    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "on-click-right": "~/.config/waybar/scripts/select-audio-device.sh select",
-    "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+",
-    "on-scroll-down": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%-",
-    "tooltip": true,
-    "signal": 5
-  },
-  "swaync": {
+  "custom/swaync": {
     "format": "{icon}",
     "format-icons": {
-      "notification": "󰂜",
-      "none": "󰂜",
-      "dnd-notification": "󰂜",
-      "dnd-none": "󰂜",
-      "dnd-inhibited-notification": "󰂜",
-      "dnd-inhibited-none": "󰂜"
+      "notification": "󰂚",
+      "none": "󰂚",
+      "dnd-notification": "󰂛",
+      "dnd-none": "󰂛",
+      "inhibited-notification": "󰂜",
+      "inhibited-none": "󰂜",
+      "dnd-inhibited-notification": "󰂝",
+      "dnd-inhibited-none": "󰂝"
     },
-    "tooltip": true,
-    "tooltip-format": "{title}",
-    "on-click": "swaync-client -t",
-    "on-click-right": "swaync-client -C"
+    "return-type": "json",
+    "exec-if": "which swaync-client",
+    "exec": "swaync-client -swb",
+    "on-click": "swaync-client -t -sw",
+    "on-click-right": "swaync-client -d -sw",
+    "on-click-middle": "swaync-client -C",
+    "escape": true,
+    "tooltip": true
   }
 }
