@@ -8,6 +8,18 @@ M.__index = M
 
 local UPTIME_PATH = "/proc/uptime"
 
+-- Pure helper: parse the first seconds field of /proc/uptime into milliseconds.
+function M.parse_uptime_ms(line)
+  if not line then
+    return nil
+  end
+  local seconds = tonumber(line:match("^(%d+%.?%d*)"))
+  if not seconds then
+    return nil
+  end
+  return math.floor(seconds * 1000)
+end
+
 function M.new()
   return setmetatable({}, M)
 end
@@ -19,14 +31,7 @@ local function read_uptime_ms()
   end
   local line = file:read("*l")
   file:close()
-  if not line then
-    return nil
-  end
-  local seconds = tonumber(line:match("^(%d+%.?%d*)"))
-  if not seconds then
-    return nil
-  end
-  return math.floor(seconds * 1000)
+  return M.parse_uptime_ms(line)
 end
 
 function M:now_ms()

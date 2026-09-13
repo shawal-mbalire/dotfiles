@@ -94,7 +94,11 @@ local function build(config)
 end
 
 return function(deps)
+  local started = deps.time:now_ms()
   local list = build(deps.config)
   deps.binding:register_binds(list)
-  deps.logger:info("keybindings_registered", { count = #list })
+  deps.logger:info("keybindings_registered", {
+    count = #list,
+    elapsed_ms = deps.time:elapsed_ms(started),
+  })
 end

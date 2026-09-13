@@ -50,7 +50,11 @@ env vars. The composition root wires everything together.
 - **adapters/hyprland_adapter.lua** maps domain ops to `hl.*`; the pure
   translation lives in **adapters/hyprland_mappings.lua** and is unit-tested.
 - **adapters/console_logger, system_time, process_lifetime** implement the
-  cross-cutting `LoggerPort`, `TimePort` and `LifetimePort`.
+  cross-cutting `LoggerPort`, `TimePort` and `LifetimePort`. Transformation
+  logic is extracted into pure helpers (`Logger.format_line`,
+  `SystemTime.parse_uptime_ms`) so it is unit-tested without touching I/O.
+- Every workflow reports `elapsed_ms` through `TimePort`, making load-time
+  performance visible in the structured logs.
 - **domain/workflows/*** receive `deps = { config, logger, time, lifetime,
   monitor, environment, input, binding, command, visual, layer, runtime,
   wallpaper }` and never read env or import adapters. Visual/input settings are
@@ -73,6 +77,11 @@ env vars. The composition root wires everything together.
 Note: bind actions use `hl.dsp.exec_cmd` (they build a dispatcher), while
 autostart uses `hl.exec_cmd` (immediate spawn). `hyprland_mappings.lua` and the
 adapter keep these two paths separate.
+
+Note: Hyprland 0.55 runs Lua and removed the legacy `hyprctl keyword` /
+`hyprpaper` config paths. Runtime adapters use the Lua API instead — e.g.
+`scripts/toggle_display.py` issues `hyprctl eval 'hl.monitor({...})'` and the
+hyprpaper config uses the `wallpaper { monitor = ... }` special category.
 
 ## Setup
 

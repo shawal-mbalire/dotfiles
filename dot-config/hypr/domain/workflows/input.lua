@@ -3,6 +3,7 @@
 local models = require("domain.models")
 
 return function(deps)
+  local started = deps.time:now_ms()
   local input = deps.config.input
 
   deps.input:configure_input(models.InputSettings.new({
@@ -20,5 +21,8 @@ return function(deps)
 
   deps.input:configure_device(models.Device.new(input.mouse.name, input.mouse))
 
-  deps.logger:info("input_configured", { layout = input.kb_layout })
+  deps.logger:info("input_configured", {
+    layout = input.kb_layout,
+    elapsed_ms = deps.time:elapsed_ms(started),
+  })
 end

@@ -17,6 +17,22 @@ end
 
 return {
   {
+    name = "logger_format_line_is_pure_and_sorts_fields",
+    run = function()
+      local line = Logger.format_line("[t]", "info", "hi", { b = 2, a = 1, msg = "two words" })
+      assert(line == '[t] INFO  hi a=1 b=2 msg="two words"', "got " .. line)
+    end,
+  },
+  {
+    name = "time_parse_uptime_ms_extracts_seconds",
+    run = function()
+      assert(SystemTime.parse_uptime_ms("1234.56 8901.23\n") == 1234560, "parse wrong")
+      assert(SystemTime.parse_uptime_ms("42 0") == 42000, "integer parse wrong")
+      assert(SystemTime.parse_uptime_ms(nil) == nil, "nil line should be nil")
+      assert(SystemTime.parse_uptime_ms("nonsense") == nil, "bad line should be nil")
+    end,
+  },
+  {
     name = "logger_prints_at_or_above_min_level",
     run = function()
       local logger, output = capturing_logger("info")

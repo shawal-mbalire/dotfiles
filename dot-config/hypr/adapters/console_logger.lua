@@ -13,21 +13,9 @@ local function default_sink()
   return { write = function() end }
 end
 
-function M.new(opts)
-  opts = opts or {}
-  return setmetatable({
-    min_level = opts.min_level or "info",
-    sink = opts.sink or default_sink(),
-    prefix = opts.prefix or "[hypr]",
-  }, M)
-end
-
-function M:_log(level, message, fields)
-  if (LEVELS[level] or 0) < (LEVELS[self.min_level] or 0) then
-    return
-  end
-
-  local parts = { string.format("%s %-5s %s", self.prefix, level:upper(), message) }
+-- Pure helper: format one structured log line (no I/O, trivially testable).
+function M.format_line(prefix, level, message, fields)
+  local parts = { string.format("%s %-5s %s", prefix, level:upper(), message) }
   if fields then
     local keys = {}
     for key in pairs(fields) do
@@ -42,7 +30,23 @@ function M:_log(level, message, fields)
       parts[#parts + 1] = string.format("%s=%s", key, value)
     end
   end
-  self.sink:write(table.concat(parts, " ") .. "\n")
+  return table.concat(parts, " ")
+end
+
+function M.new(opts)
+  opts = opts or {}
+  return setmetatable({
+    min_level = opts.min_level or "info",
+    sink = opts.sink or default_sink(),
+    prefix = opts.prefix or "[hypr]",
+  }, M)
+end
+
+function M:_log(level, message, fields)
+  if (LEVELS[level] or 0) < (LEVELS[self.min_level] or 0) then
+    return
+  end
+  self.sink:write(M.format_line(self.prefix, level, message, fields) .. "\n")
 end
 
 function M:debug(message, fields) self:_log("debug", message, fields) end
