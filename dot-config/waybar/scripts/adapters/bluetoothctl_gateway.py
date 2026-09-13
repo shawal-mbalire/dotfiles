@@ -12,6 +12,7 @@ import subprocess
 import time
 
 from domain.models import BluetoothDevice
+from domain.ports.core import LifetimePort
 
 _BATTERY_PAREN = re.compile(r"\((\d+)\)")
 _BATTERY_HEX = re.compile(r"0x([0-9a-fA-F]+)")
@@ -52,19 +53,25 @@ def _parse_battery(line: str) -> int | None:
 
 
 class BluetoothctlGateway:
+    def __init__(self, command: str = "bluetoothctl") -> None:
+        self._command = command
+
     def is_available(self) -> bool:
-        return shutil.which("bluetoothctl") is not None
+        return shutil.which(self._command) is not None
 
     def launch_console(self) -> None:
-        os.execvp("bluetoothctl", ["bluetoothctl"])
+        os.execvp(self._command, [self._command])
 
     def _run(self, *args: str) -> str:
-        result = subprocess.run(
-            ["bluetoothctl", *args],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [self._command, *args],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            return ""
         return result.stdout
 
     def is_powered(self) -> bool:
@@ -103,20 +110,34 @@ class BluetoothctlGateway:
     def trust(self, mac: str) -> None:
         self._run("trust", mac)
 
-    def scan(self, seconds: int) -> None:
+    def scan(self, seconds: int, lifetime: LifetimePort) -> None:
         self._run("pairable", "on")
-        scan = subprocess.Popen(
-            ["bluetoothctl", "--", "scan", "on"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
         try:
-            time.sleep(seconds)
-        finally:
+            scan = subprocess.Popen(
+                [self._command, "--", "scan", "on"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except OSError:
+            return
+
+        stopped = False
+
+        def stop_scan() -> None:
+            nonlocal stopped
+            if stopped:
+                return
+            stopped = True
             scan.terminate()
             try:
                 scan.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 scan.kill()
             self._run("scan", "off")
+
+        lifetime.register_cleanup(stop_scan)
+        try:
+            time.sleep(seconds)
+        finally:
+            stop_scan()

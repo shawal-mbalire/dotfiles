@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from domain.constants import VOLUME_TONE_VOLUME
+from domain.models import Urgency
 from domain.ports.audio import AudioControl, AudioDevices
 from domain.ports.core import BarGateway, Logger, Notifier, Prompt, SoundPlayer
 
@@ -38,7 +39,7 @@ def select_device(
         logger.info(f"audio default sink -> {chosen_sink.name}")
         notifier.notify("Audio", f"Output: {chosen_sink.description}")
     else:
-        notifier.notify("Audio", f"Failed to switch: {chosen_sink.description}", "critical")
+        notifier.notify("Audio", f"Failed to switch: {chosen_sink.description}", Urgency.CRITICAL)
 
 
 def adjust_volume(

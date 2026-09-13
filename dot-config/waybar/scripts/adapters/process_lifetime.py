@@ -7,13 +7,15 @@ import signal
 import sys
 from collections.abc import Callable
 
-from domain.ports.core import ExitReason
+from domain.models import ExitReason
+from domain.ports.core import Logger
 
 
 class ProcessLifetime:
     """Tracks why the process is exiting and runs registered cleanups once."""
 
-    def __init__(self) -> None:
+    def __init__(self, logger: Logger | None = None) -> None:
+        self._logger = logger
         self._reason = ExitReason.NORMAL
         self._cleanups: list[Callable[[], None]] = []
         self._exit_handlers: list[Callable[[ExitReason], None]] = []
@@ -57,13 +59,20 @@ class ProcessLifetime:
             try:
                 cleanup()
             except Exception as error:  # pragma: no cover - defensive
-                print(f"waybar[error] cleanup failed: {error}", file=sys.stderr)
+                self._report_cleanup_failure(error)
         self._cleanups.clear()
 
         for handler in self._exit_handlers:
             with contextlib.suppress(Exception):
                 handler(self._reason)
         self._exit_handlers.clear()
+
+    def _report_cleanup_failure(self, error: Exception) -> None:
+        message = f"cleanup failed: {error}"
+        if self._logger is not None:
+            self._logger.error(message)
+        else:
+            print(f"waybar[error] {message}", file=sys.stderr)
 
     def __enter__(self) -> ProcessLifetime:
         self.install()

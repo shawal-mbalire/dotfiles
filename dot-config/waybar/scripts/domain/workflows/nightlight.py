@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from domain.models import Urgency
 from domain.ports.core import Logger, Notifier
 from domain.ports.system import NightLightGateway
 
@@ -13,7 +14,7 @@ def toggle(
     temperature: str,
 ) -> None:
     if not gateway.is_available():
-        notifier.notify("Gammastep", "Error: gammastep not found", "critical")
+        notifier.notify("Gammastep", "Error: gammastep not found", Urgency.CRITICAL)
         return
 
     if gateway.is_active():

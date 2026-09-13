@@ -13,7 +13,9 @@ from domain.models import (
     AudioStatus,
     BatteryStatus,
     BluetoothDevice,
+    ExitReason,
     NetworkStatus,
+    Urgency,
 )
 
 
@@ -56,8 +58,8 @@ class FakeNotifier:
     def __init__(self) -> None:
         self.notifications: list[tuple[str, str, str]] = []
 
-    def notify(self, summary: str, body: str, urgency: str = "normal") -> None:
-        self.notifications.append((summary, body, urgency))
+    def notify(self, summary: str, body: str, urgency: Urgency = Urgency.NORMAL) -> None:
+        self.notifications.append((summary, body, urgency.value))
 
 
 class FakePrompt:
@@ -101,7 +103,7 @@ class FakeSound:
 class FakeLifetime:
     def __init__(self) -> None:
         self.cleanups: list[object] = []
-        self.reason = "normal"
+        self.reason = ExitReason.NORMAL
         self.shutting_down = False
 
     def register_cleanup(self, handler: object) -> None:
@@ -110,7 +112,7 @@ class FakeLifetime:
     def on_exit(self, handler: object) -> None:
         pass
 
-    def get_exit_reason(self) -> str:
+    def get_exit_reason(self) -> ExitReason:
         return self.reason
 
     def is_shutting_down(self) -> bool:
@@ -222,7 +224,7 @@ class FakeBluetoothGateway:
     def trust(self, mac: str) -> None:
         self.actions.append(("trust", mac))
 
-    def scan(self, seconds: int) -> None:
+    def scan(self, seconds: int, lifetime: object) -> None:
         self.actions.append(("scan", str(seconds)))
 
 

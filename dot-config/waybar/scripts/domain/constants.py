@@ -67,6 +67,19 @@ VOLUME_TONE_VOLUME = 0.3
 # ── Bluetooth ───────────────────────────────────────────────────────────────
 BLUETOOTH_SCAN_SECONDS = 10
 
-# ── Audio device description shortening ─────────────────────────────────────
-AUDIO_DESCRIPTION_STRIP = "Core Ultra 200H/200V Series Processors HD Audio "
-AUDIO_DESCRIPTION_CODEC = "Realtek ALC"
+# ── Module cache freshness (milliseconds) ───────────────────────────────────
+# How long a rendered payload may be served by the poll client before a
+# background refresh is triggered. Keys are the cache keys in cli.py.
+MODULE_TTL_MS: dict[str, int] = {
+    "pill-clock": 60_000,
+    "pill-temp": 5_000,
+    "pill-network": 5_000,
+    "pill-volume": 5_000,
+    "pill-backlight": 5_000,
+    "pill-battery": 5_000,
+    "pill-bluetooth": 5_000,
+    "nightlight-status": 5_000,
+    "audio-status": 2_500,
+    "power-status": 30_000,
+    "power-pill": 30_000,
+}

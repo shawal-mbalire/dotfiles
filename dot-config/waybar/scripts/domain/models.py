@@ -18,6 +18,23 @@ class PowerProfileName(StrEnum):
     PERFORMANCE = "performance"
 
 
+class Urgency(StrEnum):
+    """Notification urgency levels understood by the notifier adapter."""
+
+    NORMAL = "normal"
+    CRITICAL = "critical"
+
+
+class ExitReason(StrEnum):
+    """Why a process is ending, so cleanup can be attributed."""
+
+    NORMAL = "normal"
+    USER_EXIT = "user_exit"
+    CRASH = "crash"
+    TIMEOUT = "timeout"
+    SHUTDOWN = "shutdown"
+
+
 @dataclass(frozen=True)
 class PowerProfile:
     """Presentation metadata for a single power profile."""

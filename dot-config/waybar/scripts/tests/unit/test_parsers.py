@@ -1,8 +1,11 @@
 from adapters.bluetoothctl_gateway import parse_devices, parse_info
 from adapters.busctl_power import parse_active_profile
-from adapters.pactl_audio import parse_sinks, shorten_description
+from adapters.pactl_audio import compile_codec_pattern, parse_sinks, shorten_description
 from adapters.proc_network import default_interface
 from adapters.wpctl_audio import parse_volume_output
+
+AUDIO_STRIP = "Core Ultra 200H/200V Series Processors HD Audio "
+AUDIO_CODEC = "Realtek ALC"
 
 
 def test_parse_volume_output_plain():
@@ -23,8 +26,11 @@ def test_parse_active_profile_quoted():
 
 
 def test_shorten_description_strips_vendor_noise():
-    description = "Core Ultra 200H/200V Series Processors HD Audio Realtek ALC256 Analog"
-    assert shorten_description(description) == "Analog"
+    description = AUDIO_STRIP + AUDIO_CODEC + "256 Analog"
+    assert (
+        shorten_description(description, AUDIO_STRIP, compile_codec_pattern(AUDIO_CODEC))
+        == "Analog"
+    )
 
 
 def test_parse_sinks_builds_models():

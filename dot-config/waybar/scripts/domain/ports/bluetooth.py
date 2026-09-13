@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from domain.models import BluetoothDevice
+from domain.ports.core import LifetimePort
 
 
 class BluetoothPowerState(Protocol):
@@ -37,4 +38,4 @@ class BluetoothGateway(Protocol):
 
     def trust(self, mac: str) -> None: ...
 
-    def scan(self, seconds: int) -> None: ...
+    def scan(self, seconds: int, lifetime: LifetimePort) -> None: ...

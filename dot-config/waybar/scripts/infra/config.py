@@ -13,6 +13,8 @@ DEFAULT_TIME_BUDGET_MS = 50
 DEFAULT_BATTERY = "BAT0"
 DEFAULT_BACKLIGHT_DEVICE = "intel_backlight"
 DEFAULT_AUDIO_SINK = "@DEFAULT_AUDIO_SINK@"
+DEFAULT_AUDIO_DESCRIPTION_STRIP = "Core Ultra 200H/200V Series Processors HD Audio "
+DEFAULT_AUDIO_DESCRIPTION_CODEC = "Realtek ALC"
 DEFAULT_SOUND = "/usr/share/sounds/alsa/Front_Center.wav"
 DEFAULT_GAMMASTEP_TEMPERATURE = "16000"
 
@@ -53,6 +55,8 @@ class Config:
     battery_supply: str
     backlight_device: str
     audio_sink: str
+    audio_description_strip: str
+    audio_description_codec: str
     volume_step: int
     volume_max: float
     sound_path: str
@@ -77,6 +81,8 @@ def load_config() -> Config:
         battery_supply=_env("WAYBAR_BATTERY", DEFAULT_BATTERY),
         backlight_device=_env("WAYBAR_BACKLIGHT_DEVICE", DEFAULT_BACKLIGHT_DEVICE),
         audio_sink=_env("WAYBAR_AUDIO_SINK", DEFAULT_AUDIO_SINK),
+        audio_description_strip=_env("WAYBAR_AUDIO_STRIP", DEFAULT_AUDIO_DESCRIPTION_STRIP),
+        audio_description_codec=_env("WAYBAR_AUDIO_CODEC", DEFAULT_AUDIO_DESCRIPTION_CODEC),
         volume_step=_env_int("WAYBAR_VOLUME_STEP", 5),
         volume_max=_env_float("WAYBAR_VOLUME_MAX", 1.0),
         sound_path=_env("WAYBAR_SOUND", DEFAULT_SOUND),

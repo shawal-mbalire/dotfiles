@@ -13,7 +13,7 @@ from pathlib import Path
 PROC_ROOT = Path("/proc")
 
 
-def waybar_pids(proc_root: Path = PROC_ROOT) -> list[int]:
+def waybar_pids(proc_root: Path = PROC_ROOT, process_name: str = "waybar") -> list[int]:
     pids: list[int] = []
     for entry in proc_root.iterdir():
         if not entry.name.isdigit():
@@ -22,15 +22,18 @@ def waybar_pids(proc_root: Path = PROC_ROOT) -> list[int]:
             comm = (entry / "comm").read_text().strip()
         except OSError:
             continue
-        if comm == "waybar":
+        if comm == process_name:
             pids.append(int(entry.name))
     return pids
 
 
 class WaybarBar:
+    def __init__(self, process_name: str = "waybar") -> None:
+        self._process_name = process_name
+
     def refresh(self, signal_offset: int) -> None:
         signum = signal.SIGRTMIN + signal_offset
-        for pid in waybar_pids():
+        for pid in waybar_pids(process_name=self._process_name):
             try:
                 os.kill(pid, signum)
             except OSError:

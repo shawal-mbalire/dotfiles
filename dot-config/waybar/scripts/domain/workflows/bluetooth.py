@@ -8,7 +8,7 @@ from domain.constants import (
     ICON_BT_AVAILABLE,
     ICON_BT_CONNECTED,
 )
-from domain.models import BluetoothDevice
+from domain.models import BluetoothDevice, Urgency
 from domain.ports.bluetooth import BluetoothGateway
 from domain.ports.core import LifetimePort, Logger, Notifier, Prompt
 
@@ -23,7 +23,7 @@ def _available_line(device: BluetoothDevice) -> str:
 
 def toggle_power(gateway: BluetoothGateway, notifier: Notifier, logger: Logger) -> None:
     if not gateway.is_available():
-        notifier.notify("Bluetooth", "Error: bluetoothctl not found", "critical")
+        notifier.notify("Bluetooth", "Error: bluetoothctl not found", Urgency.CRITICAL)
         return
 
     if gateway.is_powered():
@@ -67,10 +67,11 @@ def _scan_and_pair(
     gateway: BluetoothGateway,
     prompt: Prompt,
     notifier: Notifier,
+    lifetime: LifetimePort,
     logger: Logger,
 ) -> None:
     notifier.notify("Bluetooth", f"Scanning for {BLUETOOTH_SCAN_SECONDS} seconds...")
-    gateway.scan(BLUETOOTH_SCAN_SECONDS)
+    gateway.scan(BLUETOOTH_SCAN_SECONDS, lifetime)
 
     unpaired = [device for device in gateway.list_devices() if not device.paired]
     if not unpaired:
@@ -100,7 +101,7 @@ def gui(
     logger: Logger,
 ) -> None:
     if not gateway.is_available() or not prompt.is_available():
-        notifier.notify("Bluetooth", "Error: bluetoothctl or fuzzel not found", "critical")
+        notifier.notify("Bluetooth", "Error: bluetoothctl or fuzzel not found", Urgency.CRITICAL)
         return
 
     if not gateway.is_powered():
@@ -123,7 +124,7 @@ def gui(
         return
 
     if "Scan & Pair" in chosen:
-        _scan_and_pair(gateway, prompt, notifier, logger)
+        _scan_and_pair(gateway, prompt, notifier, lifetime, logger)
         return
 
     for device in devices:

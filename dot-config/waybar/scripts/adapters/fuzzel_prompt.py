@@ -7,26 +7,30 @@ import subprocess
 
 
 class FuzzelPrompt:
-    def __init__(self, theme: str = "") -> None:
+    def __init__(self, theme: str = "", command: str = "fuzzel") -> None:
         self._theme = theme
+        self._command = command
 
     def is_available(self) -> bool:
-        return shutil.which("fuzzel") is not None
+        return shutil.which(self._command) is not None
 
     def choose(self, lines: list[str], prompt: str) -> str | None:
         if not self.is_available():
             return None
 
-        command = ["fuzzel", "--dmenu", "-p", prompt]
+        command = [self._command, "--dmenu", "-p", prompt]
         if self._theme:
             command.extend(["--config", self._theme])
 
-        result = subprocess.run(
-            command,
-            input="\n".join(lines),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                input="\n".join(lines),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            return None
         chosen = result.stdout.strip()
         return chosen or None

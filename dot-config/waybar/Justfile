@@ -36,7 +36,7 @@ logs:
 # Test
 # ──────────────────────────────────────────────
 
-test: test-unit test-integration
+test: test-unit test-integration test-e2e
 
 test-unit:
     cd {{root}} && uv run --with pytest pytest scripts/tests/unit -q
@@ -44,8 +44,12 @@ test-unit:
 test-integration:
     cd {{root}} && uv run --with pytest pytest scripts/tests/integration -q
 
-# Time-budget contract: every polled module must return within 50ms
+# End-to-end: drive main.py like waybar does, through the composition root
 test-e2e:
+    cd {{root}} && uv run --with pytest pytest scripts/tests/e2e -q
+
+# Time-budget contract: every polled module must return within 50ms
+test-budget:
     @{{scripts}}/bench.py --budget 50
 
 # ──────────────────────────────────────────────

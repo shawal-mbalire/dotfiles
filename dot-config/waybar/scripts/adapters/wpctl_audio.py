@@ -35,39 +35,54 @@ def parse_volume_output(output: str) -> AudioStatus:
 
 
 class WpctlAudioControl:
-    def __init__(self, sink: str, max_volume: float = MAX_VOLUME) -> None:
+    def __init__(
+        self,
+        sink: str,
+        max_volume: float = MAX_VOLUME,
+        command: str = "wpctl",
+    ) -> None:
         self._sink = sink
         self._max_volume = max_volume
+        self._command = command
 
     def get_status(self) -> AudioStatus:
-        result = subprocess.run(
-            ["wpctl", "get-volume", self._sink],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [self._command, "get-volume", self._sink],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            return AudioStatus(volume_percent=0, muted=False)
         return parse_volume_output(result.stdout)
 
     def adjust_volume(self, step: int) -> None:
         operator = "+" if step >= 0 else "-"
-        subprocess.run(
-            [
-                "wpctl",
-                "set-volume",
-                "-l",
-                str(self._max_volume),
-                self._sink,
-                f"{abs(step)}%{operator}",
-            ],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            subprocess.run(
+                [
+                    self._command,
+                    "set-volume",
+                    "-l",
+                    str(self._max_volume),
+                    self._sink,
+                    f"{abs(step)}%{operator}",
+                ],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            return
 
     def toggle_mute(self) -> None:
-        subprocess.run(
-            ["wpctl", "set-mute", self._sink, "toggle"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            subprocess.run(
+                [self._command, "set-mute", self._sink, "toggle"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            return

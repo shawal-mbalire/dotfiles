@@ -26,14 +26,17 @@ sudo dnf install waybar jetbrains-mono-fonts sono-fonts brightnessctl grimblast 
 
 ```
 scripts/
-├── main.py              # composition root + CLI (the only entry point)
-├── cachefile.py         # pure cache reader/writer (no env access)
+├── main.py              # thin entry point (delegates to cli.py)
+├── cli.py               # driving adapter: argument parsing + command routing
+├── wire.py              # composition root: builds adapters from Config
 ├── bench.py             # verifies the 50ms poll budget
 ├── domain/              # pure: models, constants, errors, ports, workflows
+│   └── workflows/       # incl. refresh.py (render-all) and cache.py (TTL policy)
 ├── infra/               # config: env vars and user paths are read only here
 │   ├── config.py        # typed settings loaded from the environment
 │   └── paths.py         # lightweight XDG path resolution for the poll path
 └── adapters/            # plumbing: wpctl, pactl, busctl, sysfs, bluetoothctl...
+    └── file_cache.py    # CachePort adapter (TimePort-injected)
 ```
 
 **Dependencies point inward.** The domain never imports an adapter or an
@@ -61,7 +64,7 @@ it signals waybar (RTMIN+5/7/8) so the module updates immediately.
 - **Action path** (`cycle`, `select`, `toggle`, `menu`, volume keys): runs the
   full stack synchronously; these may block on menus/scans.
 
-Run `just test-e2e` (or `scripts/bench.py`) to verify the budget.
+Run `just test-budget` (or `scripts/bench.py`) to verify the budget.
 
 ## Commands
 
@@ -120,7 +123,7 @@ Override the file with the `WAYBAR_SOUND` environment variable.
 
 ## Configuration
 
-Environment variables (read once in `infra/config.py`):
+Environment variables (read once in `infra/`):
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -129,14 +132,25 @@ Environment variables (read once in `infra/config.py`):
 | `WAYBAR_BATTERY` | `BAT0` | Battery sysfs name |
 | `WAYBAR_BACKLIGHT_DEVICE` | `intel_backlight` | Backlight sysfs name |
 | `WAYBAR_AUDIO_SINK` | `@DEFAULT_AUDIO_SINK@` | wpctl sink |
+| `WAYBAR_AUDIO_STRIP` | *(vendor prefix)* | Prefix stripped from sink descriptions |
+| `WAYBAR_AUDIO_CODEC` | *(codec name)* | Codec token stripped from sink descriptions |
 | `WAYBAR_VOLUME_STEP` | `5` | Volume step percent |
+| `WAYBAR_VOLUME_MAX` | `1.0` | Maximum volume (`wpctl -l`) |
+| `WAYBAR_GAMMASTEP_TEMPERATURE` | `16000` | Gammastep colour temperature (K) |
+| `WAYBAR_NOTIFY_APP` | `waybar` | Notification app name |
+| `WAYBAR_NOTIFY_URGENCY` | `normal` | Default notification urgency |
+| `WAYBAR_NOTIFY_FAIL_URGENCY` | `critical` | Urgency for failures |
+| `WAYBAR_PROMPT_THEME` | *(empty)* | Fuzzel config path |
 | `WAYBAR_SOUND` | `/usr/share/sounds/alsa/Front_Center.wav` | Feedback tone |
 
 ## Development
 
 ```bash
-just test          # unit + integration tests
-just test-e2e      # verify the 50ms poll budget
+just test          # unit + integration + e2e tests
+just test-unit     # fast domain tests
+just test-integration  # real adapters/sysfs on this host
+just test-e2e      # end-to-end through main.py
+just test-budget   # verify the 50ms poll budget
 just lint          # ruff
 just format        # ruff format
 just check         # lint + typecheck + test

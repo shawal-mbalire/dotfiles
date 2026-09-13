@@ -20,9 +20,15 @@ def _read_int(path: Path) -> int | None:
 
 
 class SysfsBacklight:
-    def __init__(self, device: str = "", root: Path = SYSFS_ROOT) -> None:
+    def __init__(
+        self,
+        device: str = "",
+        root: Path = SYSFS_ROOT,
+        setter: str = "brightnessctl",
+    ) -> None:
         self._root = Path(root)
         self._device = device
+        self._setter = setter
 
     def _device_dir(self) -> Path | None:
         if self._device and (self._root / self._device).is_dir():
@@ -44,17 +50,18 @@ class SysfsBacklight:
         if delta == 0:
             return
         operator = "+" if delta > 0 else "-"
-        subprocess.run(
-            ["brightnessctl", "s", f"{abs(delta)}%{operator}"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        self._run_setter(f"{abs(delta)}%{operator}")
 
     def set_percent(self, percent: int) -> None:
-        subprocess.run(
-            ["brightnessctl", "s", f"{percent}%"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        self._run_setter(f"{percent}%")
+
+    def _run_setter(self, amount: str) -> None:
+        try:
+            subprocess.run(
+                [self._setter, "s", amount],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            return

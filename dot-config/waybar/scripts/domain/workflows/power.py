@@ -12,7 +12,7 @@ from domain.constants import (
     POWER_PROFILES,
 )
 from domain.errors import UnknownPowerProfileError
-from domain.models import ModuleOutput, PowerProfile
+from domain.models import ModuleOutput, PowerProfile, Urgency
 from domain.ports.core import BarGateway, Logger, Notifier, Prompt, TimePort
 from domain.ports.power import PowerGateway
 
@@ -87,12 +87,12 @@ def set_profile(
 ) -> bool:
     profile = find_profile(name)
     if profile is None:
-        notifier.notify("Power Profile", f"Unknown profile: {name}", "critical")
+        notifier.notify("Power Profile", f"Unknown profile: {name}", Urgency.CRITICAL)
         raise UnknownPowerProfileError(name)
 
     start = time.now_ms()
     if not gateway.set_profile(name):
-        notifier.notify("Power Profile", f"Failed to switch to: {profile.label}", "critical")
+        notifier.notify("Power Profile", f"Failed to switch to: {profile.label}", Urgency.CRITICAL)
         return False
 
     logger.debug(f"power set {name} in {time.elapsed_ms(start)}ms")

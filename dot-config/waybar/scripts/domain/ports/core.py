@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
-from enum import StrEnum
 from typing import Protocol
+
+from domain.models import ExitReason, Urgency
 
 
 class Logger(Protocol):
@@ -32,14 +33,6 @@ class TimePort(Protocol):
     def now(self) -> datetime: ...
 
 
-class ExitReason(StrEnum):
-    NORMAL = "normal"
-    USER_EXIT = "user_exit"
-    CRASH = "crash"
-    TIMEOUT = "timeout"
-    SHUTDOWN = "shutdown"
-
-
 class LifetimePort(Protocol):
     """Detect why a process is ending so no resource is left behind."""
 
@@ -53,7 +46,7 @@ class LifetimePort(Protocol):
 
 
 class Notifier(Protocol):
-    def notify(self, summary: str, body: str, urgency: str = "normal") -> None: ...
+    def notify(self, summary: str, body: str, urgency: Urgency = Urgency.NORMAL) -> None: ...
 
 
 class Prompt(Protocol):
