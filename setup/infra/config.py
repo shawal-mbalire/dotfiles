@@ -1,5 +1,6 @@
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
+
 from domain.models.package import Package
 
 HOME = Path.home()
@@ -48,7 +49,8 @@ PACKAGES = [
 
     # ── Desktop ─────────────────────────────────────────────────────────────
     Package(name="waybar",      dnf="waybar"),
-    Package(name="swaync",      dnf="swaync",      copr="erikreider/SwayNotificationCenter"),
+    Package(name="swaync",      dnf="swaync",
+             copr="erikreider/SwayNotificationCenter"),
     Package(name="fuzzel",      dnf="fuzzel"),
     Package(name="wl-clipboard", dnf="wl-clipboard", brew="wl-clipboard"),
     Package(name="cliphist",    dnf="cliphist"),
@@ -89,9 +91,14 @@ PACKAGES = [
     Package(name="slack",       flatpak="com.slack.Slack"),
     Package(name="obsidian",    flatpak="md.obsidian.Obsidian"),
 
+    # ── Snap-only apps ─────────────────────────────────────────────────────
+    Package(name="android-studio", snap="android-studio", snap_classic=True),
+    Package(name="code-insiders",  snap="code-insiders",  snap_classic=True),
+
     # ── User / cargo / pipx / curl (no dnf/brew/flatpak) ──────────────────
     Package(name="rustup", bin="rustup",
-             user="curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"),
+             user="curl --proto '=https' --tlsv1.2 -sSf "
+                  "https://sh.rustup.rs | sh -s -- -y"),
     Package(name="starship", bin="starship",
              user="curl -sS https://starship.rs/install.sh | sh -s -- --yes"),
     Package(name="atuin", bin="atuin",
@@ -99,9 +106,11 @@ PACKAGES = [
     Package(name="carapace", bin="carapace",
              user="curl -sS https://carapace.dev/setup.sh | bash"),
     Package(name="zoxide", bin="zoxide",
-             user="curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh"),
+             user="curl -sSfL https://raw.githubusercontent.com/"
+                  "ajeetdsouza/zoxide/main/install.sh | sh"),
     Package(name="fzf", bin="fzf",
-             user=f"git clone --depth 1 https://github.com/junegunn/fzf.git {HOME}/.fzf && {HOME}/.fzf/install --bin"),
+             user=f"git clone --depth 1 https://github.com/junegunn/fzf.git "
+                  f"{HOME}/.fzf && {HOME}/.fzf/install --bin"),
     Package(name="btop",   dnf="btop",   brew="btop",
              user="cargo install btop"),
     Package(name="dust",   dnf="du-dust", brew="du-dust",

@@ -1,6 +1,6 @@
-from domain.models.package import Package, PackageStatus, InstallMethod
-from domain.ports.package_manager import PackageManager
+from domain.models.package import Package
 from domain.ports.logger import Logger
+from domain.ports.package_manager import PackageManager
 
 
 def _resolve_package(

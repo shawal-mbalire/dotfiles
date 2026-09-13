@@ -1,7 +1,7 @@
-import subprocess
 import shutil
+import subprocess
+
 from domain.models.package import Package
-from domain.ports.package_manager import PackageManager
 
 
 class FlatpakAdapter:
@@ -50,9 +50,13 @@ class FlatpakAdapter:
         return names if result.returncode != 0 else []
 
     def mark_status(self, package: Package) -> Package:
-        from domain.models.package import PackageStatus, InstallMethod
+        from domain.models.package import InstallMethod, PackageStatus
         if self.is_installed(package):
-            return package.with_status(PackageStatus.INSTALLED, InstallMethod.FLATPAK, package.flatpak)
+            return package.with_status(
+                PackageStatus.INSTALLED, InstallMethod.FLATPAK, package.flatpak
+            )
         if self.search_available(package):
-            return package.with_status(PackageStatus.AVAILABLE, InstallMethod.FLATPAK, package.flatpak)
+            return package.with_status(
+                PackageStatus.AVAILABLE, InstallMethod.FLATPAK, package.flatpak
+            )
         return package

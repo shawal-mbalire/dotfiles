@@ -7,30 +7,32 @@ Usage:
   uv run python setup/main.py check
   uv run python setup/main.py list
   uv run python setup/main.py stow [--dry-run]
+  uv run python setup/main.py bootstrap [--dry-run]
   uv run python setup/main.py setup [--dry-run]
   uv run python setup/main.py update
 """
 
-import sys
-import subprocess
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 # Add parent dir to path so imports work
 sys.path.insert(0, str(Path(__file__).parent))
 
+from adapters.brew import BrewAdapter
+from adapters.console_logger import ConsoleLogger
+from adapters.dnf import DnfAdapter
+from adapters.fedora_setup import FedoraSetup
+from adapters.flatpak import FlatpakAdapter
+from adapters.macos_setup import MacosSetup
+from adapters.snap import SnapAdapter
+from adapters.user import UserAdapter
 from domain.models.platform import Platform
-from domain.workflows.install import install_packages
 from domain.workflows.check import check_packages
+from domain.workflows.install import install_packages
 from domain.workflows.setup import setup_platform
 from infra.config import PACKAGES
-from adapters.dnf import DnfAdapter
-from adapters.brew import BrewAdapter
-from adapters.flatpak import FlatpakAdapter
-from adapters.user import UserAdapter
-from adapters.console_logger import ConsoleLogger
-from adapters.fedora_setup import FedoraSetup
-from adapters.macos_setup import MacosSetup
 
 DOTFILES_DIR = Path(__file__).parent.parent
 
@@ -40,12 +42,16 @@ def _get_managers() -> list:
     platform = Platform.detect(str(Path.home()))
     managers = []
 
+    classic_snaps = {p.snap for p in PACKAGES if p.snap and p.snap_classic}
+
     if platform.type.value == "fedora":
-        managers = [DnfAdapter(), BrewAdapter(), FlatpakAdapter(), UserAdapter()]
+        managers = [DnfAdapter(), BrewAdapter(), FlatpakAdapter(),
+                    SnapAdapter(classic=classic_snaps), UserAdapter()]
     elif platform.type.value == "macos":
         managers = [BrewAdapter(), UserAdapter()]
     else:
-        managers = [DnfAdapter(), BrewAdapter(), FlatpakAdapter(), UserAdapter()]
+        managers = [DnfAdapter(), BrewAdapter(), FlatpakAdapter(),
+                    SnapAdapter(classic=classic_snaps), UserAdapter()]
 
     return managers
 
@@ -132,6 +138,7 @@ def _remove_conflicts(logger: ConsoleLogger) -> None:
 
 def cmd_install(dry_run: bool = False) -> None:
     logger = ConsoleLogger()
+    _bootstrap_managers(logger, dry_run)
     managers = _get_managers()
 
     installed, skipped, failed = install_packages(PACKAGES, managers, logger, dry_run)
@@ -163,21 +170,46 @@ def cmd_list() -> None:
             parts.append(f"brew:{pkg.brew}")
         if pkg.flatpak:
             parts.append(f"flatpak:{pkg.flatpak}")
+        if pkg.snap:
+            parts.append(f"snap:{pkg.snap}")
         if pkg.user:
             parts.append(f"user: {pkg.user[:40]}...")
         logger.info(f"  {pkg.name:25s} {' → '.join(parts)}")
 
 
+def _get_setup_adapter(logger: ConsoleLogger):
+    """Return (platform, platform_setup_adapter) for the current platform."""
+    platform = Platform.detect(str(Path.home()))
+    if platform.type.value == "fedora":
+        return platform, FedoraSetup(logger)
+    if platform.type.value == "macos":
+        return platform, MacosSetup(logger)
+    return platform, None
+
+
+def _bootstrap_managers(logger: ConsoleLogger, dry_run: bool = False) -> None:
+    """Ensure brew, flatpak and snap are installed before resolving deps."""
+    platform, adapter = _get_setup_adapter(logger)
+    if adapter is None:
+        return
+    logger.info("Bootstrapping package managers...")
+    adapter.bootstrap(platform, dry_run)
+
+
+def cmd_bootstrap(dry_run: bool = False) -> None:
+    logger = ConsoleLogger()
+    _bootstrap_managers(logger, dry_run)
+
+
 def cmd_setup(dry_run: bool = False) -> None:
     logger = ConsoleLogger()
-    platform = Platform.detect(str(Path.home()))
+    platform, adapter = _get_setup_adapter(logger)
 
-    if platform.type.value == "fedora":
-        setup_platform(platform, FedoraSetup(logger), logger, dry_run)
-    elif platform.type.value == "macos":
-        setup_platform(platform, MacosSetup(logger), logger, dry_run)
-    else:
+    if adapter is None:
         logger.warning(f"  No setup script for {platform.type.value}")
+        return
+
+    setup_platform(platform, adapter, logger, dry_run)
 
 
 def cmd_update() -> None:
@@ -189,6 +221,10 @@ def cmd_update() -> None:
     if shutil.which("flatpak"):
         print("Updating flatpak...")
         subprocess.run(["flatpak", "update", "-y"], check=False)
+
+    if shutil.which("snap"):
+        print("Updating snap...")
+        subprocess.run(["sudo", "snap", "refresh"], check=False)
 
     if shutil.which("cargo"):
         print("Updating cargo binaries...")
@@ -210,6 +246,7 @@ def main() -> None:
         "check": cmd_check,
         "list": cmd_list,
         "stow": lambda: cmd_stow(dry_run),
+        "bootstrap": lambda: cmd_bootstrap(dry_run),
         "setup": lambda: cmd_setup(dry_run),
         "update": cmd_update,
     }

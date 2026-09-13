@@ -129,6 +129,19 @@
         - com.obsidian.Obsidian
       tags: [flatpak]
 
+    # ── Snap ────────────────────────────────────────────────────────────────
+
+    - name: Install Snap apps
+      community.general.snap:
+        name: "{{ item }}"
+        classic: true
+        state: present
+      loop:
+        - android-studio
+        - code-insiders
+      tags: [snap]
+      when: ansible_os_family == "RedHat"
+
     # ── Dotfiles (stow) ─────────────────────────────────────────────────────
 
     - name: Symlink dotfiles via Stow

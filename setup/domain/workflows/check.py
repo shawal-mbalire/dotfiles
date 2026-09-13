@@ -1,6 +1,6 @@
-from domain.models.package import Package, PackageStatus, InstallMethod
-from domain.ports.package_manager import PackageManager
+from domain.models.package import Package
 from domain.ports.logger import Logger
+from domain.ports.package_manager import PackageManager
 
 
 def check_packages(
@@ -37,7 +37,9 @@ def check_packages(
                     available_in.append(mgr.name)
 
             if available_in:
-                logger.warning(f"  → {pkg.name} (available via {', '.join(available_in)})")
+                logger.warning(
+                    f"  → {pkg.name} (available via {', '.join(available_in)})"
+                )
                 installed += 1
             else:
                 logger.error(f"  ✗ {pkg.name}")

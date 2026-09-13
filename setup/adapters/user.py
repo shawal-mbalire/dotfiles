@@ -1,6 +1,6 @@
 import shutil
+
 from domain.models.package import Package
-from domain.ports.package_manager import PackageManager
 
 
 class UserAdapter:
@@ -23,7 +23,9 @@ class UserAdapter:
         return []
 
     def mark_status(self, package: Package) -> Package:
-        from domain.models.package import PackageStatus, InstallMethod
+        from domain.models.package import InstallMethod, PackageStatus
         if self.is_installed(package):
-            return package.with_status(PackageStatus.INSTALLED, InstallMethod.USER, package.name)
+            return package.with_status(
+                PackageStatus.INSTALLED, InstallMethod.USER, package.name
+            )
         return package

@@ -1,5 +1,6 @@
 from typing import Protocol
-from domain.models.package import Package, PackageStatus
+
+from domain.models.package import Package
 
 
 class PackageManager(Protocol):

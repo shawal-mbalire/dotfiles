@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -6,6 +6,7 @@ class InstallMethod(StrEnum):
     DNF = "dnf"
     BREW = "brew"
     FLATPAK = "flatpak"
+    SNAP = "snap"
     USER = "user"
     INSTALLED = "installed"
 
@@ -23,6 +24,8 @@ class Package:
     dnf: str = ""
     brew: str = ""
     flatpak: str = ""
+    snap: str = ""
+    snap_classic: bool = False
     user: str = ""
     bin: str = ""
     copr: str = ""
@@ -34,12 +37,19 @@ class Package:
     def display_name(self) -> str:
         return self.name
 
-    def with_status(self, status: PackageStatus, via: InstallMethod | None = None, name: str = "") -> "Package":
+    def with_status(
+        self,
+        status: PackageStatus,
+        via: InstallMethod | None = None,
+        name: str = "",
+    ) -> "Package":
         return Package(
             name=self.name,
             dnf=self.dnf,
             brew=self.brew,
             flatpak=self.flatpak,
+            snap=self.snap,
+            snap_classic=self.snap_classic,
             user=self.user,
             bin=self.bin,
             status=status,

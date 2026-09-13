@@ -1,6 +1,6 @@
 from domain.models.platform import Platform
-from domain.ports.platform_setup import PlatformSetup
 from domain.ports.logger import Logger
+from domain.ports.platform_setup import PlatformSetup
 
 
 def setup_platform(

@@ -1,7 +1,7 @@
-import subprocess
 import shutil
+import subprocess
+
 from domain.models.package import Package
-from domain.ports.package_manager import PackageManager
 
 
 class DnfAdapter:
@@ -55,9 +55,13 @@ class DnfAdapter:
         return names if result.returncode != 0 else []
 
     def mark_status(self, package: Package) -> Package:
-        from domain.models.package import PackageStatus, InstallMethod
+        from domain.models.package import InstallMethod, PackageStatus
         if self.is_installed(package):
-            return package.with_status(PackageStatus.INSTALLED, InstallMethod.DNF, package.dnf)
+            return package.with_status(
+                PackageStatus.INSTALLED, InstallMethod.DNF, package.dnf
+            )
         if self.search_available(package):
-            return package.with_status(PackageStatus.AVAILABLE, InstallMethod.DNF, package.dnf)
+            return package.with_status(
+                PackageStatus.AVAILABLE, InstallMethod.DNF, package.dnf
+            )
         return package

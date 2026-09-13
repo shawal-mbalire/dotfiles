@@ -30,6 +30,10 @@ stow:
 deps:
   uv run python setup/main.py install
 
+# Ensure package managers are installed (brew, flatpak, snap)
+bootstrap:
+  uv run python setup/main.py bootstrap
+
 # Show what would be installed (dry-run)
 deps-dry:
   uv run python setup/main.py install --dry-run

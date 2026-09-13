@@ -110,7 +110,9 @@ flatpak install flathub com.slack.Slack
 
 ## Snaps
 
+User-installed snaps (both classic confinement):
+
 ```sh
-sudo snap install obsidian
+sudo snap install android-studio --classic
 sudo snap install code-insiders --classic
 ```

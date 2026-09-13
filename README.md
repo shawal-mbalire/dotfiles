@@ -24,8 +24,8 @@ Git configuration follows XDG convention at `~/.config/git/config` (moved from `
 ## Application Installations  
 
 ### Snaps  
-- `obsidian`  
-- `codeinsiders`  
+- `android-studio` (classic)  
+- `code-insiders` (classic)  
 
 ### Flatpaks  
 - `zen`  

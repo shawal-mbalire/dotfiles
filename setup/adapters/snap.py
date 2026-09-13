@@ -1,71 +1,64 @@
 import shutil
 import subprocess
-from pathlib import Path
 
 from domain.models.package import Package
 
-BREW_BIN = next(
-    (p for p in (
-        Path("/home/linuxbrew/.linuxbrew/bin/brew"),
-        Path("/opt/homebrew/bin/brew"),
-        Path("/usr/local/bin/brew"),
-        Path.home() / ".linuxbrew" / "bin" / "brew",
-    ) if p.exists()),
-    None,
-)
 
+class SnapAdapter:
+    name = "snap"
 
-class BrewAdapter:
-    name = "brew"
-
-    def _brew(self) -> str:
-        return shutil.which("brew") or (str(BREW_BIN) if BREW_BIN else "")
+    def __init__(self, classic: set[str] | None = None) -> None:
+        self._classic = classic or set()
 
     def is_available(self) -> bool:
-        return bool(self._brew())
+        return shutil.which("snap") is not None
 
     def is_installed(self, package: Package) -> bool:
-        pkg_name = package.brew
+        pkg_name = package.snap
         if not pkg_name:
             return False
         result = subprocess.run(
-            [self._brew(), "list", "--formula", pkg_name],
+            ["snap", "list", pkg_name],
             capture_output=True, text=True,
         )
-        return result.returncode == 0
+        return result.returncode == 0 and pkg_name in result.stdout
 
     def search_available(self, package: Package) -> bool:
-        pkg_name = package.brew
+        pkg_name = package.snap
         if not pkg_name:
             return False
         result = subprocess.run(
-            [self._brew(), "search", pkg_name],
+            ["snap", "find", pkg_name],
             capture_output=True, text=True,
         )
         return result.returncode == 0 and pkg_name in result.stdout
 
     def get_package_name(self, package: Package) -> str:
-        return package.brew
+        return package.snap
 
     def install_batch(self, names: list[str], dry_run: bool = False) -> list[str]:
         if not names or not self.is_available():
             return names
         if dry_run:
             return []
-        result = subprocess.run(
-            [self._brew(), "install"] + names,
-            capture_output=True, text=True,
-        )
-        return names if result.returncode != 0 else []
+        failed = []
+        for name in names:
+            cmd = ["sudo", "snap", "install", name]
+            if name in self._classic:
+                cmd.append("--classic")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                failed.append(name)
+        return failed
 
     def mark_status(self, package: Package) -> Package:
         from domain.models.package import InstallMethod, PackageStatus
         if self.is_installed(package):
             return package.with_status(
-                PackageStatus.INSTALLED, InstallMethod.BREW, package.brew
+                PackageStatus.INSTALLED, InstallMethod.SNAP, package.snap
             )
         if self.search_available(package):
             return package.with_status(
-                PackageStatus.AVAILABLE, InstallMethod.BREW, package.brew
+                PackageStatus.AVAILABLE, InstallMethod.SNAP, package.snap
             )
         return package
