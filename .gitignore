@@ -10,3 +10,6 @@ build/
 *.luac
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/

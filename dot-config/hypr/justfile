@@ -30,11 +30,20 @@ logs:
 
 test: test-unit test-integration
 
-test-unit:
-    cd {{root}} && lua tests/run.lua
+test-unit: test-lua-unit test-python-unit
+test-integration: test-lua-integration test-python-integration
 
-test-integration:
+# Lua config hexagon
+test-lua-unit:
+    cd {{root}} && lua tests/run.lua
+test-lua-integration:
     cd {{root}} && lua tests/integration/run.lua
+
+# Python helper-script hexagon
+test-python-unit:
+    cd {{root}} && uv run --with pytest pytest scripts/tests/unit -q
+test-python-integration:
+    cd {{root}} && uv run --with pytest pytest scripts/tests/integration -q
 
 # End-to-end: reload a live Hyprland session (skips if none is running)
 test-e2e:
@@ -44,14 +53,23 @@ test-e2e:
 # Code quality
 # ──────────────────────────────────────────────
 
-lint:
+lint: lint-lua lint-python
+lint-lua:
     @{{devtools}} lint
+lint-python:
+    cd {{root}} && uvx ruff check scripts
 
-typecheck:
+typecheck: typecheck-lua typecheck-python
+typecheck-lua:
     @{{devtools}} typecheck
+typecheck-python:
+    @/usr/bin/python3 -m compileall -q {{root}}/scripts && echo "compileall: ok"
 
-format:
+format: format-lua format-python
+format-lua:
     @{{devtools}} format
+format-python:
+    cd {{root}} && uvx ruff format scripts
 
 # ──────────────────────────────────────────────
 # Build / deps
@@ -62,6 +80,7 @@ build:
 
 clean:
     @{{devtools}} clean
+    cd {{root}} && rm -rf .pytest_cache .ruff_cache
 
 install:
     @echo "Install runtime deps from the repo root: just deps"

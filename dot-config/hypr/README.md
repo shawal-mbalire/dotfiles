@@ -32,8 +32,15 @@ env vars. The composition root wires everything together.
 │   ├── fixtures/               # fakes.lua (in-memory ports), fake_hl.lua
 │   ├── unit/                   # models, constants, mappings, adapter, workflows
 │   └── integration/            # loads the real composition root against fake hl
-├── scripts/                    # External driven adapters + devtool (Python):
-│                               #   toggle_display.py, battery-notify.py, dev.py
+├── scripts/                    # Python hexagon (helper CLIs)
+│   ├── main.py                 # Composition root + CLI (display-toggle, battery-notify)
+│   ├── toggle_display.py       # Entry shim -> main.py display-toggle (keybinding path)
+│   ├── battery-notify.py       # Entry shim -> main.py battery-notify
+│   ├── dev.py                  # Devtool: logs / watch / e2e / lint / typecheck / clean
+│   ├── domain/                 # models, constants, errors, ports/, workflows/
+│   ├── adapters/               # hyprctl, sysfs, notify-send, markers, cross-cutting
+│   ├── infra/                  # config.py (env), paths.py (XDG)
+│   └── tests/                  # fixtures/, unit/, integration/ (pytest)
 ├── hyprland.lua                # Composition root (entry point)
 ├── justfile                    # run / test / lint / typecheck / check
 └── README.md
@@ -82,6 +89,30 @@ Note: Hyprland 0.55 runs Lua and removed the legacy `hyprctl keyword` /
 `hyprpaper` config paths. Runtime adapters use the Lua API instead — e.g.
 `scripts/toggle_display.py` issues `hyprctl eval 'hl.monitor({...})'` and the
 hyprpaper config uses the `wallpaper { monitor = ... }` special category.
+
+## Python helper scripts (hexagonal)
+
+`scripts/` is a second, self-contained hexagon for the CLIs that run outside
+the compositor's config load:
+
+- **domain/** — pure `models`, `constants`, `errors`; small `ports/`
+  (`Logger`, `TimePort`, `LifetimePort`, `Notifier`, `BatteryReader`,
+  `SentMarkerStore`, `MonitorGateway`); pure `workflows/` for battery and
+  display. No I/O, no adapter imports.
+- **adapters/** — `hyprctl_monitors` (Lua runtime), `sysfs_battery`,
+  `sent_marker_store`, `notify_send`, plus the cross-cutting `console_logger`,
+  `system_time` and `process_lifetime`.
+- **infra/** — `config.py` (the only env reader) and `paths.py` (XDG).
+- **main.py** — composition root and CLI; verifies adapters against ports and
+  dispatches `display-toggle` / `battery-notify`. The `toggle_display.py` and
+  `battery-notify.py` paths remain as thin entry shims for existing callers.
+
+```sh
+just test-python-unit          # pytest scripts/tests/unit
+just test-python-integration   # pytest scripts/tests/integration
+just lint-python               # ruff check
+just format-python             # ruff format
+```
 
 ## Setup
 

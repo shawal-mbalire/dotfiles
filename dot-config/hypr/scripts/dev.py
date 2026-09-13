@@ -21,9 +21,7 @@ IGNORED_DIRS = {"build", ".git"}
 
 def lua_files() -> list[Path]:
     return sorted(
-        path
-        for path in ROOT.rglob("*.lua")
-        if not any(part in IGNORED_DIRS for part in path.parts)
+        path for path in ROOT.rglob("*.lua") if not any(part in IGNORED_DIRS for part in path.parts)
     )
 
 
