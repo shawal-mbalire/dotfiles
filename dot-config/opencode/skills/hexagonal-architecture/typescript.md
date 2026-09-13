@@ -132,7 +132,27 @@ format:
 typecheck:
     tsc --noEmit
 
-check: lint typecheck test
+adapters-check:
+    depcruise --validate .dependency-cruiser.cjs   # adapters must not import domain/app or read env
+
+errors-check:
+    tsx tools/checkErrorCodes.ts                   # registry: no unknown or duplicate codes
+
+sanitizers:
+    node --enable-source-maps --stack-trace-limit=100 vitest run   # TS has no ASan
+
+test-contract:
+    vitest run tests/integration -t contract
+
+test-fault:
+    vitest run tests/fault
+
+verify: lint typecheck adapters-check errors-check test test-contract test-fault test-e2e
+
+replay id:
+    tsx tools/replay.ts {{id}}
+
+check: lint typecheck adapters-check errors-check test
 
 clean:
     rm -rf dist node_modules .vitest
@@ -248,14 +268,15 @@ export interface CartRepository {
 
 // domain/ports/Logger.ts
 export interface Logger {
-  info(message: string): void;
-  error(message: string): void;
+  info(message: string, fields?: Record<string, unknown>): void;
+  error(message: string, fields?: Record<string, unknown>): void;
 }
 
 // domain/ports/TimePort.ts
 export interface TimePort {
   nowMs(): number;
   elapsedMs(startMs: number): number;
+  sleepMs(ms: number): Promise<void>;
 }
 
 // domain/ports/LifetimePort.ts
@@ -404,6 +425,10 @@ export class SystemTimeAdapter implements TimePort {
   elapsedMs(startMs: number): number {
     return this.nowMs() - startMs;
   }
+
+  async sleepMs(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
 }
 
 // adapters/MockTimeAdapter.ts (for testing)
@@ -411,6 +436,7 @@ import { TimePort } from "../domain/ports/TimePort";
 
 export class MockTimeAdapter implements TimePort {
   private currentMs = 1000;
+  private sleptMs = 0;
 
   nowMs(): number {
     return this.currentMs;
@@ -418,6 +444,10 @@ export class MockTimeAdapter implements TimePort {
 
   elapsedMs(startMs: number): number {
     return this.currentMs - startMs;
+  }
+
+  async sleepMs(ms: number): Promise<void> {
+    this.sleptMs += ms; // deterministic — no real waiting in tests
   }
 
   advanceMs(ms: number): void {
@@ -686,6 +716,324 @@ export const appConfig: ApplicationConfig = {
 };
 ```
 
+## SQL Repository Adapter (TypeScript)
+
+Persistence goes through a `*Repository` port implemented by a SQL adapter. There is no ORM — the adapter owns its SQL and its row → domain mapping. Target the **generic** port with injected mappers so the file copies to any project.
+
+```typescript
+// domain/models/Document.ts (pure — no DB imports)
+export type DocumentStatus = "draft" | "published";
+export interface Document { id: string; content: string; status: DocumentStatus; }
+
+// domain/ports/Repository.ts (standard, generic)
+export interface Repository<T, Id = string> {
+  save(entity: T): Promise<void>;
+  findById(id: Id): Promise<T | null>;
+  findAll(): Promise<T[]>;
+  delete(id: Id): Promise<void>;
+}
+
+// Domain-specific alias — optional
+export type DocumentRepository = Repository<Document, string>;
+
+// adapters/sql/PgRepository.ts (PORTABLE — copy to any project, unmodified)
+// implements: Repository<T, Id>
+// config: SqlConfig; deps: `pg` only
+import { Pool } from "pg";
+
+export interface SqlConfig {
+  table: string;
+  saveSql: string;
+  selectSql: string;
+  selectAllSql: string;
+  deleteSql: string;
+}
+
+export class PgRepository<T, Id = string> implements Repository<T, Id> {
+  constructor(
+    private readonly pool: Pool,                          // injected
+    private readonly config: SqlConfig,                  // frozen, no env reads
+    private readonly toParams: (entity: T) => unknown[], // pure mapper
+    private readonly fromRow: (row: Record<string, unknown>) => T, // pure mapper
+  ) {}
+
+  async save(entity: T): Promise<void> {
+    try {
+      await this.pool.query(this.config.saveSql, this.toParams(entity)); // parameterized
+    } catch (e) {
+      throw new StorageUnavailableError(String(e));       // translate vendor errors
+    }
+  }
+
+  async findById(id: Id): Promise<T | null> {
+    const { rows } = await this.pool.query(this.config.selectSql, [id]);
+    return rows[0] ? this.fromRow(rows[0]) : null;
+  }
+
+  async findAll(): Promise<T[]> {
+    const { rows } = await this.pool.query(this.config.selectAllSql);
+    return rows.map(this.fromRow);
+  }
+
+  async delete(id: Id): Promise<void> {
+    await this.pool.query(this.config.deleteSql, [id]);
+  }
+}
+```
+
+Only the composition root binds the adapter to an aggregate — the adapter never names `Document`:
+
+```typescript
+// main.ts (root) — bind SqlConfig + mappers here
+const documentRepo = new PgRepository<Document, string>(
+  pool,
+  {
+    table: "documents",
+    saveSql: `INSERT INTO documents (id, content, status) VALUES ($1, $2, $3)
+              ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content, status = EXCLUDED.status`,
+    selectSql: "SELECT id, content, status FROM documents WHERE id = $1",
+    selectAllSql: "SELECT id, content, status FROM documents",
+    deleteSql: "DELETE FROM documents WHERE id = $1",
+  },
+  (d) => [d.id, d.content, d.status],
+  (row) => ({ id: row.id as string, content: row.content as string, status: row.status as DocumentStatus }),
+);
+```
+
+Register `pool.end` with the `LifetimePort`. Migrations are `.sql` files run by a root-level admin entry point:
+
+```typescript
+// migrate.ts (root)
+import { readdirSync, readFileSync } from "node:fs";
+import { Pool } from "pg";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+for (const file of readdirSync("adapters/sql/migrations").sort()) {
+  await pool.query(readFileSync(`adapters/sql/migrations/${file}`, "utf8"));
+}
+await pool.end();
+```
+
+## Local-First Backing Services (DuckDB Hub)
+
+Dev defaults to one local DuckDB database for **logs, metrics, and events**, owned by a single hub process. Ports never change; the composition root swaps DuckDB adapters for prod services.
+
+```typescript
+// domain/ports/Metrics.ts
+export interface MetricsPort {
+  counter(name: string, value?: number, labels?: Record<string, string>): void;
+  gauge(name: string, value: number, labels?: Record<string, string>): void;
+  timing(name: string, durationMs: number, labels?: Record<string, string>): void;
+}
+
+// domain/ports/EventBus.ts
+export interface EventPublisherPort {
+  publish(topic: string, payload: unknown): void;
+}
+export type EventHandler = (payload: unknown) => void;
+export interface EventConsumerPort {
+  subscribe(topic: string, consumer: string, handler: EventHandler): void;
+}
+
+// infra/config.ts
+export interface DuckDbConfig {
+  mode: "hub" | "inprocess"; // hub = multi-process, inprocess = single process
+  databasePath: string;
+  socketPath: string;
+  pollIntervalMs: number;
+  batchSize: number;
+}
+
+export function duckDbConfigFromEnv(): DuckDbConfig {
+  return {
+    mode: (process.env.DUCKDB_MODE as DuckDbConfig["mode"]) ?? "hub",
+    databasePath: process.env.DUCKDB_PATH ?? "build/dev.duckdb",
+    socketPath: process.env.DUCKDB_SOCKET ?? "build/dev.duckdb.sock",
+    pollIntervalMs: Number(process.env.DUCKDB_POLL_INTERVAL_MS ?? 250),
+    batchSize: Number(process.env.DUCKDB_BATCH_SIZE ?? 100),
+  };
+}
+
+// adapters/duckdb/HubConnection.ts (thin client to the single-writer hub)
+import net from "node:net";
+
+export class HubConnection {
+  private socket?: net.Socket;
+
+  constructor(private readonly socketPath: string) {}
+
+  connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.socket = net.createConnection(this.socketPath, () => resolve());
+      this.socket.once("error", reject);
+    });
+  }
+
+  request(payload: unknown): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) return reject(new Error("HubConnection used before connect()"));
+      const onData = (chunk: Buffer) => {
+        this.socket!.off("data", onData);
+        resolve(JSON.parse(chunk.toString()));
+      };
+      this.socket.once("data", onData);
+      this.socket.write(JSON.stringify(payload) + "\n");
+    });
+  }
+
+  close(): void {
+    this.socket?.end();
+  }
+}
+
+// adapters/duckdb/DuckDbLogger.ts (buffered — flushed via LifetimePort)
+import { LoggerPort } from "../../domain/ports/Logger";
+import { HubConnection } from "./HubConnection";
+
+export class DuckDbLogger implements LoggerPort {
+  private buffer: object[] = [];
+
+  constructor(
+    private readonly connection: HubConnection,
+    private readonly service: string,
+    private readonly batchSize = 100,
+  ) {}
+
+  info(message: string, requestId?: string, fields: Record<string, unknown> = {}): void {
+    this.append("INFO", message, requestId, fields);
+  }
+
+  error(message: string, requestId?: string, fields: Record<string, unknown> = {}): void {
+    this.append("ERROR", message, requestId, fields);
+  }
+
+  private append(level: string, message: string, requestId: string | undefined, fields: object): void {
+    this.buffer.push({
+      ts: Date.now(), level, service: this.service,
+      request_id: requestId, message, fields,
+    });
+    if (this.buffer.length >= this.batchSize) this.flush();
+  }
+
+  flush(): void {
+    if (this.buffer.length === 0) return;
+    this.connection.request({ op: "append_logs", rows: this.buffer });
+    this.buffer = [];
+  }
+}
+
+// adapters/duckdb/DuckDbEventBus.ts (publish + cursor poll)
+import { EventConsumerPort, EventHandler, EventPublisherPort } from "../../domain/ports/EventBus";
+import { LifetimePort } from "../../domain/ports/LifetimePort";
+import { TimePort } from "../../domain/ports/TimePort";
+
+export class DuckDbEventBus implements EventPublisherPort, EventConsumerPort {
+  private buffer: object[] = [];
+
+  constructor(
+    private readonly connection: HubConnection,
+    private readonly time: TimePort,
+    private readonly lifetime: LifetimePort,
+    private readonly batchSize = 100,
+    private readonly pollIntervalMs = 250,
+  ) {}
+
+  publish(topic: string, payload: unknown): void {
+    this.buffer.push({ ts: this.time.nowMs(), topic, payload });
+    if (this.buffer.length >= this.batchSize) this.flush();
+  }
+
+  flush(): void {
+    if (this.buffer.length === 0) return;
+    this.connection.request({ op: "append_events", rows: this.buffer });
+    this.buffer = [];
+  }
+
+  async subscribe(topic: string, consumer: string, handler: EventHandler): Promise<void> {
+    // Durable cursor lives in the hub; 0 on first run
+    let cursor = (await this.connection.request({ op: "load_cursor", topic, consumer })).last_seq;
+    while (!this.lifetime.isShuttingDown()) {
+      const { rows } = await this.connection.request({ op: "poll_events", topic, after_seq: cursor });
+      for (const row of rows) {
+        handler(row.payload); // at-least-once: handlers must be idempotent
+        cursor = row.seq;
+      }
+      if (rows.length > 0) {
+        await this.connection.request({ op: "save_cursor", topic, consumer, last_seq: cursor });
+      }
+      await this.time.sleepMs(this.pollIntervalMs);
+    }
+  }
+}
+
+// adapters/duckdb/hub.ts (composition root for the hub — the ONLY writer)
+// Sketch: the row <-> domain mappings and INSERTs mirror python.md.
+import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
+import net from "node:net";
+import { readFileSync } from "node:fs";
+
+async function dispatch(connection: DuckDBConnection, request: any): Promise<unknown> {
+  switch (request.op) {
+    case "append_logs":
+    case "append_metrics":
+    case "append_events":
+      // Map + INSERT rows (see duckdb_mappings in python.md)
+      return { ok: true };
+    case "poll_events": {
+      const reader = await connection.runAndReadAll(
+        "SELECT seq, ts, topic, payload FROM events WHERE topic = ? AND seq > ? ORDER BY seq",
+        [request.topic, request.after_seq],
+      );
+      return { ok: true, rows: reader.getRowObjectsJson() };
+    }
+    case "load_cursor": {
+      const reader = await connection.runAndReadAll(
+        "SELECT last_seq FROM event_cursors WHERE topic = ? AND consumer = ?",
+        [request.topic, request.consumer],
+      );
+      const rows = reader.getRowObjectsJson();
+      return { ok: true, last_seq: rows.length ? rows[0].last_seq : 0 };
+    }
+    case "save_cursor":
+      await connection.run(
+        "INSERT INTO event_cursors (topic, consumer, last_seq) VALUES (?, ?, ?) " +
+          "ON CONFLICT (topic, consumer) DO UPDATE SET last_seq = excluded.last_seq",
+        [request.topic, request.consumer, request.last_seq],
+      );
+      return { ok: true };
+    case "query": {
+      // Insights read THROUGH the hub — never open the file directly
+      const reader = await connection.runAndReadAll(request.sql, request.params ?? []);
+      return { ok: true, rows: reader.getRowObjectsJson() };
+    }
+    default:
+      throw new Error(`Unknown hub op: ${request.op}`);
+  }
+}
+
+export async function serveHub(socketPath: string, databasePath: string): Promise<void> {
+  const instance = await DuckDBInstance.create(databasePath);
+  const connection = await instance.connect();
+  await connection.run(readFileSync(new URL("./schema.sql", import.meta.url), "utf8"));
+
+  const server = net.createServer((socket) => {
+    let buffer = "";
+    socket.on("data", async (chunk) => {
+      buffer += chunk.toString();
+      let index;
+      while ((index = buffer.indexOf("\n")) !== -1) {
+        const request = JSON.parse(buffer.slice(0, index));
+        buffer = buffer.slice(index + 1);
+        socket.write(JSON.stringify(await dispatch(connection, request)) + "\n");
+      }
+    });
+  });
+  server.listen(socketPath);
+}
+```
+
+Logger and metrics adapters share the buffer/flush shape; register every `flush()` with the `LifetimePort` so buffered writes survive `SIGTERM`, crashes, and reloads. The hub is the only writer — every other connection is a `HubConnection` client, and `DuckDbInsights` queries through the hub's `query` op rather than opening the file.
+
 ## Lifecycle Hooks
 
 ### Node.js / Backend
@@ -865,6 +1213,144 @@ logger.info("cart_saved", { cart_id: cart.id, items: cart.items.length });
 logger.error("stock_check_failed", { product_id: productId, error: e.message, retry: 1 });
 ```
 
+## Diagnostics & Failure Localization (TypeScript)
+
+### Uniform Error + Registry
+
+```typescript
+// domain/errors/AppError.ts (uniform diagnostic error — every layer uses this)
+export type ErrorCode = "DOC-001" | "DOC-002" | "STO-001";
+
+export class AppError extends Error {
+  readonly cause?: unknown;
+  constructor(
+    readonly code: ErrorCode,
+    message: string,
+    readonly context: Record<string, unknown> = {},
+    options: { cause?: unknown; origin?: string; correlationId?: string;
+               retryable?: boolean; remediation?: string } = {},
+  ) {
+    super(message);
+    this.name = "AppError";
+    this.cause = options.cause;              // original — never discarded
+    this.origin = options.origin ?? "";
+    this.correlationId = options.correlationId ?? "";
+    this.retryable = options.retryable ?? false;
+    this.remediation = options.remediation ?? "";
+  }
+  origin: string;
+  correlationId: string;
+  retryable: boolean;
+  remediation: string;
+}
+```
+
+```ts
+// tools/checkErrorCodes.ts — errors-check: no unknown or duplicate codes
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+
+const registry = JSON.parse(readFileSync("errors.json", "utf8")) as Record<string, unknown>;
+const known = new Set(Object.keys(registry));
+const used = new Set<string>();
+const walk = (dir: string) => {
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) walk(path);
+    else if (path.endsWith(".ts"))
+      for (const m of readFileSync(path, "utf8").matchAll(/code:\s*"([A-Z]+-\d+)"/g)) used.add(m[1]);
+  }
+};
+walk(".");
+const unknown = [...used].filter((c) => !known.has(c));
+if (unknown.length) { console.error("Unregistered codes:", unknown); process.exit(1); }
+console.log(`OK: ${used.size} codes used, all registered`);
+```
+
+### Boundary Translation + Crash Handler
+
+```typescript
+// adapters/sql/PgRepository.ts — translate + enrich, never swallow
+import { AppError } from "../../domain/errors/AppError";
+
+try {
+  await this.pool.query(this.config.saveSql, this.toParams(entity));
+} catch (e) {
+  throw new AppError("STO-001", "Storage write failed", {
+    operation: "save", adapter: "postgres",
+  }, { cause: e, retryable: true, origin: "adapter.PgRepository.save:12" });
+}
+
+// main.ts (root) — install once; flush observability before exit
+process.on("uncaughtException", (err) => {
+  console.error(err, (err as AppError).context ?? {});
+  flushObservability();                 // never lose buffered logs/metrics/events
+  process.exit(70);                     // distinct exit code
+});
+process.on("unhandledRejection", (reason) => { throw reason; });
+```
+
+### Fault Injection
+
+```typescript
+// tests/fault/documentFaults.test.ts
+it("surfaces STO-001 and preserves the cause", async () => {
+  const repo: DocumentRepository = {
+    save: async () => { throw new TimeoutError("timed out"); },
+    findById: async () => null,
+  };
+  await expect(createDocument("Hello", repo, fakeLogger, fakeTime))
+    .rejects.toMatchObject({ code: "STO-001", retryable: true });
+});
+
+it("observability survives a failing sink", async () => {
+  await expect(createDocument("Hello", fakeRepo, failingLogger, fakeTime)).resolves.toBeDefined();
+});
+```
+
+## Light Justfile & Terminal Output (TypeScript)
+
+- The justfile is a **light index**: each recipe delegates (`npm run <task>`, `npx tsx cli.ts <task>`). Logic lives in `cli.ts` (a driving adapter), never in the justfile.
+- Colored, structured output via `boxen` (panels) + `chalk` (colors, auto-disabled by `NO_COLOR`/non-TTY) + `ora` (spinners), behind a `PresenterPort` adapter — never `console.log` in domain.
+
+```just
+doctor:
+    npx tsx cli.ts doctor
+seed:
+    npx tsx cli.ts seed
+```
+
+## Property, Mutation & Formal Verification (TypeScript)
+
+```typescript
+// tests/property/document.test.ts (fast-check)
+import fc from "fast-check";
+
+test("create then read round-trips", () => {
+  fc.assert(fc.property(fc.string({ minLength: 1 }), (content) => {
+    const repo = new FakeDocumentRepo();
+    const doc = createDocument(content, repo, new FakeLogger(), new FakeTime());
+    expect(repo.findById(doc.id)).toEqual(doc);
+  }));
+});
+
+test("encode/decode round-trips", () => {
+  fc.assert(fc.property(fc.array(fc.string()), (docs) =>
+    expect(docs.map((d) => decode(encode(d)))).toEqual(docs)));
+});
+```
+
+```just
+test-property:
+    vitest run tests/property
+
+mutation:
+    npx stryker run        # StrykerJS; enforce thresholds.break in stryker.conf.json
+```
+
+- **Mutation**: StrykerJS with `thresholds.break` scoped to `domain/`; a survivor is a missing assertion.
+- **Formal**: model-check protocols/state machines in **TLA+/Apalache**; keep the pure core small so it is tractable.
+
 ## Testing
 
 ### Shared Fixtures
@@ -923,6 +1409,7 @@ export class FakeStockChecker implements StockChecker {
 
 export class FakeTime implements TimePort {
   private currentMs = 1000;
+  private sleptMs = 0;
 
   nowMs(): number {
     return this.currentMs;
@@ -930,6 +1417,10 @@ export class FakeTime implements TimePort {
 
   elapsedMs(startMs: number): number {
     return this.currentMs - startMs;
+  }
+
+  async sleepMs(ms: number): Promise<void> {
+    this.sleptMs += ms; // deterministic — no real waiting in tests
   }
 
   advanceMs(ms: number): void {

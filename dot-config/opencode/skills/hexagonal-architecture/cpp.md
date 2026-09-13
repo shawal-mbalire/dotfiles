@@ -124,13 +124,18 @@ public:
 
 // domain/ports/time_port.h
 #pragma once
+#include <chrono>
 #include <cstdint>
+#include <thread>
 
 class TimePort {
 public:
     virtual ~TimePort() = default;
     virtual uint64_t now_ms() = 0;
     virtual uint64_t elapsed_ms(uint64_t start_ms) = 0;
+    virtual void sleep_ms(uint64_t ms) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    }
 };
 
 enum class ExitReason {
@@ -501,6 +506,262 @@ DomainConstants InfraConfig::load_domain_constants() {
 }
 ```
 
+## SQL Repository Adapter (C++)
+
+Persistence goes through a `*Repository` port implemented by a SQL adapter. There is no ORM — the adapter owns its SQL and its row → domain mapping. Target the **generic** `Repository<T, Id>` template with injected mappers so the file copies to any project.
+
+```cpp
+// domain/ports/repository.h (standard, generic)
+#pragma once
+#include <optional>
+#include <string>
+#include <vector>
+
+template <typename T, typename Id = std::string>
+class Repository {
+public:
+    virtual ~Repository() = default;
+    virtual void save(const T& entity) = 0;
+    virtual std::optional<T> find_by_id(const Id& id) = 0;
+    virtual std::vector<T> find_all() = 0;
+    virtual void remove(const Id& id) = 0;
+};
+
+// adapters/sql/sqlite_repository.h (PORTABLE — copy to any project, unmodified)
+// backend: sqlite3; implements: Repository<T, Id>
+// deps: sqlite3 only; config: SqlConfig (frozen, injected)
+#pragma once
+#include <functional>
+#include <optional>
+#include <string>
+#include <vector>
+#include <sqlite3.h>
+#include "domain/errors.h"       // StorageUnavailableError
+#include "domain/ports/repository.h"
+
+struct SqlConfig {
+    std::string save_sql;
+    std::string select_sql;
+    std::string select_all_sql;
+    std::string delete_sql;
+};
+
+template <typename T, typename Id = std::string>
+class SqliteRepository : public Repository<T, Id> {
+public:
+    using ToParams = std::function<std::vector<std::string>(const T&)>; // pure mapper
+    using FromRow  = std::function<T(sqlite3_stmt*)>;                   // pure mapper
+
+    SqliteRepository(sqlite3* db, SqlConfig config, ToParams to_params, FromRow from_row)
+        : db_(db), config_(std::move(config)),
+          to_params_(std::move(to_params)), from_row_(std::move(from_row)) {}
+
+    void save(const T& entity) override {
+        sqlite3_stmt* stmt = nullptr;
+        sqlite3_prepare_v2(db_, config_.save_sql.c_str(), -1, &stmt, nullptr);
+        auto params = to_params_(entity);
+        for (std::size_t i = 0; i < params.size(); ++i) {
+            // Parameterized only — never concatenate user input
+            sqlite3_bind_text(stmt, static_cast<int>(i + 1), params[i].c_str(), -1, SQLITE_TRANSIENT);
+        }
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            std::string error = sqlite3_errmsg(db_);
+            sqlite3_finalize(stmt);
+            throw StorageUnavailableError(error);  // translate vendor errors
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    std::optional<T> find_by_id(const Id& id) override {
+        sqlite3_stmt* stmt = nullptr;
+        sqlite3_prepare_v2(db_, config_.select_sql.c_str(), -1, &stmt, nullptr);
+        std::string key = id;
+        sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+        std::optional<T> result;
+        if (sqlite3_step(stmt) == SQLITE_ROW) result = from_row_(stmt);
+        sqlite3_finalize(stmt);
+        return result;
+    }
+
+    std::vector<T> find_all() override {
+        sqlite3_stmt* stmt = nullptr;
+        sqlite3_prepare_v2(db_, config_.select_all_sql.c_str(), -1, &stmt, nullptr);
+        std::vector<T> results;
+        while (sqlite3_step(stmt) == SQLITE_ROW) results.push_back(from_row_(stmt));
+        sqlite3_finalize(stmt);
+        return results;
+    }
+
+    void remove(const Id& id) override {
+        sqlite3_stmt* stmt = nullptr;
+        sqlite3_prepare_v2(db_, config_.delete_sql.c_str(), -1, &stmt, nullptr);
+        std::string key = id;
+        sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    }
+
+private:
+    sqlite3* db_;
+    SqlConfig config_;
+    ToParams to_params_;
+    FromRow from_row_;
+};
+
+// composition root — bind SqlConfig + pure mappers here; the adapter never names Document
+SqliteRepository<Document> make_document_repository(sqlite3* db) {
+    return SqliteRepository<Document>(
+        db,
+        SqlConfig{
+            "INSERT INTO documents (id, content, status) VALUES (?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET content = excluded.content, status = excluded.status",
+            "SELECT id, content, status FROM documents WHERE id = ?",
+            "SELECT id, content, status FROM documents",
+            "DELETE FROM documents WHERE id = ?",
+        },
+        [](const Document& d) { return std::vector<std::string>{d.id, d.content, to_status(d)}; },
+        [](sqlite3_stmt* s) {
+            return Document{
+                reinterpret_cast<const char*>(sqlite3_column_text(s, 0)),
+                reinterpret_cast<const char*>(sqlite3_column_text(s, 1)),
+                DocumentStatus::from_str(
+                    reinterpret_cast<const char*>(sqlite3_column_text(s, 2))),
+            };
+        });
+}
+```
+
+The DuckDB C++ API follows the exact same prepare/bind/step shape. Open the connection in the composition root and let RAII close it. Migrations are `.sql` files run by a root-level admin entry point (`migrate.cpp`).
+
+## Local-First Backing Services (DuckDB Hub)
+
+Dev defaults to one local DuckDB database for **logs, metrics, and events**, owned by a single hub process. Ports never change; the composition root swaps DuckDB adapters for prod services.
+
+```cpp
+// domain/ports/metrics_port.h
+#pragma once
+#include <string>
+#include <vector>
+#include <utility>
+
+class MetricsPort {
+public:
+    virtual ~MetricsPort() = default;
+    virtual void counter(const std::string& name, double value,
+                         const std::vector<std::pair<std::string, std::string>>& labels) = 0;
+    virtual void gauge(const std::string& name, double value,
+                       const std::vector<std::pair<std::string, std::string>>& labels) = 0;
+    virtual void timing(const std::string& name, double duration_ms,
+                        const std::vector<std::pair<std::string, std::string>>& labels) = 0;
+};
+
+// domain/ports/event_bus_port.h
+#pragma once
+#include <functional>
+#include <string>
+#include <nlohmann/json.hpp>
+
+class EventPublisherPort {
+public:
+    virtual ~EventPublisherPort() = default;
+    virtual void publish(const std::string& topic, const nlohmann::json& payload) = 0;
+};
+
+class EventConsumerPort {
+public:
+    virtual ~EventConsumerPort() = default;
+    virtual void subscribe(const std::string& topic, const std::string& consumer,
+                           std::function<void(const nlohmann::json&)> handler) = 0;
+};
+
+// infra/config.h (add to existing config)
+struct DuckDbConfig {
+    static DuckDbConfig from_environment();
+    std::string database_path{"build/dev.duckdb"};
+    std::string socket_path{"build/dev.duckdb.sock"};
+    long poll_interval_ms{250};
+    std::size_t batch_size{100};
+};
+
+// adapters/duckdb/hub_connection.h (thin client to the single-writer hub)
+#pragma once
+#include <string>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include <nlohmann/json.hpp>
+
+class HubConnection {
+public:
+    explicit HubConnection(const std::string& socket_path) {
+        fd_ = ::socket(AF_UNIX, SOCK_STREAM, 0);
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", socket_path.c_str());
+        if (::connect(fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
+            throw std::runtime_error("cannot connect to DuckDB hub at " + socket_path);
+        }
+    }
+
+    ~HubConnection() { if (fd_ >= 0) ::close(fd_); }
+
+    nlohmann::json request(const nlohmann::json& payload) {
+        std::string line = payload.dump() + "\n";
+        ::write(fd_, line.data(), line.size());
+        std::string response;
+        char c;
+        while (::read(fd_, &c, 1) == 1 && c != '\n') response += c;
+        return nlohmann::json::parse(response);
+    }
+
+private:
+    int fd_{-1};
+};
+
+// adapters/duckdb/duckdb_logger.h (buffered — flushed via LifetimePort)
+#pragma once
+#include <mutex>
+#include <vector>
+#include <nlohmann/json.hpp>
+#include <domain/ports/logger_port.h>
+#include "hub_connection.h"
+
+class DuckDbLogger : public LoggerPort {
+public:
+    DuckDbLogger(HubConnection& connection, std::string service, std::size_t batch_size)
+        : connection_(connection), service_(std::move(service)), batch_size_(batch_size) {}
+
+    void info(const std::string& message) override { append("INFO", message); }
+    void error(const std::string& message) override { append("ERROR", message); }
+
+    void flush() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (buffer_.empty()) return;
+        connection_.request({{"op", "append_logs"}, {"rows", buffer_}});
+        buffer_.clear();
+    }
+
+private:
+    void append(const std::string& level, const std::string& message) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        buffer_.push_back({{"ts", now_ms()}, {"level", level}, {"service", service_},
+                           {"message", message}, {"fields", nlohmann::json::object()}});
+        if (buffer_.size() >= batch_size_) {
+            connection_.request({{"op", "append_logs"}, {"rows", buffer_}});
+            buffer_.clear();
+        }
+    }
+
+    HubConnection& connection_;
+    std::string service_;
+    std::size_t batch_size_;
+    std::mutex mutex_;
+    std::vector<nlohmann::json> buffer_;
+};
+```
+
+The hub (`adapters/duckdb/hub.cpp`) holds a single `duckdb::DuckDB` / `duckdb::Connection`, applies `schema.sql`, and serves newline-delimited JSON over the Unix socket (`append_logs`, `append_metrics`, `append_events`, `poll_events`, `load_cursor`, `save_cursor`, `query`). Register each adapter's `flush()` with the `LifetimePort` cleanup list so buffered writes survive `SIGTERM` — RAII guarantees the connection closes after the final flush. Only the hub writes; the insights tool (`adapters/duckdb/insights.cpp`) sends `query` requests through the hub.
+
 ## Lifecycle Hooks
 
 ### Signal Handling
@@ -653,6 +914,133 @@ private:
     std::string request_id_;
 };
 ```
+
+## Diagnostics & Failure Localization (C++)
+
+### Uniform Error + Source Location
+
+```cpp
+// domain/errors/app_error.h
+#pragma once
+#include <map>
+#include <source_location>
+#include <stdexcept>
+#include <string>
+
+class AppError : public std::runtime_error {
+public:
+    AppError(std::string code, std::string message,
+             std::map<std::string, std::string> context = {},
+             std::string origin = "", bool retryable = false)
+        : std::runtime_error(message),
+          code_(std::move(code)), context_(std::move(context)),
+          origin_(std::move(origin)), retryable_(retryable) {}
+
+    const std::string& code() const noexcept { return code_; }
+    const std::map<std::string, std::string>& context() const noexcept { return context_; }
+    const std::string& origin() const noexcept { return origin_; }
+    bool retryable() const noexcept { return retryable_; }
+
+    // Filled at the boundary: layer + file:line
+    static std::string origin_here(
+        const std::source_location& loc = std::source_location::current()) {
+        return std::string(loc.file_name()) + ":" + std::to_string(loc.line());
+    }
+
+private:
+    std::string code_;
+    std::map<std::string, std::string> context_;
+    std::string origin_;
+    bool retryable_;
+};
+```
+
+```cpp
+// adapters/sql/sqlite_repository.cpp — translate + enrich, never swallow
+try {
+    if (sqlite3_step(stmt) != SQLITE_DONE) throw std::runtime_error(sqlite3_errmsg(db_));
+} catch (const std::exception& e) {
+    throw AppError("STO-001", "Storage write failed",
+                   {{"operation", "save"}, {"adapter", "sqlite"}},
+                   AppError::origin_here(), /*retryable=*/true);
+    // the original is available via std::current_exception()/nested handling if chained
+}
+```
+
+### Terminate Handler + Sanitizers
+
+```cpp
+// main.cpp — one process-level handler; flush observability before exiting
+#include <exception>
+std::set_terminate([] {
+    if (auto e = std::current_exception()) {
+        try { std::rethrow_exception(e); }
+        catch (const std::exception& ex) { std::cerr << "fatal: " << ex.what() << "\n"; }
+    }
+    flush_observability();      // never lose buffered logs/metrics/events
+    std::exit(70);              // distinct exit code
+});
+```
+
+```just
+# justfile — memory/UB safety (verify-hard)
+sanitize:
+    cmake -S . -B build-asan -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -g"
+    cmake --build build-asan && ctest --test-dir build-asan
+```
+
+### Fault Injection
+
+```cpp
+// tests/fault/document_faults_test.cpp
+TEST(DocumentFaults, SurfacesStorageErrorAndLocation) {
+    FailingRepo repo;                       // save() throws std::runtime_error
+    try {
+        create_document("Hello", repo, *fake_logger_, *fake_time_);
+        FAIL() << "expected AppError";
+    } catch (const AppError& e) {
+        EXPECT_EQ(e.code(), "STO-001");
+        EXPECT_TRUE(e.retryable());
+        EXPECT_FALSE(e.origin().empty());   // location filled at the boundary
+    }
+}
+```
+
+## Light Justfile & Terminal Output (C++)
+
+- The justfile is a **light index**: each recipe delegates to the CLI binary (`./build/cli <task>`). Logic lives in `cli.cpp` (a driving adapter).
+- Colored, structured output via `fmt` + a small color/panel helper honoring `NO_COLOR`/non-TTY, behind a `PresenterPort`.
+
+```just
+doctor:
+    ./{{BUILD_DIR}}/cli doctor
+seed:
+    ./{{BUILD_DIR}}/cli seed
+```
+
+## Property, Mutation & Formal Verification (C++)
+
+```cpp
+// tests/property/document_property_test.cpp (RapidCheck)
+#include <rapidcheck.h>
+
+TEST(DocumentProperties, EncodeDecodeRoundTrips) {
+    rc::check("decode(encode(x)) == x", [](const std::vector<std::string>& docs) {
+        for (const auto& d : docs) RC_ASSERT(decode(encode(d)) == d);
+    });
+}
+```
+
+```just
+test-property:
+    ./{{BUILD_DIR}}/tests --gtest_filter=*Properties*
+
+mutation:
+    mull-runner ./{{BUILD_DIR}}/tests domain/src   # mull; gate on mutation score
+```
+
+- **Mutation**: `mull` (LLVM-based) with a score gate on `domain/`.
+- **Formal**: **CBMC**/**ESBMC** bounded-verify C/C++ (`cbmc --bounds-check --pointer-check`); **Frama-C**/ACSL for functional proofs of the critical core.
 
 ## Testing
 
@@ -999,6 +1387,13 @@ clean:
 # Watch for changes and rebuild (requires entr)
 watch:
     find . -name '*.cpp' -o -name '*.h' | entr -s 'just test'
+
+# Error-code registry check
+errors-check:
+    ./{{BUILD_DIR}}/check_error_codes
+
+# Full gate before merge
+verify: lint test errors-check
 ```
 
 ## conanfile.py

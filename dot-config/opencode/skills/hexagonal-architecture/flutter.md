@@ -87,6 +87,11 @@ test-coverage:
 lint:
     flutter analyze
 
+errors-check:
+    dart run tools/check_error_codes.dart   # registry: no unknown or duplicate codes
+
+verify: lint test errors-check
+
 format:
     dart format .
 
@@ -561,6 +566,115 @@ class MyApp extends StatelessWidget {
 }
 ```
 
+## SQL Repository Adapter (Flutter)
+
+Persistence goes through a `*Repository` port implemented by a SQL adapter. There is no ORM — the adapter owns its SQL and its row → domain mapping. Target the **generic** `Repository<T, Id>` port with injected mappers so the file copies to any project.
+
+```dart
+// lib/domain/models/document.dart (pure — no DB imports)
+enum DocumentStatus { draft, published }
+
+class Document {
+  const Document({required this.id, required this.content, this.status = DocumentStatus.draft});
+  final String id;
+  final String content;
+  final DocumentStatus status;
+}
+
+// lib/domain/ports/repository.dart (standard, generic)
+abstract class Repository<T, Id> {
+  Future<void> save(T entity);
+  Future<T?> findById(Id id);
+  Future<List<T>> findAll();
+  Future<void> delete(Id id);
+}
+
+// Domain-specific alias — optional
+typedef DocumentRepository = Repository<Document, String>;
+
+// lib/adapters/sql/sql_repository.dart (PORTABLE — copy to any project, unmodified)
+// backend: sqlite3; implements: Repository<T, Id>
+// deps: sqlite3 only; config: SqlConfig (frozen, injected)
+import 'package:sqlite3/sqlite3.dart';
+import '../../domain/ports/repository.dart';
+
+class SqlConfig {
+  const SqlConfig({
+    required this.saveSql,
+    required this.selectSql,
+    required this.selectAllSql,
+    required this.deleteSql,
+  });
+  final String saveSql;
+  final String selectSql;
+  final String selectAllSql;
+  final String deleteSql;
+}
+
+class SqlRepository<T, Id> implements Repository<T, Id> {
+  SqlRepository(
+    this._db,                         // database injected — never created here
+    this._config,
+    this._toParams,                   // pure mapper
+    this._fromRow,                    // pure mapper
+  );
+
+  final Database _db;
+  final SqlConfig _config;
+  final List<Object?> Function(T) _toParams;
+  final T Function(Row) _fromRow;
+
+  @override
+  Future<void> save(T entity) async {
+    // Parameterized only — never interpolate user input
+    _db.execute(_config.saveSql, _toParams(entity));
+  }
+
+  @override
+  Future<T?> findById(Id id) async {
+    final rows = _db.select(_config.selectSql, [id]);
+    return rows.isEmpty ? null : _fromRow(rows.first);
+  }
+
+  @override
+  Future<List<T>> findAll() async =>
+      _db.select(_config.selectAllSql).map(_fromRow).toList();
+
+  @override
+  Future<void> delete(Id id) async {
+    _db.execute(_config.deleteSql, [id]);
+  }
+}
+
+// composition root — bind SqlConfig + pure mappers here; the adapter never names Document
+SqlRepository<Document, String> makeDocumentRepository(Database db) {
+  return SqlRepository(
+    db,
+    const SqlConfig(
+      saveSql: 'INSERT INTO documents (id, content, status) VALUES (?, ?, ?) '
+          'ON CONFLICT(id) DO UPDATE SET content = excluded.content, status = excluded.status',
+      selectSql: 'SELECT id, content, status FROM documents WHERE id = ?',
+      selectAllSql: 'SELECT id, content, status FROM documents',
+      deleteSql: 'DELETE FROM documents WHERE id = ?',
+    ),
+    (d) => [d.id, d.content, d.status.name],
+    (row) => Document(
+      id: row['id'] as String,
+      content: row['content'] as String,
+      status: DocumentStatus.values.byName(row['status'] as String),
+    ),
+  );
+}
+```
+
+Register `_db.dispose()` with the `LifetimePort`. Migrations are `.sql` files under the adapter or `infra/`, applied at startup or by a root-level admin entry point.
+
+## Local-First Backing Services (DuckDB)
+
+The same dev pattern as [SKILL.md](./SKILL.md) applies on Flutter desktop and in tests: a single local DuckDB database backs logs, metrics, and events via `LoggerPort`, `MetricsPort`, and `EventPublisherPort`/`EventConsumerPort`. Use an FFI package (`duckdb_dart` / `dart_duckdb`) and keep all config (path, batch size, poll interval) constructor-injected from `infra/`.
+
+On mobile, each app process is effectively its own single writer, so the hub is in-process rather than a separate socket server; treat DuckDB as the dev/desktop store and swap to a remote backing service (or plain SQLite for on-device persistence) for production by changing only the composition root.
+
 ## Lifecycle Hooks
 
 ### App Lifecycle
@@ -714,6 +828,118 @@ class StructuredLogger implements LoggerPort {
 logger.info('location_fetched', data: {'lat': coords.lat, 'lng': coords.lng});
 logger.error('location_fetch_failed', data: {'error': e.toString()});
 ```
+
+## Diagnostics & Failure Localization (Flutter)
+
+### Uniform Failure + Registry
+
+```dart
+// lib/domain/errors/failure.dart (uniform diagnostic failure — every layer uses this)
+class Failure implements Exception {
+  const Failure({
+    required this.code,      // registry-backed, e.g. "LOC-001"
+    required this.message,
+    this.context = const {},
+    this.cause,              // original error — never discarded
+    this.origin = '',        // layer + file:line, set at the boundary
+    this.correlationId = '',
+    this.retryable = false,
+    this.remediation = '',
+  });
+
+  final String code;
+  final String message;
+  final Map<String, Object?> context;
+  final Object? cause;
+  final String origin;
+  final String correlationId;
+  final bool retryable;
+  final String remediation;
+
+  @override
+  String toString() => '[$code] $message ($origin)';
+}
+```
+
+```dart
+// lib/adapters/sql/sql_repository.dart — translate + enrich, never swallow
+try {
+  _db.execute(_config.saveSql, _toParams(entity));
+} on SqliteException catch (e) {
+  throw Failure(
+    code: 'STO-001', message: 'Storage write failed', cause: e,
+    context: {'operation': 'save', 'adapter': 'sqlite'},
+    origin: 'adapter.SqlRepository.save', retryable: true,
+  );
+}
+```
+
+### Crash Handler
+
+```dart
+// main.dart — install once; capture + flush before the app dies
+FlutterError.onError = (details) {
+  FlutterError.presentError(details);
+  reportFailure(Failure(
+    code: 'APP-999', message: details.exceptionAsString(),
+    context: {'library': details.library ?? ''},
+    origin: details.context?.toString() ?? '', cause: details.exception,
+  ));
+};
+PlatformDispatcher.instance.onError = (error, stack) {
+  reportFailure(Failure(code: 'APP-999', message: '$error', cause: error));
+  return true;   // handled
+};
+```
+
+### Fault Injection
+
+```dart
+// test/fault/location_faults_test.dart
+test('surfaces LOC-001 and preserves the cause', () async {
+  final adapter = FailingLocationAdapter(TimeoutException('timed out'));
+  await expectLater(
+    getLocation(adapter, fakeLogger, fakeTime),
+    throwsA(isA<Failure>().having((f) => f.code, 'code', 'LOC-001')
+                            .having((f) => f.retryable, 'retryable', true)),
+  );
+});
+```
+
+## Light Justfile & Terminal Output (Flutter)
+
+- The justfile is a **light index**: each recipe delegates to a dart entry (`dart run tool/cli.dart <task>`); keep logic out of `just`.
+- Colored output via `ansicolor` + a small panel helper honoring `NO_COLOR`, behind a `PresenterPort`.
+
+```just
+doctor:
+    dart run tool/cli.dart doctor
+seed:
+    dart run tool/cli.dart seed
+```
+
+## Property, Mutation & Formal Verification (Flutter)
+
+```dart
+// test/property/document_property_test.dart (glados)
+import 'package:glados/glados.dart';
+
+void main() {
+  Glados<List<String>>().test('encode/decode round-trips', (docs) {
+    final round = docs.map(encode).map(decode).toList();
+    expect(round, docs);
+  }, any.list(any.string));
+}
+```
+
+```just
+test-property:
+    flutter test test/property
+```
+
+- **Property**: `glados` over the pure domain; run on the host and in `flutter test`.
+- **Mutation**: no mature Dart mutation tool — compensate with property + contract tests and strict `flutter analyze`.
+- **Formal**: model-check any on-device protocol/state machine in **TLA+** before implementing.
 
 ## Testing
 

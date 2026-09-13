@@ -12,6 +12,8 @@ Embedded systems impose unique constraints that shape hexagonal architecture:
 - **Power management** — adapters handle sleep/wake cycles
 - **No OS or RTOS** — bare-metal or cooperative scheduling
 - **Device-specific tooling** — `ampy`, `esptool`, `openocd`, `platformio`
+- **Adapter-as-ORM** — no ORM on any target; the repository adapter owns its SQL and maps rows to domain models (see [SKILL.md](./SKILL.md) persistence rules)
+- **No embedded DuckDB** — the local-first DuckDB hub (see [SKILL.md](./SKILL.md)) targets dev/desktop; on MCU targets keep logs/metrics/events in RAM or SQLite and upload or flush through a port
 
 ## Driving Adapters: ISR / RTOS / Main Loop
 
@@ -802,6 +804,42 @@ class StructuredLogger(LoggerPort):
 logger.info("sensor_reading", temp=23.5, humidity=60.0)
 logger.error("sensor_read_failed", error="timeout", pin=4)
 ```
+
+## Diagnostics & Failure Localization (Embedded)
+
+No backtraces or ring buffers on an MCU — keep it tiny: a numeric code, a short context, and a distinct reset reason.
+
+```python
+# domain/errors/app_error.py (MicroPython)
+class AppError(Exception):
+    def __init__(self, code, message, context=None):
+        super().__init__(message)
+        self.code = code            # registry-backed, e.g. 0x0101
+        self.message = message
+        self.context = context or {}   # small: pin, state, retry count
+
+class SensorTimeoutError(AppError):
+    def __init__(self, pin):
+        super().__init__(code=0x0101, message="sensor read timed out", context={"pin": pin})
+
+# main loop — log the code + context, then reset with a distinct reason
+try:
+    read_sensor()
+except AppError as e:
+    logger.error("app_error", code=hex(e.code), message=e.message, **e.context)
+    machine.reset_cause = e.code      # persist before reset for the next boot
+    machine.reset()
+```
+
+- **Error codes are a registry too** — a small `ERROR_CODES` table in firmware maps code → meaning; keep it in sync with the host-side `errors.toml` and check in CI.
+- **Breadcrumbs are expensive** — store only the last error code in NVRAM/RTC memory and log it on the next boot.
+- **Fault injection** — wrap the sensor/relay ports with fakes that return `None`/timeout and assert the code + that the watchdog is fed. Run these on the host, not the device.
+
+## Property & Formal Verification (Embedded)
+
+- **Property tests run on the host**, not the device. The pure domain (state machines, control math, protocol framing) is exercised by `hypothesis` / `proptest` / RapidCheck against fake ports; only integration tests touch hardware.
+- **Formal**: control loops and protocol state machines are exactly where **TLA+** (design) and **CBMC/ESBMC** (bounded C verification) pay off — verify the pure core before flashing, and keep ISRs trivial and side-effect-free.
+- **Mutation** is usually skipped on MCU targets (tooling/size); rely on property + contract tests and the host-side mutation gate on shared domain code.
 
 ## Testing Embedded Code
 

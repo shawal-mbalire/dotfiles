@@ -77,7 +77,28 @@ format:
 typecheck:
     cargo check
 
-check: lint typecheck test
+adapters-check:
+    cargo deny check bans   # adapters must not depend on domain internals or read env
+
+errors-check:
+    cargo run --bin check_error_codes   # registry: no unknown or duplicate codes
+
+sanitizers:
+    RUSTFLAGS="-Z sanitizer=address" cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
+    cargo +nightly miri test
+
+test-contract:
+    cargo test --test contract
+
+test-fault:
+    cargo test fault
+
+verify: lint typecheck adapters-check errors-check test test-contract test-fault
+
+replay id:
+    cargo run --bin replay -- {{id}}
+
+check: lint typecheck adapters-check errors-check test
 
 clean:
     cargo clean
@@ -159,6 +180,9 @@ pub mod ports {
     pub trait TimePort: Send + Sync {
         fn now_ms(&self) -> u64;
         fn elapsed_ms(&self, start_ms: u64) -> u64;
+        fn sleep_ms(&self, ms: u64) {
+            std::thread::sleep(std::time::Duration::from_millis(ms));
+        }
     }
 
     pub enum ExitReason {
@@ -358,6 +382,383 @@ pub fn load_domain_constants() -> DomainConstants {
     }
 }
 ```
+
+## SQL Repository Adapter (Rust)
+
+Persistence goes through a `*Repository` port implemented by a SQL adapter. There is no ORM — the adapter owns its SQL and its row → domain mapping. Target the **generic** `Repository<T>` port with an injected `SqlMapper<T>` so the file copies to any project.
+
+> Verified against `sqlx = 0.8` (`runtime-tokio`, `sqlite`) and `async-trait = 0.1`. Uses SQLite `?` placeholders; for Postgres use `$1..` and `PgPool`/`PgRow`.
+
+```rust
+// domain/src/ports/repository.rs (standard, generic, async)
+use crate::errors::DomainError;
+
+#[async_trait::async_trait]
+pub trait Repository<T>: Send + Sync
+where
+    T: Send + Sync,
+{
+    async fn save(&self, entity: &T) -> Result<(), DomainError>;
+    async fn find_by_id(&self, id: &str) -> Result<Option<T>, DomainError>;
+    async fn find_all(&self) -> Result<Vec<T>, DomainError>;
+    async fn delete(&self, id: &str) -> Result<(), DomainError>;
+}
+
+// adapters/src/sql/sqlite_repository.rs (PORTABLE — copy to any project, unmodified)
+// backend: sqlx (SQLite/Pg); implements: Repository<T>
+// deps: sqlx, async-trait; config: injected via SqlMapper
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use sqlx::query::Query;
+use sqlx::sqlite::{Sqlite, SqliteArguments, SqlitePool, SqliteRow};
+use sqlx::Row;
+
+use domain::errors::DomainError;
+use domain::ports::repository::Repository;
+
+/// Owns the SQL and the *type-safe* binds for exactly one aggregate.
+/// This is the injected mapper: the adapter never names a domain type.
+pub trait SqlMapper<T>: Send + Sync {
+    fn save_sql(&self) -> &str;
+    fn select_sql(&self) -> &str;
+    fn select_all_sql(&self) -> &str;
+    fn delete_sql(&self) -> &str;
+
+    fn bind_save<'q>(
+        &'q self,
+        query: Query<'q, Sqlite, SqliteArguments<'q>>,
+        entity: &'q T,
+    ) -> Query<'q, Sqlite, SqliteArguments<'q>>;
+
+    fn from_row(&self, row: &SqliteRow) -> Result<T, sqlx::Error>;
+}
+
+pub struct SqliteRepository<T> {
+    pool: SqlitePool,                 // injected — never created here
+    mapper: Arc<dyn SqlMapper<T>>,    // injected mapper (config + SQL + binds)
+}
+
+impl<T> SqliteRepository<T> {
+    pub fn new(pool: SqlitePool, mapper: Arc<dyn SqlMapper<T>>) -> Self {
+        Self { pool, mapper }
+    }
+}
+
+#[async_trait]
+impl<T: Send + Sync> Repository<T> for SqliteRepository<T> {
+    async fn save(&self, entity: &T) -> Result<(), DomainError> {
+        let query = self
+            .mapper
+            .bind_save(sqlx::query(self.mapper.save_sql()), entity);
+        query
+            .execute(&self.pool)
+            .await
+            .map(|_| ()) // parameterized only
+            .map_err(|e| DomainError::Storage(e.to_string())) // translate errors
+    }
+
+    async fn find_by_id(&self, id: &str) -> Result<Option<T>, DomainError> {
+        let row = sqlx::query(self.mapper.select_sql())
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(e.to_string()))?;
+        row.as_ref()
+            .map(|r| self.mapper.from_row(r))
+            .transpose()
+            .map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    async fn find_all(&self) -> Result<Vec<T>, DomainError> {
+        let rows = sqlx::query(self.mapper.select_all_sql())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| DomainError::Storage(e.to_string()))?;
+        rows.iter()
+            .map(|r| self.mapper.from_row(r))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| DomainError::Storage(e.to_string()))
+    }
+
+    async fn delete(&self, id: &str) -> Result<(), DomainError> {
+        sqlx::query(self.mapper.delete_sql())
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map(|_| ())
+            .map_err(|e| DomainError::Storage(e.to_string()))
+    }
+}
+```
+
+Only the composition root binds the adapter to `Document` — the mapper is the single place that names a domain type:
+
+```rust
+// composition root — bind the aggregate here, not inside the adapter
+use std::sync::Arc;
+use sqlx::query::Query;
+use sqlx::sqlite::{Sqlite, SqliteArguments, SqlitePool, SqliteRow};
+use sqlx::Row;
+
+pub struct DocumentMapper;
+
+impl SqlMapper<Document> for DocumentMapper {
+    fn save_sql(&self) -> &str {
+        "INSERT INTO documents (id, content, status) VALUES (?, ?, ?) \
+         ON CONFLICT(id) DO UPDATE SET content = excluded.content, status = excluded.status"
+    }
+    fn select_sql(&self) -> &str {
+        "SELECT id, content, status FROM documents WHERE id = ?"
+    }
+    fn select_all_sql(&self) -> &str {
+        "SELECT id, content, status FROM documents"
+    }
+    fn delete_sql(&self) -> &str {
+        "DELETE FROM documents WHERE id = ?"
+    }
+
+    fn bind_save<'q>(
+        &'q self,
+        query: Query<'q, Sqlite, SqliteArguments<'q>>,
+        entity: &'q Document,
+    ) -> Query<'q, Sqlite, SqliteArguments<'q>> {
+        query
+            .bind(entity.id.as_str())
+            .bind(entity.content.as_str())
+            .bind(entity.status.as_str())
+    }
+
+    fn from_row(&self, row: &SqliteRow) -> Result<Document, sqlx::Error> {
+        Ok(Document {
+            id: row.try_get("id")?,
+            content: row.try_get("content")?,
+            status: DocumentStatus::from_str(row.try_get("status")?),
+        })
+    }
+}
+
+pub fn make_document_repository(pool: SqlitePool) -> SqliteRepository<Document> {
+    SqliteRepository::new(pool, Arc::new(DocumentMapper))
+}
+```
+
+Register the pool in the composition root and close it via RAII/`LifetimePort`. Migrations are `.sql` files run by a root-level admin entry point:
+
+```rust
+// migrate.rs (root)
+// Apply adapters/sql/migrations/*.sql in order via sqlx::query(...).execute(&pool).await
+fn main() {}
+```
+
+## Local-First Backing Services (DuckDB Hub)
+
+Dev defaults to one local DuckDB database for **logs, metrics, and events**, owned by a single hub process. Ports never change; the composition root swaps DuckDB adapters for prod services.
+
+```rust
+// domain/src/ports/metrics_port.rs
+pub trait MetricsPort: Send + Sync {
+    fn counter(&self, name: &str, value: f64, labels: &[(&str, &str)]);
+    fn gauge(&self, name: &str, value: f64, labels: &[(&str, &str)]);
+    fn timing(&self, name: &str, duration_ms: f64, labels: &[(&str, &str)]);
+}
+
+// domain/src/ports/event_bus.rs
+use serde_json::Value;
+
+pub trait EventPublisherPort: Send + Sync {
+    fn publish(&self, topic: &str, payload: Value);
+}
+
+pub trait EventConsumerPort: Send + Sync {
+    fn subscribe(&self, topic: &str, consumer: &str, handler: Box<dyn Fn(Value) + Send + Sync>);
+}
+
+// infra/src/config.rs (add to existing config)
+pub struct DuckDbConfig {
+    pub mode: String, // "hub" (multi-process) or "inprocess" (single process)
+    pub database_path: String,
+    pub socket_path: String,
+    pub poll_interval_ms: u64,
+    pub batch_size: usize,
+}
+
+pub fn duck_db_config_from_env() -> DuckDbConfig {
+    DuckDbConfig {
+        mode: std::env::var("DUCKDB_MODE").unwrap_or_else(|_| "hub".into()),
+        database_path: std::env::var("DUCKDB_PATH").unwrap_or_else(|_| "build/dev.duckdb".into()),
+        socket_path: std::env::var("DUCKDB_SOCKET").unwrap_or_else(|_| "build/dev.duckdb.sock".into()),
+        poll_interval_ms: std::env::var("DUCKDB_POLL_INTERVAL_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(250),
+        batch_size: std::env::var("DUCKDB_BATCH_SIZE").ok().and_then(|v| v.parse().ok()).unwrap_or(100),
+    }
+}
+
+// adapters/src/duckdb/hub_connection.rs (thin client to the single-writer hub)
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::UnixStream;
+use serde_json::Value;
+
+pub struct HubConnection {
+    writer: UnixStream,
+    reader: BufReader<UnixStream>,
+}
+
+impl HubConnection {
+    pub fn connect(socket_path: &str) -> std::io::Result<Self> {
+        let stream = UnixStream::connect(socket_path)?;
+        let reader = BufReader::new(stream.try_clone()?);
+        Ok(Self { writer: stream, reader })
+    }
+
+    pub fn request(&mut self, payload: &Value) -> std::io::Result<Value> {
+        writeln!(self.writer, "{}", payload)?;
+        let mut line = String::new();
+        self.reader.read_line(&mut line)?; // persistent reader — never drops buffered bytes
+        serde_json::from_str(&line)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    }
+}
+
+// adapters/src/duckdb/duckdb_logger.rs (buffered — flushed via LifetimePort)
+use std::sync::Mutex;
+use crate::duckdb::hub_connection::HubConnection;
+
+pub struct DuckDbLogger {
+    connection: Mutex<HubConnection>,
+    service: String,
+    batch_size: usize,
+    buffer: Mutex<Vec<serde_json::Value>>,
+}
+
+impl DuckDbLogger {
+    pub fn new(connection: HubConnection, service: &str, batch_size: usize) -> Self {
+        Self {
+            connection: Mutex::new(connection),
+            service: service.into(),
+            batch_size,
+            buffer: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub fn info(&self, message: &str) {
+        self.append("INFO", message);
+    }
+
+    pub fn error(&self, message: &str) {
+        self.append("ERROR", message);
+    }
+
+    fn append(&self, level: &str, message: &str) {
+        let mut buffer = self.buffer.lock().unwrap();
+        buffer.push(serde_json::json!({
+            "ts": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64,
+            "level": level,
+            "service": self.service,
+            "message": message,
+            "fields": {},
+        }));
+        if buffer.len() >= self.batch_size {
+            drop(buffer);
+            self.flush();
+        }
+    }
+
+    pub fn flush(&self) {
+        let mut buffer = self.buffer.lock().unwrap();
+        if buffer.is_empty() { return; }
+        let rows = std::mem::take(&mut *buffer);
+        self.connection.lock().unwrap()
+            .request(&serde_json::json!({ "op": "append_logs", "rows": rows }))
+            .expect("hub append_logs failed");
+    }
+}
+
+// adapters/src/duckdb/duckdb_event_bus.rs (publish + durable cursor poll)
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
+use serde_json::Value;
+
+use crate::duckdb::hub_connection::HubConnection;
+use domain::ports::event_bus::{EventConsumerPort, EventPublisherPort};
+
+pub struct DuckDbEventBus {
+    connection: Mutex<HubConnection>,
+    batch_size: usize,
+    poll_interval_ms: u64,
+    buffer: Mutex<Vec<Value>>,
+    shutdown: Arc<AtomicBool>, // set by the composition root / LifetimePort
+}
+
+impl DuckDbEventBus {
+    pub fn new(connection: HubConnection, batch_size: usize, poll_interval_ms: u64,
+               shutdown: Arc<AtomicBool>) -> Self {
+        Self {
+            connection: Mutex::new(connection),
+            batch_size,
+            poll_interval_ms,
+            buffer: Mutex::new(Vec::new()),
+            shutdown,
+        }
+    }
+
+    pub fn flush(&self) {
+        let mut buffer = self.buffer.lock().unwrap();
+        if buffer.is_empty() { return; }
+        let rows = std::mem::take(&mut *buffer);
+        self.connection.lock().unwrap()
+            .request(&serde_json::json!({ "op": "append_events", "rows": rows }))
+            .expect("hub append_events failed");
+    }
+}
+
+impl EventPublisherPort for DuckDbEventBus {
+    fn publish(&self, topic: &str, payload: Value) {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let mut buffer = self.buffer.lock().unwrap();
+        buffer.push(serde_json::json!({ "ts": ts, "topic": topic, "payload": payload }));
+        if buffer.len() >= self.batch_size {
+            drop(buffer);
+            self.flush();
+        }
+    }
+}
+
+impl EventConsumerPort for DuckDbEventBus {
+    fn subscribe(&self, topic: &str, consumer: &str, handler: Box<dyn Fn(Value) + Send + Sync>) {
+        // Durable cursor lives in the hub; 0 on first run
+        let mut cursor = self.connection.lock().unwrap()
+            .request(&serde_json::json!({ "op": "load_cursor", "topic": topic, "consumer": consumer }))
+            .map(|r| r["last_seq"].as_i64().unwrap_or(0))
+            .unwrap_or(0);
+
+        while !self.shutdown.load(Ordering::Relaxed) {
+            let response = self.connection.lock().unwrap()
+                .request(&serde_json::json!({
+                    "op": "poll_events", "topic": topic, "after_seq": cursor
+                }))
+                .expect("hub poll_events failed");
+            let rows = response["rows"].as_array().cloned().unwrap_or_default();
+            for row in &rows {
+                handler(row["payload"].clone()); // at-least-once: handlers must be idempotent
+                cursor = row["seq"].as_i64().unwrap_or(cursor);
+            }
+            if !rows.is_empty() {
+                self.connection.lock().unwrap()
+                    .request(&serde_json::json!({
+                        "op": "save_cursor", "topic": topic,
+                        "consumer": consumer, "last_seq": cursor
+                    })).expect("hub save_cursor failed");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(self.poll_interval_ms));
+        }
+    }
+}
+```
+
+The hub itself (`adapters/duckdb/hub.rs`) is a small single-writer process: it owns the one `duckdb::Connection`, applies `schema.sql`, and serves newline-delimited JSON over a Unix socket (`append_logs`, `append_metrics`, `append_events`, `poll_events`, `load_cursor`, `save_cursor`, `query`). Register every adapter `flush()` with the `LifetimePort` (see the RAII `Drop` and signal sections below) so buffered writes are never lost. Only the hub writes; `adapters/duckdb/insights.rs` sends `query` requests through the hub rather than opening the file.
 
 ## Lifecycle Hooks
 
@@ -701,6 +1102,193 @@ fn test_calculate_total_zero_tax() {
 }
 // No mocks, no setup, no database — just input → output
 ```
+
+## Diagnostics & Failure Localization (Rust)
+
+### Uniform Error + Registry
+
+The project's error type carries the `AppError` shape of SKILL.md (code, context, cause, origin, correlation id, retryability):
+
+```rust
+// domain/src/errors.rs
+use std::collections::BTreeMap;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum DomainError {
+    #[error("[{code}] {message}")]
+    Diagnostic {
+        code: &'static str,          // registry-backed, e.g. "STO-001"
+        message: String,
+        context: BTreeMap<String, String>,
+        #[source]                     // original error — never discarded
+        cause: Option<Box<dyn std::error::Error + Send + Sync>>,
+        origin: String,               // layer + module.function:line
+        correlation_id: String,
+        retryable: bool,
+        remediation: String,
+    },
+    #[error("storage error: {0}")]
+    Storage(String),
+}
+
+impl DomainError {
+    pub fn storage_unavailable(
+        cause: impl std::error::Error + Send + Sync + 'static,
+        origin: impl Into<String>,
+        correlation_id: impl Into<String>,
+    ) -> Self {
+        DomainError::Diagnostic {
+            code: "STO-001",
+            message: "Storage backend unavailable".into(),
+            context: [("adapter".to_string(), "sqlite".to_string())]
+                .into_iter()
+                .collect(),
+            cause: Some(Box::new(cause)),
+            origin: origin.into(),
+            correlation_id: correlation_id.into(),
+            retryable: true,
+            remediation: "Retry with backoff; check the database".into(),
+        }
+    }
+
+    pub fn code(&self) -> &'static str {
+        match self {
+            DomainError::Diagnostic { code, .. } => code,
+            DomainError::Storage(_) => "STO-000",
+        }
+    }
+
+    pub fn retryable(&self) -> bool {
+        match self {
+            DomainError::Diagnostic { retryable, .. } => *retryable,
+            DomainError::Storage(_) => true,
+        }
+    }
+}
+```
+
+```rust
+// src/bin/check_error_codes.rs — errors-check: registry has no unknown/duplicate codes
+use std::{collections::BTreeSet, fs, path::PathBuf};
+
+fn main() {
+    let registry = fs::read_to_string("errors.toml").expect("errors.toml");
+    let walk = |dir: &str, found: &mut BTreeSet<String>| {
+        for entry in fs::read_dir(dir).unwrap().flatten() {
+            let path: PathBuf = entry.path();
+            if path.is_dir() {
+                walk(path.to_str().unwrap(), found);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let text = fs::read_to_string(&path).unwrap();
+                for line in text.lines() {
+                    if let Some(rest) = line.split("code:").nth(1) {
+                        if let Some(code) = rest.split('"').nth(1) {
+                            found.insert(code.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    };
+    let mut used = BTreeSet::new();
+    walk("src", &mut used);
+    let missing: Vec<_> = used.iter().filter(|c| !registry.contains(c.as_str())).collect();
+    assert!(missing.is_empty(), "Unregistered error codes: {missing:?}");
+    println!("OK: {} codes used, all registered", used.len());
+}
+```
+
+### Origin, Causality, and Panic Hook
+
+```rust
+// adapters/src/sql/sqlite_repository.rs
+fn origin_here() -> String {
+    let loc = std::panic::Location::caller();
+    format!("adapter.{}.{}:{}", loc.file(), loc.line(), loc.column())
+}
+// on a driver error:
+return Err(DomainError::storage_unavailable(e, origin_here(), correlation_id));
+
+// main.rs (root) — capture backtrace + breadcrumbs, flush, exit with a distinct code
+std::panic::set_hook(Box::new(|info| {
+    eprintln!("panic: {info}");
+    eprintln!("backtrace:\n{}", std::backtrace::Backtrace::force_capture());
+    eprintln!("breadcrumbs: {:?}", breadcrumbs::snapshot());
+    flush_observability();                    // never lose buffered logs/metrics/events
+}));
+// after the hook runs the process aborts; wrap main in catch_unwind to exit(70) instead
+```
+
+### Fault Injection
+
+```rust
+#[cfg(test)]
+mod fault_tests {
+    use super::*;
+
+    struct FailingRepo;
+    #[async_trait::async_trait]
+    impl domain::ports::repository::Repository<Document> for FailingRepo {
+        async fn save(&self, _: &Document) -> Result<(), DomainError> {
+            Err(DomainError::storage_unavailable(
+                std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "refused"),
+                "adapter.sqlite_repository.save:42",
+                "req-1",
+            ))
+        }
+        async fn find_by_id(&self, _: &str) -> Result<Option<Document>, DomainError> { Ok(None) }
+        async fn find_all(&self) -> Result<Vec<Document>, DomainError> { Ok(vec![]) }
+        async fn delete(&self, _: &str) -> Result<(), DomainError> { Ok(()) }
+    }
+
+    #[tokio::test]
+    async fn surfaces_storage_error_and_preserves_cause() {
+        let err = create_document("Hello", &FailingRepo).await.unwrap_err();
+        assert_eq!(err.code(), "STO-001");
+        assert!(err.retryable());
+        assert!(std::error::Error::source(&err).is_some()); // cause preserved
+    }
+}
+```
+
+## Light Justfile & Terminal Output (Rust)
+
+- The justfile is a **light index**: each recipe delegates to a binary (`cargo run --quiet --bin cli -- <task>`). Logic lives in `src/bin/cli.rs` (a driving adapter).
+- Colored, structured output via `comfy-table` (tables) + `owo-colors` (respects `NO_COLOR`) + `indicatif` (progress), behind a `PresenterPort`.
+
+```just
+doctor:
+    cargo run --quiet --bin cli -- doctor
+seed:
+    cargo run --quiet --bin cli -- seed
+```
+
+## Property, Mutation & Formal Verification (Rust)
+
+```rust
+// tests/property.rs (proptest)
+use proptest::prelude::*;
+
+proptest! {
+    #[test]
+    fn encode_decode_round_trips(docs in prop::collection::vec(any::<String>(), 0..32)) {
+        let round: Vec<_> = docs.iter().map(|d| decode(&encode(d))).collect();
+        prop_assert_eq!(round, docs);
+    }
+}
+```
+
+```just
+test-property:
+    cargo test --test property
+
+mutation:
+    cargo mutants --in-place --dir domain/src --fail-on-survived   # cargo-mutants
+```
+
+- **Mutation**: `cargo-mutants`; fail when a mutant in `domain/` survives.
+- **Formal**: **Kani** bounded-verifies real Rust (`cargo kani`) for panics/overflow/assertions; push invariants into newtypes/enums so invalid states cannot compile.
 
 ## Testing
 
