@@ -4,7 +4,7 @@
   "height": 22,
   "spacing": 0,
   "modules-left": [
-    "hyprland/workspaces"
+    "ext/workspaces"
   ],
   "modules-center": [
     "custom/icon-clock",
@@ -28,12 +28,11 @@
     "bluetooth",
     "tray"
   ],
-  "hyprland/workspaces": {
-    "disable-scroll": false,
+  "ext/workspaces": {
     "all-outputs": true,
     "format": "{name}",
     "on-click": "activate",
-    "sort-by-number": true
+    "sort-by-id": true
   },
   "custom/swaync": {
     "format": "{icon}",
