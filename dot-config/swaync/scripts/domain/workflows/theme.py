@@ -61,18 +61,44 @@ def _notification_cards(tokens: DesignTokens, palette: dict[str, Color]) -> list
             [s.decl("background", "transparent"), s.decl("outline", "none")],
         ),
         # One container: the notification itself carries the card. The
-        # background wrapper is flattened so nothing is nested inside a card.
+        # background wrapper is flattened, and its default 12px horizontal
+        # padding is removed so cards span the full widget width like every
+        # other control-center module.
         s.rule(
             "notification-background",
             background,
-            [s.decl("background", "transparent"), s.decl("margin", "6px 0")],
+            [
+                s.decl("background", "transparent"),
+                s.decl("padding", "0"),
+                # Negative inline margin cancels the list's built-in inset so
+                # cards span the same width as every other module.
+                s.decl("margin", "6px -6px"),
+            ],
+        ),
+        # Flatten the notification list subtree (its default padding/margins
+        # were what made the cards narrower than the rest of the panel).
+        s.rule(
+            "notification-list-flat",
+            [
+                ".control-center .widget-notifications stack",
+                ".control-center .widget-notifications scrolledwindow",
+                ".control-center .widget-notifications viewport",
+                ".control-center .widget-notifications listview",
+                ".control-center .control-center-list",
+                ".control-center .control-center-list > row",
+            ],
+            [
+                s.decl("margin", "0"),
+                s.decl("padding", "0"),
+                s.decl("border", "none"),
+            ],
         ),
         s.rule(
             "notification-card",
             note,
             [
-                s.decl("background-color", palette["mantle"].alpha(0.95)),
-                s.decl("border", f"1px solid {palette['mauve'].alpha(0.55)}"),
+                s.decl("background-color", tokens.card_background),
+                s.decl("border", tokens.card_border),
                 s.decl("border-radius", tokens.radius_card),
                 s.decl("padding", "8px"),
                 s.decl("box-shadow", tokens.card_shadow),
@@ -80,6 +106,11 @@ def _notification_cards(tokens: DesignTokens, palette: dict[str, Color]) -> list
             ],
         ),
         s.rule("notification-critical", critical, [s.decl("border-color", red.ref())]),
+        s.rule(
+            "notification-hover",
+            s.with_hover(note),
+            [s.decl("border-color", palette["overlay0"].ref())],
+        ),
         s.rule(
             "notification-default-action",
             default_action,
@@ -115,7 +146,6 @@ def _notification_cards(tokens: DesignTokens, palette: dict[str, Color]) -> list
                 s.decl("background-image", s.gradient([blue, sapphire])),
                 s.decl("color", "@crust"),
                 s.decl("border-color", blue.ref()),
-                s.decl("box-shadow", s.glow(blue, 0.75)),
             ],
         ),
     ]
@@ -145,6 +175,8 @@ def _notification_content(palette: dict[str, Color]) -> list[CssComponent]:
                 s.decl("color", "@text"),
                 s.decl("filter", "none"),
                 s.decl("-gtk-icon-filter", "none"),
+                # Long bodies ellipsize instead of forcing the panel wider.
+                s.decl("min-width", "0"),
             ],
         ),
         s.rule(
@@ -211,7 +243,6 @@ def _close_and_groups(tokens: DesignTokens, palette: dict[str, Color]) -> list[C
                 s.decl("background-color", red.ref()),
                 s.decl("color", "@crust"),
                 s.decl("border-color", red.ref()),
-                s.decl("box-shadow", s.glow(red, 0.7)),
             ],
         ),
         s.rule(
@@ -261,32 +292,29 @@ def _close_and_groups(tokens: DesignTokens, palette: dict[str, Color]) -> list[C
 
 def _control_center(tokens: DesignTokens, palette: dict[str, Color]) -> list[CssComponent]:
     return [
+        # Floating panel: padded and rounded on every corner so it does not
+        # butt against the screen edges.
         s.rule(
             "control-center",
             [".control-center"],
             [
                 s.decl("background-color", "@base"),
                 s.decl("border", f"1px solid {palette['surface1'].alpha(0.55)}"),
-                s.decl("border-top", "none"),
-                s.decl("border-radius", f"0 0 {tokens.radius_card} {tokens.radius_card}"),
+                s.decl("border-radius", tokens.radius_card),
+                s.decl("padding", tokens.panel_padding),
                 s.decl("box-shadow", tokens.card_shadow),
             ],
         ),
-        s.rule("control-center-children", [".control-center > *"], [s.decl("margin", "6px 8px")]),
-        # Low-opacity rule above each widget to mark where a section starts.
+        # One frame for every module: identical inline margin and no padding.
+        # GTK has no flex and ignores percentage lengths, so this shared box is
+        # what makes every module the same width.
         s.rule(
-            "section-divider",
+            "module-frame",
             [".control-center .widget"],
             [
-                s.decl("border-top", tokens.divider),
-                s.decl("border-top-left-radius", "0"),
-                s.decl("border-top-right-radius", "0"),
+                s.decl("margin", tokens.module_margin),
+                s.decl("padding", "0"),
             ],
-        ),
-        s.rule(
-            "section-divider-first",
-            [".control-center .widget:first-child"],
-            [s.decl("border-top", "none")],
         ),
     ]
 
@@ -335,6 +363,9 @@ def _scale(tokens: DesignTokens, palette: dict[str, Color]) -> list[CssComponent
     blue = palette["blue"]
     sapphire = palette["sapphire"]
     return [
+        # Let the scale shrink so it never dictates the panel width (the
+        # buttons grid is the width reference).
+        s.rule("scale-min", ["scale"], [s.decl("min-width", "0")]),
         s.rule(
             "scale-trough",
             ["scale trough"],
@@ -350,7 +381,6 @@ def _scale(tokens: DesignTokens, palette: dict[str, Color]) -> list[CssComponent
             [
                 s.decl("background-image", s.gradient([blue, sapphire])),
                 s.decl("border-radius", "4px"),
-                s.decl("box-shadow", s.glow(blue, 0.5, "0 0 6px")),
             ],
         ),
         s.rule(
@@ -384,16 +414,22 @@ def _buttons_grid(
             "grid-chip",
             [GRID_CHIP],
             [
-                s.decl("color", "@crust"),
-                # Adwaita's button background-image would otherwise paint over
-                # our accent background-color (only checked toggles showed it).
+                s.decl("background-color", tokens.field_background),
+                # Adwaita's gradient/shadows would otherwise paint over our
+                # surface/accent background-color (this is why inactive toggles
+                # used to pick up the theme accent tint).
                 s.decl("background-image", "none"),
+                s.decl("box-shadow", "none"),
+                s.decl("color", "@text"),
                 s.decl("border", tokens.field_border),
                 s.decl("border-radius", tokens.radius_pill),
                 s.decl("min-width", tokens.grid_button_width),
                 s.decl("min-height", tokens.grid_button_height),
                 s.decl("padding", "0 6px"),
-                s.decl("margin", "2px"),
+                # No inline margin: outer chip margins would make the FlowBox
+                # minimum wider than the drawn row, leaving the other modules
+                # slightly wider than the buttons.
+                s.decl("margin", "2px 0"),
                 s.decl("font-size", "14px"),
                 s.decl("font-weight", "bold"),
                 s.decl("transition", tokens.transition),
@@ -403,14 +439,17 @@ def _buttons_grid(
             "grid-chip-hover",
             s.with_hover([GRID_CHIP]),
             [
+                s.decl("background-color", "alpha(@surface1, 0.6)"),
+                s.decl("background-image", "none"),
+                s.decl("box-shadow", "none"),
                 s.decl("border-color", tokens.hover_border),
-                s.decl("box-shadow", s.glow(palette["overlay1"], 0.6)),
             ],
         ),
     ]
 
-    # Reuse the accent cycle: each grid button gets its colour and matching glow.
-    # :nth-child lives on the flowboxchild (the button is its only child).
+    # Reuse the accent cycle: each chip's glyph is tinted with its colour, and a
+    # toggled-on chip fills solid with that colour. :nth-child lives on the
+    # flowboxchild (the button is its only child).
     for index, accent in enumerate(accents):
         cells = s.nth([GRID_CELL], index + 1)
         selectors = tuple(f"{cell} > button" for cell in cells)
@@ -418,27 +457,37 @@ def _buttons_grid(
             s.rule(
                 f"grid-accent-{index + 1}",
                 selectors,
-                [s.decl("background-color", accent.ref())],
+                [s.decl("color", accent.ref())],
             )
         )
         components.append(
             s.rule(
                 f"grid-accent-{index + 1}-hover",
                 s.with_hover(selectors),
-                [s.decl("box-shadow", s.glow(accent, 0.55))],
+                [s.decl("border-color", accent.ref())],
+            )
+        )
+        components.append(
+            s.rule(
+                f"grid-accent-{index + 1}-checked",
+                [f"{selector}.toggle:checked" for selector in selectors],
+                [
+                    s.decl("background-color", accent.ref()),
+                    s.decl("background-image", "none"),
+                    s.decl("box-shadow", "none"),
+                    s.decl("color", "@crust"),
+                    s.decl("border-color", accent.ref()),
+                ],
             )
         )
 
     components += [
+        # Off toggles read as genuinely off (muted glyph) rather than a dimmed
+        # version of the on state, which looked like a disabled button.
         s.rule(
             "grid-toggle-off",
             [f"{GRID_CHIP}.toggle:not(:checked)"],
-            [s.decl("opacity", "0.55")],
-        ),
-        s.rule(
-            "grid-toggle-on",
-            [f"{GRID_CHIP}.toggle:checked"],
-            [s.decl("box-shadow", s.glow(palette["blue"], 0.45))],
+            [s.decl("color", "@overlay0")],
         ),
         s.rule(
             "grid-clearbar-cell",
@@ -454,6 +503,7 @@ def _buttons_grid(
                 s.decl("border-radius", tokens.radius_pill),
                 s.decl("background-color", tokens.field_background),
                 s.decl("background-image", "none"),
+                s.decl("box-shadow", "none"),
                 s.decl("color", "@subtext0"),
                 s.decl("border", tokens.field_border),
                 s.decl("font-weight", "bold"),
@@ -466,9 +516,10 @@ def _buttons_grid(
             s.with_hover([CLEARBAR_CHIP]),
             [
                 s.decl("background-color", palette["red"].alpha(0.14)),
+                s.decl("background-image", "none"),
+                s.decl("box-shadow", "none"),
                 s.decl("color", palette["red"].ref()),
                 s.decl("border-color", palette["red"].alpha(0.55)),
-                s.decl("box-shadow", s.glow(palette["red"], 0.3)),
             ],
         ),
     ]
@@ -526,7 +577,6 @@ def _mpris(tokens: DesignTokens, palette: dict[str, Color]) -> list[CssComponent
                 s.decl("background-color", blue.ref()),
                 s.decl("color", "@crust"),
                 s.decl("border-color", blue.ref()),
-                s.decl("box-shadow", s.glow(blue, 0.5)),
             ],
         ),
     ]

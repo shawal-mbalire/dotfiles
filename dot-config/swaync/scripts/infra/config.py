@@ -72,22 +72,26 @@ DESIGN_TOKENS = DesignTokens(
     radius_card="12px",
     radius_inner="7px",
     radius_small="6px",
-    transition="all 0.25s ease",
+    # Calm, specific transitions (not `all`) so hovers/toggles feel smooth.
+    transition="background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease",
     field_background="alpha(@surface0, 0.5)",
     field_border="1px solid alpha(@surface1, 0.6)",
     hover_border="alpha(@overlay1, 0.8)",
-    card_background="alpha(@mantle, 0.95)",
-    card_border="1px solid alpha(@mauve, 0.55)",
-    card_shadow="0 8px 30px alpha(@crust, 0.5)",
-    glow_blur="0 0 10px",
+    card_background="@mantle",
+    card_border="1px solid @surface0",
+    card_shadow="0 6px 20px alpha(@crust, 0.35)",
+    # The panel floats with its own padding; every module then shares one
+    # inline margin so GTK (no flex, no % lengths) still gives them equal width.
+    panel_padding="8px",
+    module_margin="6px 5px",
     # Every grid chip gets the same allotment, like the waybar icon chips.
-    grid_button_width="88px",
+    # GTK treats min-width as a content-box minimum, so the value is chosen so
+    # that a 3-chip row (three chips + two gaps) exactly fills the module.
+    grid_button_width="96px",
     grid_button_height="40px",
-    # Thin rule between control-center sections (visible but muted).
-    divider="1px solid alpha(@surface2, 0.5)",
     # GTK ignores min-width percentages, so Clear All uses a fixed width that
-    # spans a full 3-chip row.
-    clear_button_width="340px",
+    # spans the same width as a full 3-chip row.
+    clear_button_width="342px",
 )
 
 ROOT_TOKENS: tuple[CssDeclaration, ...] = (
@@ -115,7 +119,7 @@ ROOT_TOKENS: tuple[CssDeclaration, ...] = (
     CssDeclaration("--bg-selected", "@blue"),
     CssDeclaration("--border", "1px solid alpha(@surface1, 0.6)"),
     CssDeclaration("--border-radius", "12px"),
-    CssDeclaration("--notification-shadow", "0 8px 30px alpha(@crust, 0.5)"),
+    CssDeclaration("--notification-shadow", "0 6px 20px alpha(@crust, 0.35)"),
     CssDeclaration("--font-size-body", "13px"),
     CssDeclaration("--font-size-summary", "15px"),
     CssDeclaration("--hover-transition", "all 0.25s ease"),
@@ -131,8 +135,10 @@ COMMANDS: dict[str, str] = {
     "bluetooth": "[ $SWAYNC_TOGGLE_STATE = true ] && bluetoothctl power off "
     "|| bluetoothctl power on",
     "bluetooth_status": "bluetoothctl show | grep -qi 'powered: yes' && echo true || echo false",
-    "nightlight": "[ $SWAYNC_TOGGLE_STATE = true ] && gammastep -x || gammastep -O 3500K",
-    "nightlight_status": "gammastep -p 2>/dev/null | grep -qi override && echo true || echo false",
+    # The waybar helper owns gammastep lifecycle (start/stop + configured
+    # temperature), so swaync toggles the same night light the bar shows.
+    "nightlight": "~/.config/waybar/scripts/main.py nightlight toggle",
+    "nightlight_status": "pgrep -x gammastep >/dev/null && echo true || echo false",
     "dnd": "swaync-client -d",
     "dnd_status": "swaync-client -D",
     "power": "~/.config/waybar/scripts/main.py power select",
@@ -226,23 +232,22 @@ class Config:
 
 def _buttons() -> tuple[Button, ...]:
     return (
+        # Toggles start off and are set from their update-command when the
+        # control center opens, so the highlight always reflects reality.
         Button.toggle(
             "\U000f0928  Wifi",
             COMMANDS["wifi"],
             COMMANDS["wifi_status"],
-            active=True,
         ),
         Button.toggle(
             "\U000f00af  BT",
             COMMANDS["bluetooth"],
             COMMANDS["bluetooth_status"],
-            active=True,
         ),
         Button.toggle(
             "\U000f06e8  Night",
             COMMANDS["nightlight"],
             COMMANDS["nightlight_status"],
-            active=True,
         ),
         Button.toggle(
             "\U000f009b  DND",
@@ -271,7 +276,7 @@ def load_config() -> Config:
         position_y=_env("SWAYNC_POSITION_Y", "top"),
         layer=_env("SWAYNC_LAYER", "overlay"),
         control_center_layer=_env("SWAYNC_CC_LAYER", "top"),
-        margins=Margins(top=0, bottom=0, right=0, left=0),
+        margins=Margins(top=8, bottom=8, right=8, left=8),
         notification_width=_env_int("SWAYNC_NOTIFICATION_WIDTH", 380),
         control_center_width=_env_int("SWAYNC_CC_WIDTH", 380),
         control_center_height=_env_int("SWAYNC_CC_HEIGHT", 600),

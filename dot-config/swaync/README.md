@@ -55,22 +55,37 @@ The point of the refactor is that nothing is copy-pasted:
 | Surface field | `alpha(@surface0, 0.5)` |
 | Hairline border | `1px solid alpha(@surface1, 0.6)` |
 | Hover border | `alpha(@overlay1, 0.8)` |
-| Transition | `all 0.25s ease` |
-| Accent glow | `0 0 10px alpha(@accent, 0.5)` |
+| Transition | `background-color/border-color/color 0.18s ease` (subtle) |
+| Panel shadow | `0 6px 20px alpha(@crust, 0.35)` (neutral, no coloured glow) |
 | Active state | `linear-gradient(135deg, @blue, @sapphire)` + crust text |
+
+The control center **floats**: `panel_padding` (`8px`) plus panel margins round
+it off so it never butts against the screen edges. Every module then shares one
+`module_margin` (`6px 5px`) and zero padding, which is what gives them all the
+same width — GTK has no flex and **ignores percentage `min-width`/`min-height`**,
+so equal widths have to come from a shared margin box rather than flexbox.
 
 The volume and backlight widgets use the exact waybar two-part pill: a solid
 accent **icon chip** rounded on the outer edge (`9px 0 0 9px`) joined to a
 translucent **info field** rounded on the inner edge (`0 9px 9px 0`). The
-buttons grid reuses the accent cycle (lavender → blue → pink → …) with a
-matching hover glow per button. It lays out **3 chips per row**: `grid_button_width`
-(`88px`) pins the flowbox cell so swaync's non-homogeneous `Gtk.FlowBox` wraps
-at three, then stretches each chip to fill. `background-image: none` is set so
-Adwaita's button gradient can't paint over the accent `background-color` (that
-is why only checked toggles used to show colour). **Clear All** is a quiet
-neutral pill (fixed `clear_button_width`, since GTK ignores `min-width: %`) that
-only tints red on hover, and every control-center widget is separated by a thin
-low-opacity rule (`.widget { border-top }`, suppressed on `:first-child`).
+buttons grid reuses the accent cycle (lavender → blue → pink → …): each chip is
+a neutral surface field whose glyph is tinted with its accent, a checked toggle
+(`:checked`) fills solid with that accent and crust glyph, off toggles show a
+muted `@overlay0` glyph, and hover draws a matching accent border rather than a
+glow. It lays out **3 chips per row**: `grid_button_width` (`96px`) pins the
+flowbox cell so swaync's non-homogeneous `Gtk.FlowBox` wraps at three, then the
+natural chip width fills the row. Chips carry **no inline margin** so the
+FlowBox minimum equals the drawn row width (the other modules match it). The
+notification list subtree is flattened and its background uses a small negative
+inline margin so cards span exactly the same width. `background-image: none` is
+set so Adwaita's gradient can't paint over the accent `background-color`.
+**Clear All** is a quiet neutral pill (`clear_button_width`, since GTK ignores
+`min-width: %`) that only tints red on hover.
+
+Toggle state is driven entirely by each button's `update-command`: toggles start
+inactive and are set when the control center opens, so the highlight reflects
+reality (e.g. the Night button follows the `gammastep` process, not a stale
+default).
 
 The generated `config.json` uses swaync's real widget name **`backlight`** (not
 `brightness`), and all toggle commands are written for swaync's own execution

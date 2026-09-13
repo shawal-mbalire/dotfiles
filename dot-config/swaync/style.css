@@ -47,7 +47,7 @@
   --bg-selected: @blue;
   --border: 1px solid alpha(@surface1, 0.6);
   --border-radius: 12px;
-  --notification-shadow: 0 8px 30px alpha(@crust, 0.5);
+  --notification-shadow: 0 6px 20px alpha(@crust, 0.35);
   --font-size-body: 13px;
   --font-size-summary: 15px;
   --hover-transition: all 0.25s ease;
@@ -72,22 +72,39 @@
 .floating-notifications.background .notification-background,
 .control-center .notification-background {
   background: transparent;
-  margin: 6px 0;
+  padding: 0;
+  margin: 6px -6px;
+}
+
+.control-center .widget-notifications stack,
+.control-center .widget-notifications scrolledwindow,
+.control-center .widget-notifications viewport,
+.control-center .widget-notifications listview,
+.control-center .control-center-list,
+.control-center .control-center-list > row {
+  margin: 0;
+  padding: 0;
+  border: none;
 }
 
 .floating-notifications.background .notification,
 .control-center .notification {
-  background-color: alpha(@mantle, 0.95);
-  border: 1px solid alpha(@mauve, 0.55);
+  background-color: @mantle;
+  border: 1px solid @surface0;
   border-radius: 12px;
   padding: 8px;
-  box-shadow: 0 8px 30px alpha(@crust, 0.5);
-  transition: all 0.25s ease;
+  box-shadow: 0 6px 20px alpha(@crust, 0.35);
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .floating-notifications.background .notification.critical,
 .control-center .notification.critical {
   border-color: @red;
+}
+
+.floating-notifications.background .notification:hover,
+.control-center .notification:hover {
+  border-color: @overlay0;
 }
 
 .floating-notifications.background .notification-default-action,
@@ -99,7 +116,7 @@
   border-radius: 9px;
   padding: 0;
   margin: 0;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .floating-notifications.background .notification-action,
@@ -111,7 +128,7 @@
   padding: 8px 16px;
   margin: 4px 2px;
   min-width: 80px;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .floating-notifications.background .notification-action:hover,
@@ -119,7 +136,6 @@
   background-image: linear-gradient(135deg, @blue, @sapphire);
   color: @crust;
   border-color: @blue;
-  box-shadow: 0 0 10px alpha(@blue, 0.75);
 }
 
 /* ── Notification content ── */
@@ -143,6 +159,7 @@
   color: @text;
   filter: none;
   -gtk-icon-filter: none;
+  min-width: 0;
 }
 
 .notification-content .summary {
@@ -182,14 +199,13 @@
   padding: 4px;
   min-width: 20px;
   min-height: 20px;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .close-button:hover {
   background-color: @red;
   color: @crust;
   border-color: @red;
-  box-shadow: 0 0 10px alpha(@red, 0.7);
 }
 
 .notification-group {
@@ -216,7 +232,7 @@
   border: 1px solid alpha(@surface1, 0.6);
   border-radius: 6px;
   padding: 2px 8px;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .notification-group-collapse-button:hover {
@@ -230,23 +246,14 @@
 .control-center {
   background-color: @base;
   border: 1px solid alpha(@surface1, 0.55);
-  border-top: none;
-  border-radius: 0 0 12px 12px;
-  box-shadow: 0 8px 30px alpha(@crust, 0.5);
-}
-
-.control-center > * {
-  margin: 6px 8px;
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 6px 20px alpha(@crust, 0.35);
 }
 
 .control-center .widget {
-  border-top: 1px solid alpha(@surface2, 0.5);
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-
-.control-center .widget:first-child {
-  border-top: none;
+  margin: 6px 5px;
+  padding: 0;
 }
 
 /* ── Volume & brightness pills ── */
@@ -258,7 +265,7 @@
   border-radius: 0 9px 9px 0;
   color: @subtext1;
   padding: 0;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
   margin: 6px 0;
 }
 
@@ -274,7 +281,7 @@
   border-radius: 9px 0 0 9px;
   margin: -1px 10px -1px -1px;
   padding: 6px 12px;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .widget-backlight > label {
@@ -284,12 +291,16 @@
   border-radius: 9px 0 0 9px;
   margin: -1px 10px -1px -1px;
   padding: 6px 12px;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .widget-volume > box > scale,
 .widget-backlight > scale {
   margin: 0 12px 0 0;
+}
+
+scale {
+  min-width: 0;
 }
 
 scale trough {
@@ -301,7 +312,6 @@ scale trough {
 scale trough highlight {
   background-image: linear-gradient(135deg, @blue, @sapphire);
   border-radius: 4px;
-  box-shadow: 0 0 6px alpha(@blue, 0.5);
 }
 
 scale slider {
@@ -314,130 +324,204 @@ scale slider {
 /* ── Buttons grid ── */
 
 .widget-buttons-grid flowboxchild {
-  min-width: 88px;
+  min-width: 96px;
 }
 
 .widget-buttons-grid flowboxchild > button {
-  color: @crust;
+  background-color: alpha(@surface0, 0.5);
   background-image: none;
+  box-shadow: none;
+  color: @text;
   border: 1px solid alpha(@surface1, 0.6);
   border-radius: 9px;
-  min-width: 88px;
+  min-width: 96px;
   min-height: 40px;
   padding: 0 6px;
-  margin: 2px;
+  margin: 2px 0;
   font-size: 14px;
   font-weight: bold;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .widget-buttons-grid flowboxchild > button:hover {
+  background-color: alpha(@surface1, 0.6);
+  background-image: none;
+  box-shadow: none;
   border-color: alpha(@overlay1, 0.8);
-  box-shadow: 0 0 10px alpha(@overlay1, 0.6);
 }
 
 .widget-buttons-grid flowboxchild:nth-child(1) > button {
-  background-color: @lavender;
+  color: @lavender;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(1) > button:hover {
-  box-shadow: 0 0 10px alpha(@lavender, 0.55);
+  border-color: @lavender;
+}
+
+.widget-buttons-grid flowboxchild:nth-child(1) > button.toggle:checked {
+  background-color: @lavender;
+  background-image: none;
+  box-shadow: none;
+  color: @crust;
+  border-color: @lavender;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(2) > button {
-  background-color: @blue;
+  color: @blue;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(2) > button:hover {
-  box-shadow: 0 0 10px alpha(@blue, 0.55);
+  border-color: @blue;
+}
+
+.widget-buttons-grid flowboxchild:nth-child(2) > button.toggle:checked {
+  background-color: @blue;
+  background-image: none;
+  box-shadow: none;
+  color: @crust;
+  border-color: @blue;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(3) > button {
-  background-color: @pink;
+  color: @pink;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(3) > button:hover {
-  box-shadow: 0 0 10px alpha(@pink, 0.55);
+  border-color: @pink;
+}
+
+.widget-buttons-grid flowboxchild:nth-child(3) > button.toggle:checked {
+  background-color: @pink;
+  background-image: none;
+  box-shadow: none;
+  color: @crust;
+  border-color: @pink;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(4) > button {
-  background-color: @mauve;
+  color: @mauve;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(4) > button:hover {
-  box-shadow: 0 0 10px alpha(@mauve, 0.55);
+  border-color: @mauve;
+}
+
+.widget-buttons-grid flowboxchild:nth-child(4) > button.toggle:checked {
+  background-color: @mauve;
+  background-image: none;
+  box-shadow: none;
+  color: @crust;
+  border-color: @mauve;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(5) > button {
-  background-color: @green;
+  color: @green;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(5) > button:hover {
-  box-shadow: 0 0 10px alpha(@green, 0.55);
+  border-color: @green;
+}
+
+.widget-buttons-grid flowboxchild:nth-child(5) > button.toggle:checked {
+  background-color: @green;
+  background-image: none;
+  box-shadow: none;
+  color: @crust;
+  border-color: @green;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(6) > button {
-  background-color: @peach;
+  color: @peach;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(6) > button:hover {
-  box-shadow: 0 0 10px alpha(@peach, 0.55);
+  border-color: @peach;
+}
+
+.widget-buttons-grid flowboxchild:nth-child(6) > button.toggle:checked {
+  background-color: @peach;
+  background-image: none;
+  box-shadow: none;
+  color: @crust;
+  border-color: @peach;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(7) > button {
-  background-color: @red;
+  color: @red;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(7) > button:hover {
-  box-shadow: 0 0 10px alpha(@red, 0.55);
+  border-color: @red;
+}
+
+.widget-buttons-grid flowboxchild:nth-child(7) > button.toggle:checked {
+  background-color: @red;
+  background-image: none;
+  box-shadow: none;
+  color: @crust;
+  border-color: @red;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(8) > button {
-  background-color: @sky;
+  color: @sky;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(8) > button:hover {
-  box-shadow: 0 0 10px alpha(@sky, 0.55);
+  border-color: @sky;
+}
+
+.widget-buttons-grid flowboxchild:nth-child(8) > button.toggle:checked {
+  background-color: @sky;
+  background-image: none;
+  box-shadow: none;
+  color: @crust;
+  border-color: @sky;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(9) > button {
-  background-color: @teal;
+  color: @teal;
 }
 
 .widget-buttons-grid flowboxchild:nth-child(9) > button:hover {
-  box-shadow: 0 0 10px alpha(@teal, 0.55);
+  border-color: @teal;
+}
+
+.widget-buttons-grid flowboxchild:nth-child(9) > button.toggle:checked {
+  background-color: @teal;
+  background-image: none;
+  box-shadow: none;
+  color: @crust;
+  border-color: @teal;
 }
 
 .widget-buttons-grid flowboxchild > button.toggle:not(:checked) {
-  opacity: 0.55;
-}
-
-.widget-buttons-grid flowboxchild > button.toggle:checked {
-  box-shadow: 0 0 10px alpha(@blue, 0.45);
+  color: @overlay0;
 }
 
 .widget-buttons-grid.clearbar flowboxchild {
-  min-width: 340px;
+  min-width: 342px;
 }
 
 .widget-buttons-grid.clearbar flowboxchild > button {
-  min-width: 340px;
+  min-width: 342px;
   min-height: 36px;
   border-radius: 9px;
   background-color: alpha(@surface0, 0.5);
   background-image: none;
+  box-shadow: none;
   color: @subtext0;
   border: 1px solid alpha(@surface1, 0.6);
   font-weight: bold;
   font-size: 13px;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .widget-buttons-grid.clearbar flowboxchild > button:hover {
   background-color: alpha(@red, 0.14);
+  background-image: none;
+  box-shadow: none;
   color: @red;
   border-color: alpha(@red, 0.55);
-  box-shadow: 0 0 10px alpha(@red, 0.3);
 }
 
 /* ── MPRIS ── */
@@ -478,14 +562,13 @@ scale slider {
   min-width: 32px;
   min-height: 32px;
   padding: 4px;
-  transition: all 0.25s ease;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .widget-mpris button:hover {
   background-color: @blue;
   color: @crust;
   border-color: @blue;
-  box-shadow: 0 0 10px alpha(@blue, 0.5);
 }
 
 /* ── Misc ── */

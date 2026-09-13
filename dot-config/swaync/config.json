@@ -7,10 +7,10 @@
   "layer-shell": true,
   "layer-shell-cover-screen": true,
   "cssPriority": "user",
-  "control-center-margin-top": 0,
-  "control-center-margin-bottom": 0,
-  "control-center-margin-right": 0,
-  "control-center-margin-left": 0,
+  "control-center-margin-top": 8,
+  "control-center-margin-bottom": 8,
+  "control-center-margin-right": 8,
+  "control-center-margin-left": 8,
   "notification-window-width": 380,
   "control-center-width": 380,
   "control-center-height": 600,
@@ -49,23 +49,23 @@
         {
           "label": "󰤨  Wifi",
           "type": "toggle",
-          "active": true,
+          "active": false,
           "command": "[ $SWAYNC_TOGGLE_STATE = true ] && nmcli radio wifi off || nmcli radio wifi on",
           "update-command": "nmcli radio wifi | grep -q enabled && echo true || echo false"
         },
         {
           "label": "󰂯  BT",
           "type": "toggle",
-          "active": true,
+          "active": false,
           "command": "[ $SWAYNC_TOGGLE_STATE = true ] && bluetoothctl power off || bluetoothctl power on",
           "update-command": "bluetoothctl show | grep -qi 'powered: yes' && echo true || echo false"
         },
         {
           "label": "󰛨  Night",
           "type": "toggle",
-          "active": true,
-          "command": "[ $SWAYNC_TOGGLE_STATE = true ] && gammastep -x || gammastep -O 3500K",
-          "update-command": "gammastep -p 2>/dev/null | grep -qi override && echo true || echo false"
+          "active": false,
+          "command": "~/.config/waybar/scripts/main.py nightlight toggle",
+          "update-command": "pgrep -x gammastep >/dev/null && echo true || echo false"
         },
         {
           "label": "󰂛  DND",

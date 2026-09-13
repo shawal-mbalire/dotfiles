@@ -12,14 +12,14 @@ def _tokens() -> DesignTokens:
         field_background="alpha(@surface0, 0.5)",
         field_border="1px solid alpha(@surface1, 0.6)",
         hover_border="alpha(@overlay1, 0.8)",
-        card_background="alpha(@mantle, 0.95)",
-        card_border="1px solid alpha(@mauve, 0.55)",
-        card_shadow="0 8px 30px alpha(@crust, 0.5)",
-        glow_blur="0 0 10px",
-        grid_button_width="104px",
+        card_background="@mantle",
+        card_border="1px solid @surface0",
+        card_shadow="0 6px 20px alpha(@crust, 0.35)",
+        panel_padding="8px",
+        module_margin="6px 5px",
+        grid_button_width="96px",
         grid_button_height="40px",
-        divider="1px solid alpha(@surface1, 0.3)",
-        clear_button_width="340px",
+        clear_button_width="342px",
     )
 
 
@@ -36,25 +36,20 @@ def test_hover_and_state_and_nth_build_selector_variants():
     assert s.prefixed([".x"], ".y") == (".x .y",)
 
 
-def test_glow_uses_the_accent_color():
-    blue = Color.from_hex("blue", "#89b4fa")
-    assert s.glow(blue, 0.5) == "0 0 10px alpha(@blue, 0.5)"
-
-
 def test_gradient_lists_color_references():
     blue = Color.from_hex("blue", "#89b4fa")
     sapphire = Color.from_hex("sapphire", "#74c7ec")
     assert s.gradient([blue, sapphire]) == "linear-gradient(135deg, @blue, @sapphire)"
 
 
-def test_pill_button_emits_base_and_glow_hover():
+def test_pill_button_emits_base_and_border_hover():
     accent = Color.from_hex("blue", "#89b4fa")
     components = s.pill_button("chip", [".chip"], accent, _tokens())
     assert len(components) == 2
     base, hover = components
     assert base.declarations[0].value == "@blue"
     assert hover.selectors == (".chip:hover",)
-    assert "alpha(@blue, 0.5)" in hover.declarations[0].value
+    assert hover.declarations[0] == s.decl("border-color", "@text")
 
 
 def test_info_field_uses_translucent_surface_tokens():

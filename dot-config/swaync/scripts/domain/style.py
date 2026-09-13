@@ -2,7 +2,8 @@
 
 Pure helpers that assemble :class:`~domain.models.CssComponent` values. The
 generated CSS keeps the waybar pill design language: rounded pills, translucent
-surface fields, accent glows and 0.25s transitions.
+surface fields and calm 0.25s transitions. Depth comes from a single soft panel
+shadow and hairline borders rather than coloured glows.
 """
 
 from __future__ import annotations
@@ -42,11 +43,6 @@ def nth(selectors: Sequence[str], index: int) -> tuple[str, ...]:
 
 def prefixed(prefixes: Sequence[str], suffix: str) -> tuple[str, ...]:
     return tuple(f"{prefix} {suffix}" for prefix in prefixes)
-
-
-def glow(color: Color, amount: float = 0.5, blur: str = "0 0 10px") -> str:
-    """Accent box-shadow used on hover and active states."""
-    return f"{blur} {color.alpha(amount)}"
 
 
 def gradient(colors: Sequence[Color], angle: int = 135) -> str:
@@ -116,7 +112,7 @@ def pill_button(
     *,
     radius: str | None = None,
 ) -> list[CssComponent]:
-    """A chip button: accent fill, crust text, glow on hover (waybar icons)."""
+    """A chip button: accent fill, crust text, crisp border on hover."""
     corner = radius if radius is not None else tokens.radius_pill
     base = rule(
         name,
@@ -133,9 +129,6 @@ def pill_button(
     hover = rule(
         f"{name}-hover",
         with_hover(selectors),
-        [
-            decl("box-shadow", glow(accent, 0.5)),
-            decl("border-color", accent.ref()),
-        ],
+        [decl("border-color", "@text")],
     )
     return [base, hover]

@@ -78,10 +78,10 @@ class DesignTokens:
     card_background: str
     card_border: str
     card_shadow: str
-    glow_blur: str
+    panel_padding: str
+    module_margin: str
     grid_button_width: str
     grid_button_height: str
-    divider: str
     clear_button_width: str
 
 
