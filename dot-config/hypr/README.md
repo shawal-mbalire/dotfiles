@@ -8,19 +8,21 @@ env vars. The composition root wires everything together.
 ```
 ├── domain/                     # Pure application logic (no hl.*, no env)
 │   ├── models.lua              # Color, Bezier, Anim, Bind, Display, LayerRule,
-│   │                           #   VisualSettings, InputSettings, Device
-│   ├── constants.lua           # Static rules: RESIZE_STEP, MAX_WS, curves,
+│   │                           #   VisualSettings, InputSettings, Device, Wallpaper
+│   ├── constants.lua           # Static rules: RESIZE_STEP, MAX_WS, MOUSE, curves,
 │   │                           #   layers, EVENTS, ACTION vocabulary
 │   ├── ports/                  # Small port contracts + verify.lua conformance check
 │   │   ├── monitor.lua  environment.lua  input.lua  binding.lua
 │   │   ├── command.lua  visual.lua  layer.lua  runtime.lua
-│   │   └── logger.lua  time.lua  lifetime.lua
+│   │   └── wallpaper.lua  logger.lua  time.lua  lifetime.lua
 │   └── workflows/              # Orchestration, dependencies injected as `deps`
-│       ├── displays.lua  env.lua  look.lua  input.lua
-│       └── keybindings.lua  windows.lua  autostart.lua
+│       ├── displays.lua  env.lua  look.lua  wallpaper.lua  input.lua
+│       └── keybindings.lua  windows.lua  autostart.lua  wallpaper_daemon.lua
 ├── adapters/                   # Plumbing: implement ports against external systems
 │   ├── hyprland_adapter.lua    # Implements the Hyprland ports via hl.*
 │   ├── hyprland_mappings.lua   # Pure DTO mapping (Display -> rule, action -> dispatcher)
+│   ├── hyprpaper_adapter.lua   # Implements WallpaperPort: writes conf + owns daemon
+│   ├── hyprpaper_mappings.lua  # Pure mapping (Wallpaper model -> conf text/cmd)
 │   ├── console_logger.lua      # LoggerPort
 │   ├── system_time.lua         # TimePort
 │   └── process_lifetime.lua    # LifetimePort
@@ -50,14 +52,23 @@ env vars. The composition root wires everything together.
 - **adapters/console_logger, system_time, process_lifetime** implement the
   cross-cutting `LoggerPort`, `TimePort` and `LifetimePort`.
 - **domain/workflows/*** receive `deps = { config, logger, time, lifetime,
-  monitor, environment, input, binding, command, visual, layer, runtime }` and
-  never read env or import adapters. Visual/input settings are passed as domain
-  models (`VisualSettings`, `InputSettings`, `Device`); the adapter maps them to
-  the compositor's `general`/`decoration`/`input` wire format.
+  monitor, environment, input, binding, command, visual, layer, runtime,
+  wallpaper }` and never read env or import adapters. Visual/input settings are
+  passed as domain models (`VisualSettings`, `InputSettings`, `Device`); the
+  adapter maps them to the compositor's `general`/`decoration`/`input` wire
+  format.
+- **adapters/hyprpaper_adapter.lua** implements `WallpaperPort`. It owns the
+  hyprpaper external system end to end: `configure` writes the rendered config
+  (`adapters/hyprpaper_mappings.lua` is pure) and `ensure_running` asks the
+  injected `CommandPort` to launch the daemon idempotently. The `wallpaper`
+  workflow builds `Wallpaper` models; the `wallpaper_daemon` workflow calls
+  `ensure_running`, wired to both `hyprland.start` and `config.reloaded`, so the
+  daemon is (re)started after a reload — not just on a fresh session.
 - **hyprland.lua** reads config, creates adapters, verifies ports, injects
   `deps`, runs each load-time workflow inside an `xpcall` (logs the crash reason
-  and re-raises), wires the `hyprland.start` event to the pure autostart
-  workflow, and reports total load time.
+  and re-raises), wires the `hyprland.start` event to the autostart and
+  wallpaper-daemon workflows and `config.reloaded` to the wallpaper daemon, and
+  reports total load time.
 
 Note: bind actions use `hl.dsp.exec_cmd` (they build a dispatcher), while
 autostart uses `hl.exec_cmd` (immediate spawn). `hyprland_mappings.lua` and the
@@ -68,7 +79,8 @@ adapter keep these two paths separate.
 1. Install dependencies from the repo root: `just deps`
 2. Optional laptop variant: `HYPR_PROFILE=laptop`
 3. Optional env overrides: `HYPR_TERMINAL`, `HYPR_BROWSER`, `HYPR_MENU`,
-   `HYPR_LOG_LEVEL`, `HYPR_VOLUME_UP`, etc. (see `infra/config.lua`).
+   `HYPR_LOG_LEVEL`, `HYPR_VOLUME_UP`, `HYPR_WALLPAPER`, `HYPR_WALLPAPER_CONF`,
+   etc. (see `infra/config.lua`).
 
 ## Commands
 

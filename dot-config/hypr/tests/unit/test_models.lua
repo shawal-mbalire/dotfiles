@@ -102,4 +102,20 @@ return {
       assert(d.name == "mouse" and d.opts.sensitivity == -0.5, "device wrong")
     end,
   },
+  {
+    name = "wallpaper_defaults_fit_mode_and_monitors",
+    run = function()
+      local w = models.Wallpaper.new({ path = "/tmp/w.jpg" })
+      assert(w.path == "/tmp/w.jpg", "path wrong")
+      assert(w.fit_mode == "cover", "default fit_mode wrong: " .. tostring(w.fit_mode))
+      assert(#w.monitors == 0, "monitors should default to empty (all)")
+    end,
+  },
+  {
+    name = "wallpaper_requires_path",
+    run = function()
+      local ok = pcall(models.Wallpaper.new, { fit_mode = "cover" })
+      assert(not ok, "wallpaper without path must fail loud")
+    end,
+  },
 }

@@ -128,4 +128,18 @@ function M.Device.new(name, opts)
   return setmetatable({ name = name, opts = opts or {} }, M.Device)
 end
 
+-- Wallpaper (domain shape).
+-- An empty `monitors` list means "every monitor".
+M.Wallpaper = {}
+M.Wallpaper.__index = M.Wallpaper
+
+function M.Wallpaper.new(spec)
+  assert(spec and spec.path, "Wallpaper requires a path")
+  return setmetatable({
+    path = spec.path,
+    fit_mode = spec.fit_mode or constants.WALLPAPER_FIT.DEFAULT,
+    monitors = spec.monitors or {},
+  }, M.Wallpaper)
+end
+
 return M

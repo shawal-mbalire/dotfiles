@@ -7,6 +7,8 @@ return {
       assert(constants.RESIZE_STEP == 20, "RESIZE_STEP wrong")
       assert(constants.MAX_WS == 10, "MAX_WS wrong")
       assert(constants.SPECIAL_WS == "magic", "SPECIAL_WS wrong")
+      assert(constants.MOUSE.LEFT == "mouse:272", "MOUSE.LEFT wrong")
+      assert(constants.MOUSE.RIGHT == "mouse:273", "MOUSE.RIGHT wrong")
     end,
   },
   {

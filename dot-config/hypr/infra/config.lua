@@ -95,6 +95,20 @@ M.env = {
   HYPRCURSOR_SIZE  = "24",
 }
 
+-- Wallpaper: the domain renders a hyprpaper config, the daemon is launched at
+-- start with `-c <conf_path>`. Empty `monitors` means "every monitor".
+local runtime_dir = os.getenv("XDG_RUNTIME_DIR") or "/tmp"
+M.wallpaper = {
+  conf_path = os.getenv("HYPR_WALLPAPER_CONF") or (runtime_dir .. "/hyprpaper.conf"),
+  wallpapers = {
+    {
+      path = os.getenv("HYPR_WALLPAPER") or ((os.getenv("HOME") or "") .. "/wallpaper.jpg"),
+      fit_mode = "cover",
+      monitors = {},
+    },
+  },
+}
+
 M.autostart = {
   "nm-applet",
   "gammastep-indicator",

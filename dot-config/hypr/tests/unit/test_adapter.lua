@@ -1,7 +1,13 @@
 local fake_hl = require("tests.fixtures.fake_hl")
+local fakes = require("tests.fixtures.fakes")
 local Adapter = require("adapters.hyprland_adapter")
+local HyprpaperAdapter = require("adapters.hyprpaper_adapter")
 local models = require("domain.models")
 local verify = require("domain.ports.verify")
+
+local function hyprpaper(conf_path)
+  return HyprpaperAdapter.new({ conf_path = conf_path, command = fakes.new_hypr() })
+end
 
 return {
   {
@@ -9,6 +15,46 @@ return {
     run = function()
       local adapter = Adapter.new(fake_hl.new())
       verify.assert_ports(adapter, verify.HYPR_PORTS)
+    end,
+  },
+  {
+    name = "hyprpaper_adapter_conforms_to_wallpaper_port",
+    run = function()
+      verify.assert_port(hyprpaper("/tmp/hyprpaper-adapter.conf"), verify.wallpaper)
+    end,
+  },
+  {
+    name = "hyprpaper_adapter_writes_rendered_conf",
+    run = function()
+      local path = os.tmpname()
+      local adapter = hyprpaper(path)
+      adapter:configure({ models.Wallpaper.new({ path = "/tmp/w.jpg", monitors = { "eDP-1" } }) })
+
+      local handle = assert(io.open(path, "r"), "conf was not written")
+      local written = handle:read("*a")
+      handle:close()
+      os.remove(path)
+
+      assert(written:find("preload = /tmp/w.jpg", 1, true), "conf missing preload")
+      assert(written:find("path = /tmp/w.jpg", 1, true), "conf missing wallpaper block")
+    end,
+  },
+  {
+    name = "hyprpaper_adapter_ensure_running_runs_daemon_command",
+    run = function()
+      local command = fakes.new_hypr()
+      local adapter = HyprpaperAdapter.new({ conf_path = "/tmp/x.conf", command = command })
+      adapter:ensure_running()
+      local call = command:find("run_command")[1]
+      assert(call, "daemon ensure command not run")
+      assert(call.args[1]:find("pgrep -x hyprpaper", 1, true), "missing idempotent guard")
+    end,
+  },
+  {
+    name = "hyprpaper_adapter_requires_conf_path_and_command_port",
+    run = function()
+      assert(not pcall(HyprpaperAdapter.new, nil), "adapter without deps must fail loud")
+      assert(not pcall(HyprpaperAdapter.new, { conf_path = "/tmp/x.conf" }), "adapter without command port must fail loud")
     end,
   },
   {

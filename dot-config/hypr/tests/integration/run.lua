@@ -34,13 +34,28 @@ expect("binds registered", hl:count("bind"), 1)
 expect("curves registered", hl:count("curve"), 5)
 expect("animations registered", hl:count("animation"), 16)
 expect("layer rules applied", hl:count("layer_rule"), 3)
-expect("start event registered", hl:count("on"), 1)
+expect("start event registered", hl:count("on"), 2)
 
-local start = hl:find("on")[1]
+local events = hl:find("on")
+local start = events[1]
+local reload = events[2]
 if start then
   start.args[2]()
 end
-expect("autostart commands spawned", hl:count("exec_cmd"), 1)
+expect("autostart + wallpaper daemon spawned", hl:count("exec_cmd"), 1)
+
+local before_reload = hl:count("exec_cmd")
+if reload then
+  reload.args[2]()
+end
+expect("reload re-ensures wallpaper daemon", hl:count("exec_cmd") - before_reload, 1)
+
+local config = require("infra.config")
+local conf = io.open(config.wallpaper.conf_path, "r")
+expect("wallpaper conf written", conf and 1 or 0, 1)
+if conf then
+  conf:close()
+end
 
 if failed > 0 then
   os.exit(1)

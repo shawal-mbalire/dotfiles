@@ -1,5 +1,6 @@
 local fake_hl = require("tests.fixtures.fake_hl")
 local mappings = require("adapters.hyprland_mappings")
+local hyprpaper_mappings = require("adapters.hyprpaper_mappings")
 local models = require("domain.models")
 
 return {
@@ -146,6 +147,59 @@ return {
       local spec = mappings.to_device(device)
       assert(spec.name == "epic-mouse-v1", "name should be authoritative")
       assert(spec.sensitivity == -0.5, "opts not merged")
+    end,
+  },
+  {
+    name = "render_conf_preloads_attaches_and_enables_ipc",
+    run = function()
+      local conf = hyprpaper_mappings.render_conf({
+        models.Wallpaper.new({ path = "/tmp/w.jpg", fit_mode = "cover", monitors = { "eDP-1" } }),
+      })
+      assert(conf:find("ipc = on", 1, true), "ipc not enabled")
+      assert(conf:find("preload = /tmp/w.jpg", 1, true), "wallpaper not preloaded")
+      assert(conf:find("monitor = eDP-1", 1, true), "monitor not attached")
+      assert(conf:find("fit_mode = cover", 1, true), "fit_mode not written")
+    end,
+  },
+  {
+    name = "render_conf_puts_monitor_first",
+    run = function()
+      local conf = hyprpaper_mappings.render_conf({
+        models.Wallpaper.new({ path = "/tmp/w.jpg", monitors = { "eDP-1" } }),
+      })
+      local start = conf:find("wallpaper {", 1, true)
+      local first = conf:sub(start):match("\n(.-)\n")
+      assert(first:find("monitor", 1, true), "monitor must be the first key: " .. tostring(first))
+    end,
+  },
+  {
+    name = "render_conf_empty_monitors_emits_fallback_block",
+    run = function()
+      local conf = hyprpaper_mappings.render_conf({
+        models.Wallpaper.new({ path = "/tmp/w.jpg" }),
+      })
+      assert(conf:find("monitor =\n", 1, true), "empty monitors must still emit a monitor key")
+      assert(conf:find("path = /tmp/w.jpg", 1, true), "fallback block missing path")
+    end,
+  },
+  {
+    name = "render_conf_preloads_shared_path_once",
+    run = function()
+      local conf = hyprpaper_mappings.render_conf({
+        models.Wallpaper.new({ path = "/tmp/w.jpg", monitors = { "eDP-1" } }),
+        models.Wallpaper.new({ path = "/tmp/w.jpg", monitors = { "HDMI-A-2" } }),
+      })
+      local _, count = conf:gsub("preload = /tmp/w%.jpg", "")
+      assert(count == 1, "path should be preloaded once, got " .. count)
+    end,
+  },
+  {
+    name = "ensure_command_guards_with_pgrep_and_quotes_path",
+    run = function()
+      local cmd = hyprpaper_mappings.ensure_command("/tmp/my conf.conf")
+      assert(cmd:find("pgrep -x hyprpaper", 1, true), "missing idempotent guard")
+      assert(cmd:find("hyprpaper -c", 1, true), "missing launch")
+      assert(cmd:find('"/tmp/my conf.conf"', 1, true), "path not quoted")
     end,
   },
 }

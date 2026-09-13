@@ -63,8 +63,8 @@ local function build(config)
     -- mouse
     bind(mainMod, "mouse_down", models.Bind.focus({ workspace = "e+1" })),
     bind(mainMod, "mouse_up", models.Bind.focus({ workspace = "e-1" })),
-    bind(mainMod, "mouse:272", models.Bind.window("drag"), { mouse = true }),
-    bind(mainMod, "mouse:273", models.Bind.window("resize"), { mouse = true }),
+    bind(mainMod, constants.MOUSE.LEFT, models.Bind.window("drag"), { mouse = true }),
+    bind(mainMod, constants.MOUSE.RIGHT, models.Bind.window("resize"), { mouse = true }),
 
     -- media and hardware keys
     bind("", "XF86AudioRaiseVolume", models.Bind.exec(cmd.volume_up), { repeating = true, locked = true }),
@@ -85,7 +85,7 @@ local function build(config)
 
   -- workspaces 1..MAX_WS (key 10 maps to "0")
   for i = 1, constants.MAX_WS do
-    local key = tostring(i % 10)
+    local key = tostring(i % constants.MAX_WS)
     table.insert(list, bind(mainMod, key, models.Bind.focus({ workspace = tostring(i) })))
     table.insert(list, bind(mainMod, "SHIFT + " .. key, models.Bind.window("move", { workspace = tostring(i) })))
   end

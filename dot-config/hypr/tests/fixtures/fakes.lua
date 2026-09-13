@@ -76,6 +76,23 @@ function Lifetime:shutdown(reason)
   end
 end
 
+-- Fake WallpaperPort (records each configure call)
+local Wallpaper = {}
+Wallpaper.__index = Wallpaper
+
+function M.new_wallpaper()
+  return setmetatable({ calls = {}, ensured = 0 }, Wallpaper)
+end
+
+function Wallpaper:configure(wallpapers)
+  table.insert(self.calls, { wallpapers = wallpapers })
+end
+
+function Wallpaper:ensure_running() self.ensured = self.ensured + 1 end
+
+function Wallpaper:count() return #self.calls end
+function Wallpaper:last() return self.calls[#self.calls] end
+
 -- Fake Hyprland ports (one object implements every Hyprland port, like prod)
 local Hypr = {}
 Hypr.__index = Hypr
@@ -155,6 +172,12 @@ function M.sample_config()
       shadow = { hex = "1a1a1a", alpha = 238 },
     },
     env = { XCURSOR_SIZE = "24", HYPRCURSOR_SIZE = "24" },
+    wallpaper = {
+      conf_path = "/tmp/hyprpaper-test.conf",
+      wallpapers = {
+        { path = "/tmp/wall.jpg", fit_mode = "cover", monitors = { "eDP-1" } },
+      },
+    },
     autostart = { "nm-applet", "swaync" },
   }
 end
@@ -176,6 +199,7 @@ function M.deps(overrides)
     layer = hypr,
     runtime = hypr,
     hypr = hypr,
+    wallpaper = M.new_wallpaper(),
   }
   if overrides then
     for key, value in pairs(overrides) do

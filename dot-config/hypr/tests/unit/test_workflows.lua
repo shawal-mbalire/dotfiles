@@ -3,6 +3,8 @@ local fakes = require("tests.fixtures.fakes")
 local displays = require("domain.workflows.displays")
 local env = require("domain.workflows.env")
 local look = require("domain.workflows.look")
+local wallpaper = require("domain.workflows.wallpaper")
+local wallpaper_daemon = require("domain.workflows.wallpaper_daemon")
 local input = require("domain.workflows.input")
 local keybindings = require("domain.workflows.keybindings")
 local windows = require("domain.workflows.windows")
@@ -44,6 +46,28 @@ return {
       assert(deps.hypr:count("configure_visual") == 1, "visual section missing")
       assert(deps.hypr:count("register_curve") == 5, "curves missing")
       assert(deps.hypr:count("register_animation") == 16, "animations missing")
+    end,
+  },
+  {
+    name = "wallpaper_configures_port_from_config",
+    run = function()
+      local deps = fakes.deps()
+      wallpaper(deps)
+      assert(deps.wallpaper:count() == 1, "wallpaper port not configured")
+      local applied = deps.wallpaper:last().wallpapers
+      assert(#applied == 1, "expected 1 wallpaper model")
+      assert(applied[1].path == "/tmp/wall.jpg", "path not read from config")
+      assert(applied[1].fit_mode == "cover", "fit_mode not carried")
+      assert(deps.logger:has_message("wallpaper_configured"), "no wallpaper completion log")
+    end,
+  },
+  {
+    name = "wallpaper_daemon_ensures_running_via_port",
+    run = function()
+      local deps = fakes.deps()
+      wallpaper_daemon(deps)
+      assert(deps.wallpaper.ensured == 1, "wallpaper daemon not ensured")
+      assert(deps.logger:has_message("wallpaper_daemon_ensured"), "no ensure log")
     end,
   },
   {

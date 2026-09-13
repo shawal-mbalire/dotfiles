@@ -10,9 +10,15 @@ M.RESIZE_STEP = 20
 M.MAX_WS = 10
 M.SPECIAL_WS = "magic"
 
+-- Wallpaper fit modes (static vocabulary for the wallpaper engine)
+M.WALLPAPER_FIT = {
+  DEFAULT = "cover",
+}
+
 -- Compositor lifecycle events (driving-adapter vocabulary)
 M.EVENTS = {
   START = "hyprland.start",
+  RELOAD = "config.reloaded",
 }
 
 -- Bind action kinds (domain vocabulary, mapped to dispatchers by adapters)
@@ -31,6 +37,12 @@ M.WINDOW_ACTION = {
   PSEUDO = "pseudo",
   DRAG   = "drag",
   RESIZE = "resize",
+}
+
+-- Pointer button codes used as bind keys
+M.MOUSE = {
+  LEFT  = "mouse:272",
+  RIGHT = "mouse:273",
 }
 
 -- Animation curves (static aesthetic rules)
