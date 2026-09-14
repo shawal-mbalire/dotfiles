@@ -177,7 +177,7 @@ LazyLoader {
                         implicitHeight: prompt.clipboard ? 32 : 44
                         radius: Theme.radius - 2
                         color: row.index === list.currentIndex
-                            ? Theme.tint(Theme.blue, 0.75)
+                            ? Theme.tint(WallpaperColors.accent, 0.75)
                             : Theme.tint(Theme.surface0, 0.35)
 
                         MouseArea {

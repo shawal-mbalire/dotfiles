@@ -42,7 +42,7 @@ ColumnLayout {
         visible: root.adapter && root.adapter.enabled
         radius: Theme.radius
         color: root.adapter && root.adapter.discovering
-            ? Theme.tint(Theme.blue, 0.8)
+            ? Theme.tint(WallpaperColors.accent, 0.8)
             : Theme.tint(Theme.surface0, 0.5)
         border.width: 1
         border.color: Theme.tint(Theme.surface1, 0.5)

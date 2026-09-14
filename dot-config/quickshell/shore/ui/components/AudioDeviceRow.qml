@@ -17,7 +17,7 @@ Rectangle {
 
     implicitHeight: content.implicitHeight + 12
     radius: Theme.radius
-    color: selected ? Theme.tint(Theme.blue, 0.75) : Theme.tint(Theme.surface0, 0.4)
+    color: selected ? Theme.tint(WallpaperColors.accent, 0.75) : Theme.tint(Theme.surface0, 0.4)
     border.width: 1
     border.color: Theme.tint(Theme.surface1, 0.5)
 

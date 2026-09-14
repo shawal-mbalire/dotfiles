@@ -18,7 +18,7 @@ Rectangle {
     implicitHeight: 30
     radius: Theme.radius - 2
     opacity: enabled ? 1 : 0.4
-    color: active ? Theme.tint(Theme.blue, 0.85)
+    color: active ? Theme.tint(WallpaperColors.accent, 0.85)
          : hover.containsMouse ? Theme.tint(Theme.surface1, 0.6)
          : Theme.tint(Theme.surface0, 0.35)
     border.width: 1

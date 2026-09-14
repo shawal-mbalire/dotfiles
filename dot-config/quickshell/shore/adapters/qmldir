@@ -6,3 +6,5 @@ singleton Polkit 1.0 Polkit.qml
 singleton Idle 1.0 Idle.qml
 singleton Launcher 1.0 Launcher.qml
 singleton Clipboard 1.0 Clipboard.qml
+singleton Wallpaper 1.0 Wallpaper.qml
+singleton WallpaperColors 1.0 WallpaperColors.qml

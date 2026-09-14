@@ -108,23 +108,32 @@ Hyprland binds call Quickshell over IPC (`qs -c shore ipc call quickshell <fn>`)
 | `SUPER + P` | `qs -c shore ipc call quickshell openLauncher apps` |
 | `SUPER + V` | `qs -c shore ipc call quickshell openLauncher clipboard` |
 | `SUPER + L` | `qs -c shore ipc call quickshell lock` |
+| `SUPER + W` | `qs -c shore ipc call quickshell nextWallpaper` |
 | Print | `qs -c shore ipc call quickshell screenshot` |
 | brightness keys | `qs -c shore ipc call quickshell brightnessStep up\|down` (falls back to `brightnessctl`) |
 
 Available IPC functions: `toggleBar`, `toggleControlCenter`, `closePanels`,
 `toggleDnd`, `clearNotifications`, `brightnessStep <up|down>`,
 `openMenu <bluetooth|wifi|audio|power|display>`, `openLauncher <apps|clipboard>`,
-`lock`, `screenshot`.
+`lock`, `screenshot`, `nextWallpaper`.
 
 ## Session surfaces
 
 - **Lock** (`ui/components/LockSurface.qml` + `LockContext.qml`): `WlSessionLock`
   surface per monitor, PAM auth via `Quickshell.Services.Pam` with a local
-  `pam/password.conf`. Idle locks it after `Constants.idleLockSeconds` (via
-  `adapters/Idle.qml`, replacing hypridle) and suspends after
-  `idleSuspendSeconds`.
-- **Wallpaper** (`ui/components/Wallpaper.qml`): rendered on the background
-  layer per monitor (`Config.wallpaper`), replacing hyprpaper.
+  `pam/password.conf`. The background is the current wallpaper blurred
+  (`MultiEffect`), with a large clock. Idle locks it after
+  `Constants.idleLockSeconds` (via `adapters/Idle.qml`, replacing hypridle) and
+  suspends after `idleSuspendSeconds`.
+- **Wallpaper** (`ui/components/WallpaperSurface.qml`): rendered on the
+  background layer per monitor. It cycles through every image in
+  `Config.wallpaperDir` (`~/Pictures/Wallpapers`); `SUPER+W` /
+  `nextWallpaper` advances it (falls back to `Config.wallpaper` when the folder
+  is empty). Replaces hyprpaper.
+- **Dynamic theming**: `adapters/WallpaperColors.qml` runs `ColorQuantizer` on
+  the current wallpaper and exposes a vivid accent; selection/focus highlights
+  across the bar, menus, launcher, OSD, polkit prompt and lock use it, so
+  changing the wallpaper retints the shell.
 - **Launcher** (`ui/panels/Launcher.qml`): applications (`DesktopEntries`) and
   clipboard history (`adapters/Clipboard.qml`, cliphist) in one searchable
   overlay; replaces fuzzel for the menu and clipboard.

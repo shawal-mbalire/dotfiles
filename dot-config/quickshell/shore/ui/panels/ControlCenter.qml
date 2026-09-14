@@ -74,7 +74,7 @@ LazyLoader {
                         icon: Theme.iconBluetooth
                         label: "Bluetooth"
                         active: Bluetooth.defaultAdapter ? Bluetooth.defaultAdapter.enabled : false
-                        accent: Theme.blue
+                        accent: WallpaperColors.accent
                         onToggled: UiState.toggleMenu("bluetooth")
                     }
 

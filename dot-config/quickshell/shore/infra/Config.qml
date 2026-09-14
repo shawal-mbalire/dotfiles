@@ -17,6 +17,8 @@ Singleton {
     readonly property int brightnessRawMin: 30
     readonly property int brightnessRawMax: 30000
 
-    // Wallpaper rendered by the shell (replaces hyprpaper).
+    // Wallpaper rendered by the shell (replaces hyprpaper). `wallpaperDir` is
+    // scanned for images; `wallpaper` is the fallback when it's empty.
     readonly property string wallpaper: home + "/wallpaper.jpg"
+    readonly property string wallpaperDir: home + "/Pictures/Wallpapers"
 }

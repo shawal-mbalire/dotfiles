@@ -37,6 +37,7 @@ M.commands = {
   notify_dismiss = os.getenv("HYPR_NOTIFY_DISMISS") or "qs -c shore ipc call quickshell clearNotifications",
   screenshot    = os.getenv("HYPR_SCREENSHOT") or "qs -c shore ipc call quickshell screenshot",
   lock          = os.getenv("HYPR_LOCK") or "qs -c shore ipc call quickshell lock",
+  wallpaper_next = os.getenv("HYPR_WALLPAPER_NEXT") or "qs -c shore ipc call quickshell nextWallpaper",
 }
 
 M.displays = {

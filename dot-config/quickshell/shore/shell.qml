@@ -27,13 +27,14 @@ ShellRoot {
             { adapter: Notifications, methods: Verify.notificationsPort, name: "NotificationPort" },
             { adapter: Polkit, methods: Verify.polkitPort, name: "PolkitPort" },
             { adapter: Launcher, methods: Verify.launcherPort, name: "LauncherPort" },
-            { adapter: Clipboard, methods: Verify.clipboardPort, name: "ClipboardPort" }
+            { adapter: Clipboard, methods: Verify.clipboardPort, name: "ClipboardPort" },
+            { adapter: Wallpaper, methods: Verify.wallpaperPort, name: "WallpaperPort" }
         ]);
         Idle.enabled = !UiState.locked;
     }
 
     // ── Wallpaper ─────────────────────────────────────────────────────────
-    Wallpaper {}
+    WallpaperSurface {}
 
     Variants {
         model: Quickshell.screens
@@ -161,6 +162,10 @@ ShellRoot {
 
         function screenshot() {
             UiState.toggleScreenshot();
+        }
+
+        function nextWallpaper() {
+            Wallpaper.next();
         }
     }
 }

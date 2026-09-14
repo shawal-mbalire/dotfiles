@@ -154,5 +154,6 @@ just logs       # tail the Hyprland log
 | `SUPER + P` | Open launcher (Quickshell IPC) |
 | `SUPER + V` | Open clipboard history (Quickshell IPC) |
 | `SUPER + L` | Lock session (Quickshell IPC) |
+| `SUPER + W` | Next wallpaper (Quickshell IPC) |
 | `Print` / `SUPER + ALT + 4` | Region screenshot (Quickshell IPC) |
 | `SUPER + M` | Toggle mirror/extend (Quickshell IPC for OSD) |

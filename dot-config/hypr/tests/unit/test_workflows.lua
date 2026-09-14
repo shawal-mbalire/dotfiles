@@ -87,9 +87,9 @@ return {
       local deps = fakes.deps()
       keybindings(deps)
       local list = deps.hypr:find("register_binds")[1].args[1]
-      -- 13 apps + 3 window + 4 focus + 4 move + 4 resize + 4 monitor
-      -- + 2 special + 4 mouse + 10 media + 2 screenshots + 20 workspaces = 70
-      assert(#list == 70, "expected 70 binds, got " .. tostring(#list))
+      -- 14 apps + 3 window + 4 focus + 4 move + 4 resize + 4 monitor
+      -- + 2 special + 4 mouse + 10 media + 2 screenshots + 20 workspaces = 71
+      assert(#list == 71, "expected 71 binds, got " .. tostring(#list))
     end,
   },
   {

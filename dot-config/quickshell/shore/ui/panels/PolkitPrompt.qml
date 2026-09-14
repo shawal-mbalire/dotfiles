@@ -45,7 +45,7 @@ LazyLoader {
             radius: Theme.radius
             color: Theme.tint(Theme.mantle, 0.98)
             border.width: 1
-            border.color: Theme.tint(Theme.mauve, 0.6)
+            border.color: Theme.tint(WallpaperColors.accent, 0.6)
 
             ColumnLayout {
                 id: content
@@ -145,7 +145,7 @@ LazyLoader {
                         implicitWidth: authLabel.implicitWidth + 20
                         implicitHeight: 26
                         radius: Theme.radius - 3
-                        color: Theme.tint(Theme.blue, 0.85)
+                        color: Theme.tint(WallpaperColors.accent, 0.85)
 
                         Text {
                             id: authLabel

@@ -3,9 +3,10 @@ import Quickshell
 import Quickshell.Wayland
 import "../../domain"
 import "../../infra"
+import "../../adapters"
 
-// Renders the wallpaper on the background layer of every monitor.
-// Replaces hyprpaper.
+// Renders the current wallpaper on the background layer of every monitor.
+// Replaces hyprpaper; `Wallpaper.next()` cycles the set in Config.wallpaperDir.
 Variants {
     model: Quickshell.screens
 
@@ -26,7 +27,7 @@ Variants {
 
         Image {
             anchors.fill: parent
-            source: Config.wallpaper !== "" ? "file://" + Config.wallpaper : ""
+            source: Wallpaper.current !== "" ? "file://" + Wallpaper.current : ""
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
         }

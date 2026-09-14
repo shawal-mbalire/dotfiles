@@ -11,7 +11,7 @@ Rectangle {
     property string icon: ""
     property real value: 0
     property string label: ""
-    property color accent: Theme.blue
+    property color accent: WallpaperColors.accent
 
     signal moved(real value)
 

@@ -55,7 +55,7 @@ LazyLoader {
                         }
                         width: parent.width * Math.max(0, Math.min(1, UiState.osdValue))
                         radius: parent.radius
-                        color: Theme.blue
+                        color: WallpaperColors.accent
                     }
                 }
 

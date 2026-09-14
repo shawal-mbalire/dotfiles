@@ -1,17 +1,19 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Effects
+import ".."
 import "../../domain"
+import "../../adapters"
 
-// Lock surface (one per monitor). Shares state via the LockContext so all
-// monitors stay in sync.
+// Lock surface (one per monitor): blurred wallpaper, large clock, password box.
+// Shares state via the LockContext so all monitors stay in sync.
 Rectangle {
     id: root
 
     required property LockContext context
 
-    color: Theme.tint(Theme.crust, 0.98)
+    color: "black"
 
-    // ── Clock ─────────────────────────────────────────────────────────────
     property date now: new Date()
 
     Timer {
@@ -21,15 +23,36 @@ Rectangle {
         onTriggered: root.now = new Date()
     }
 
+    // ── Blurred wallpaper background ──────────────────────────────────────
+    Image {
+        anchors.fill: parent
+        source: Wallpaper.current !== "" ? "file://" + Wallpaper.current : ""
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            blurEnabled: true
+            blur: 1.0
+            blurMax: 64
+        }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.4)
+    }
+
+    // ── Clock + prompt ────────────────────────────────────────────────────
     ColumnLayout {
         anchors.centerIn: parent
-        spacing: 18
+        spacing: 10
 
         Text {
             Layout.alignment: Qt.AlignHCenter
             text: Qt.formatDateTime(root.now, "HH:mm")
             font.family: Theme.fontFamily
-            font.pixelSize: 84
+            font.pixelSize: 150
             font.bold: true
             color: Theme.text
             renderType: Text.NativeRendering
@@ -39,29 +62,27 @@ Rectangle {
             Layout.alignment: Qt.AlignHCenter
             text: Qt.formatDateTime(root.now, "dddd, d MMMM")
             font.family: Theme.fontFamily
-            font.pixelSize: 16
+            font.pixelSize: 22
             color: Theme.subtext0
         }
 
-        Item { implicitHeight: 24 }
+        Item { implicitHeight: 30 }
 
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            implicitWidth: 360
-            implicitHeight: 40
+            implicitWidth: 420
+            implicitHeight: 46
             radius: Theme.radius
-            color: Theme.tint(Theme.surface0, 0.8)
+            color: Theme.tint(Theme.surface0, 0.7)
             border.width: 1
-            border.color: root.context.showFailure
-                ? Theme.tint(Theme.red, 0.8)
-                : Theme.tint(Theme.surface1, 0.6)
+            border.color: root.context.showFailure ? Theme.red : WallpaperColors.accent
 
             TextInput {
                 id: input
                 anchors {
                     fill: parent
-                    leftMargin: 12
-                    rightMargin: 12
+                    leftMargin: 14
+                    rightMargin: 14
                 }
                 verticalAlignment: TextInput.AlignVCenter
                 echoMode: TextInput.Password
@@ -69,7 +90,7 @@ Rectangle {
                 enabled: !root.context.unlockInProgress
                 color: Theme.text
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize
+                font.pixelSize: Theme.fontSize + 2
                 clip: true
 
                 onTextChanged: root.context.currentText = text
@@ -91,7 +112,7 @@ Rectangle {
                     visible: input.text === ""
                     text: "Password"
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize
+                    font.pixelSize: Theme.fontSize + 2
                     color: Theme.overlay0
                 }
             }
@@ -102,7 +123,7 @@ Rectangle {
             visible: root.context.showFailure
             text: "Incorrect password"
             font.family: Theme.fontFamily
-            font.pixelSize: 12
+            font.pixelSize: 13
             color: Theme.red
         }
     }

@@ -37,4 +37,5 @@ Singleton {
     readonly property var polkitPort: ["submit", "cancel"]
     readonly property var launcherPort: ["search", "launch"]
     readonly property var clipboardPort: ["refresh", "copy", "remove", "wipe"]
+    readonly property var wallpaperPort: ["refresh", "next", "prev"]
 }

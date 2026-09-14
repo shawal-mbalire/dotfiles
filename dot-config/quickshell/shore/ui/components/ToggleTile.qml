@@ -11,7 +11,7 @@ Rectangle {
     property string icon: ""
     property string label: ""
     property bool active: false
-    property color accent: Theme.blue
+    property color accent: WallpaperColors.accent
 
     signal toggled()
 

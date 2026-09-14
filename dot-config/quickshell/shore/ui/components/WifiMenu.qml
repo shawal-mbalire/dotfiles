@@ -59,7 +59,7 @@ ColumnLayout {
         visible: root.device && Networking.wifiEnabled
         radius: Theme.radius
         color: root.device && root.device.scannerEnabled
-            ? Theme.tint(Theme.blue, 0.8)
+            ? Theme.tint(WallpaperColors.accent, 0.8)
             : Theme.tint(Theme.surface0, 0.5)
         border.width: 1
         border.color: Theme.tint(Theme.surface1, 0.5)

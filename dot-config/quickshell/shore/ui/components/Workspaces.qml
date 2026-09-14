@@ -34,7 +34,7 @@ Rectangle {
                 implicitHeight: Theme.barHeight - 12
                 radius: Theme.radius - 3
                 color: modelData.urgent ? Theme.red
-                     : modelData.focused ? Theme.blue
+                     : modelData.focused ? WallpaperColors.accent
                      : modelData.active ? Theme.tint(Theme.overlay0, 0.45)
                      : "transparent"
 

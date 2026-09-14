@@ -19,7 +19,7 @@ Rectangle {
 
     implicitHeight: 34
     radius: Theme.radius
-    color: connected ? Theme.tint(Theme.blue, 0.75) : Theme.tint(Theme.surface0, 0.4)
+    color: connected ? Theme.tint(WallpaperColors.accent, 0.75) : Theme.tint(Theme.surface0, 0.4)
     border.width: 1
     border.color: Theme.tint(Theme.surface1, 0.5)
 

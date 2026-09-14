@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import ".."
 import "../components"
 import "../../domain"
+import "../../adapters"
 import "../../infra"
 
 // Region screenshot overlay. Captures the screen, lets the user drag a
@@ -88,7 +89,7 @@ LazyLoader {
             height: Math.abs(overlay.ey - overlay.sy)
             color: "transparent"
             border.width: 2
-            border.color: Theme.blue
+            border.color: WallpaperColors.accent
         }
 
         Text {

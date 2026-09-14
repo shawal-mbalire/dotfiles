@@ -24,6 +24,7 @@ local function build(config)
     bind(mainMod, "B", models.Bind.exec(apps.bar_toggle)),
     bind(mainMod, "L", models.Bind.exec(cmd.lock)),
     bind(mainMod, "M", models.Bind.exec(apps.display_toggle)),
+    bind(mainMod, "W", models.Bind.exec(cmd.wallpaper_next)),
     bind(mainMod, "V", models.Bind.exec(cmd.clipboard)),
     bind(mainMod, "N", models.Bind.exec(cmd.notify_toggle)),
     bind(mainMod, "SHIFT + N", models.Bind.exec(cmd.notify_dismiss)),
