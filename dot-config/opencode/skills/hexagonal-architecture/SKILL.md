@@ -31,6 +31,7 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 9. **Portable adapters** — Write each adapter so its file(s) copy to any project: depend only on standard ports + external libraries, hold zero app imports, constructor-inject a frozen config struct, translate vendor errors to port errors, and take row↔model mappers so the adapter is aggregate-agnostic.
 10. **TimePort everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
 11. **LifetimePort for graceful exits** — Every workflow gets a `LifetimePort` to detect exit reasons (crash, user exit, error, normal) and run cleanup. No resource left behind.
+12. **Ports only when they make sense** — A port is a boundary, not a badge. Add one only when it earns its place (see [Port Taxonomy](#port-taxonomy-when-to-add-a-port)); pure logic, pure transforms, and adapter-private concerns stay out.
 
 **The split:** Domain = what the app does (architecture). Adapters = how it connects (implementation).
 
@@ -47,7 +48,7 @@ domain/
 ├── models       # Pure data structures representing business concepts
 ├── constants    # Named business constants (injected from config, never hardcoded)
 ├── errors       # Custom business-rule exceptions
-├── ports        # Interfaces defining required I/O (Repositories, Gateways)
+├── ports        # Interfaces defining required I/O (see Port Taxonomy)
 └── workflows    # Orchestrate flow using domain models and ports
 ```
 
@@ -121,6 +122,45 @@ Domain is stateless — pure functions and workflows that produce results from i
 
 If multiple instances run concurrently, they share no in-process state. All shared state goes through backing services (databases, caches, message queues) via driven adapters.
 
+### Port Taxonomy: When to Add a Port
+
+A port is a boundary, not a badge. Create one only when it earns its place.
+
+**Add a port when any is true:**
+
+- There is a real side effect or external dependency the domain must stay ignorant of
+- Behavior must be substitutable (real ↔ fake ↔ alternate vendor) or isolated in tests
+- Two or more implementations exist now, or credibly soon
+- A capability must be deterministic/mockable (time, randomness, ids) or is cross-cutting
+
+**Do NOT add a port when:**
+
+- It is pure logic — make it a function/module instead
+- It is a pure transformation — make it a pure helper
+- There is one implementation, it never changes, and tests do not need isolation (YAGNI)
+- It is adapter-private: transactions, retries, serialization, HTTP details, connection state
+
+**Archetypes** — every driven port is one of these shapes. Match the shape, not the vendor:
+
+| Archetype | Shape | Add when | Example ports |
+|-----------|-------|----------|---------------|
+| Repository | aggregate CRUD | persisting domain entities | `DocumentRepository` |
+| Gateway | request/response, one external system | calling a remote API (payments, auth, maps, shipping) | `PaymentGateway` |
+| Event bus | async pub/sub, many consumers | side effects must decouple or fan out | `EventPublisherPort`, `EventConsumerPort` |
+| Store | keyed data, no aggregate | caching, blobs, files, KV — not a domain entity | `CachePort`, `KeyValueStorePort`, `BlobStorePort` |
+| Notifier | fire-and-forget outbound | user-facing messages across channels/templates | `NotifierPort` |
+| Ambient capability | deterministic environment | timing, seeded randomness, id generation | `TimePort`, `RandomPort` |
+| Observability | telemetry sink | structured logs, metrics, traces | `LoggerPort`, `MetricsPort`, `TracerPort` |
+| Presentation | output rendering | CLI/UI output must swap (rich ↔ JSON ↔ plain) | `PresenterPort` |
+| Release control | progressive delivery | ship dark, kill switches, experiments | `FeatureFlagPort` |
+
+**Notes:**
+
+- **Notifier vs Gateway** — one channel and request/response → a Gateway. A dedicated `NotifierPort` earns its keep only with multiple channels/templates plus retry/tracking.
+- **Events vs Notifier** — an event is "something happened" (broadcast); a notification is "tell this recipient".
+- **Auth, search, hardware** are usually a `*Gateway` (or a Repository for an index). Do not invent new archetypes for them.
+- The concrete ports, methods, and tiers are in [Standard Ports for Any Language](#standard-ports-for-any-language).
+
 ### Port Design for Pluggability
 
 Ports define contracts that adapters must fulfill. Well-designed ports make swapping adapters trivial.
@@ -165,6 +205,99 @@ Port: DocumentRepository = Repository[Document]
 repo = SqlRepository(connection, table="documents",
                      to_row=document_to_row, from_row=row_to_document)
 ```
+
+### Gateway Ports (External Services)
+
+A **Gateway port** models access to one external system's API — payments, shipping, identity, email, maps, a third-party REST/gRPC/SOAP service, a hardware endpoint. It is the driven-port counterpart to `*Repository`: `Repository` is persistence, `Gateway` is a remote capability. One port per external system (`PaymentGateway`, `ShippingGateway`), never one generic "ApiClient".
+
+**The protocol is a deployment detail, not a contract.** The port stays protocol-neutral; the injected **frozen config** declares the wire protocol. The same `PaymentGateway` runs over HTTP in dev and gRPC in prod without a domain or workflow change.
+
+**Rules:**
+
+- Port methods express **domain capabilities** (`charge`, `track_shipment`) and accept/return **domain types only** — never `HttpResponse`, a gRPC stub, a decoded frame, or a status code
+- The transport belongs in the adapter's **config struct**, not the port: `protocol`, `base_url`/`endpoint`, `timeout_ms`, auth/credentials, retry policy
+- Keep a small **`Transport` enum** (pure domain enum, part of the standard port vocabulary) naming supported protocols so config, diagnostics, and dev/prod wiring can reason about transport without importing a library. It carries no app logic, so portable gateway adapters may import it
+- Implement one adapter per backend behind the port; translate vendor errors to port errors (`GatewayUnavailableError`, `GatewayTimeoutError`, `RateLimitedError`, `NotFoundError`)
+- Map wire DTOs ↔ domain models with **pure functions** at the adapter boundary (injected `to_wire`/`from_wire` keep the adapter reusable)
+- Own connection/channel/session lifecycle in the adapter and release it via `LifetimePort`
+- Give each gateway port a **contract test suite**; a stub/in-memory gateway runs it in unit tests, the real client runs it against an ephemeral backend
+
+```python
+# domain/ports/transport.py — standard port vocabulary: pure enum, no library types
+from enum import Enum
+
+class Transport(str, Enum):
+    HTTP = "http"
+    GRPC = "grpc"
+    GRAPHQL = "graphql"
+    WEBSOCKET = "websocket"
+    MQTT = "mqtt"
+    TCP = "tcp"
+
+# domain/ports/payment_gateway.py — protocol-neutral capability
+from typing import Protocol
+from domain.models.money import Money
+from domain.models.payment import PaymentResult, RefundResult
+
+class PaymentGateway(Protocol):
+    def charge(self, amount: Money, token: str) -> PaymentResult: ...
+    def refund(self, payment_id: str) -> RefundResult: ...
+```
+
+```python
+# adapters/stripe/stripe_config.py — frozen, injected; declares the wire protocol
+from dataclasses import dataclass
+from domain.ports.transport import Transport
+
+@dataclass(frozen=True)
+class StripeGatewayConfig:
+    base_url: str
+    api_key: str
+    protocol: Transport = Transport.HTTP
+    timeout_ms: int = 5_000
+    max_retries: int = 2
+```
+
+```python
+# adapters/stripe/stripe_gateway.py (PORTABLE — driver + standard ports only)
+# backend: Stripe | port: PaymentGateway | driver: httpx | config: StripeGatewayConfig
+class StripeGateway:
+    def __init__(self, config: StripeGatewayConfig, lifetime: LifetimePort,
+                 to_wire, from_wire):
+        self._config = config          # frozen struct — declares protocol
+        self._to_wire = to_wire        # pure
+        self._from_wire = from_wire    # pure
+        self._client = self._connect(config)
+        lifetime.register_cleanup(self.close)
+
+    def charge(self, amount: Money, token: str) -> PaymentResult:
+        try:
+            raw = self._client.call(self._config.protocol, self._to_wire(amount, token))
+        except DriverError as e:
+            raise GatewayUnavailableError(
+                cause=e, retryable=True,
+                context={"operation": "charge", "adapter": "stripe", "protocol": self._config.protocol},
+            ) from e
+        return self._from_wire(raw)
+```
+
+```python
+# main.py — same port; transport chosen by config per environment
+gateway = StripeGateway(StripeGatewayConfig.from_environment(), lifetime,
+                        to_wire=payment_to_wire, from_wire=wire_to_payment)
+```
+
+**Anti-patterns:** protocol leaking into the port (`charge(...) -> HttpResponse`), a `protocol` *method argument* instead of config, one `HttpClientGateway` shared by every external system, SDK response objects crossing the port, or env reads inside the adapter.
+
+**Dev/prod transport swapping:**
+
+| Port | Dev | Staging | Prod |
+|------|-----|---------|------|
+| `PaymentGateway` | In-memory stub (HTTP config) | Stripe HTTP adapter | Stripe gRPC adapter |
+| `ShippingGateway` | Fake rates adapter | Carrier REST adapter | Carrier gRPC adapter |
+| `SensorGateway` | Replay adapter | MQTT adapter | MQTT / TCP adapter |
+
+The domain, port, and workflow are identical in every column — only `Transport` and the adapter wiring in the composition root differ.
 
 ### Adapter Design for Reusability and Transferability
 
@@ -327,6 +460,7 @@ User ← Driving Adapter ← Convert to DTO/Response ← Domain Model ← Result
 | Caching   | Decorator pattern    | `infra/config` | Redis, IndexedDB, or in-memory adapter                      |
 | Auth      | User model in domain | `infra/config` | JWT decode, OAuth adapter                                   |
 | Persistence | `*Repository`      | `infra/` (IaC, optional) | SQL adapter owns queries + row↔domain mapping       |
+| External APIs | `*Gateway`        | `infra/config` | HTTP/gRPC/MQTT/SOAP client adapter; protocol declared in injected config |
 | Telemetry | `MetricsPort`        | `infra/config` | DuckDB hub (dev), Prometheus/Datadog/OTel (prod)            |
 | Events    | `EventPublisherPort` | `infra/config` | DuckDB hub (dev), Kafka/RabbitMQ/MQTT (prod)                |
 | Events    | `EventConsumerPort`  | `infra/config` | DuckDB hub (dev), Kafka/RabbitMQ/MQTT (prod)                |
@@ -690,27 +824,30 @@ func TestCreateDocument(t *testing.T) {
 
 ### Standard Ports for Any Language
 
-Every language implementation must include the **required** ports below. The **recommended** ports are added whenever the system logs structured data, emits metrics, or publishes/consumes events (embedded and other minimal targets may omit them).
+These are the concrete ports and methods per archetype. **Tier** is the default posture, not a mandate: **Baseline** ports earn their place in almost every non-trivial process; **Conditional** ports are added only when their trigger fires (apply the [Port Taxonomy](#port-taxonomy-when-to-add-a-port) test). Embedded and other minimal targets may omit any of them.
 
-| Port | Requirement | Purpose | Required Methods |
-|------|-------------|---------|-----------------|
-| `LoggerPort` | Required | Structured logging | `info(message, **fields)`, `error(message, **fields)` |
-| `TimePort` | Required | Process timing + polling | `nowMs()`, `elapsedMs(start)`, `sleepMs(ms)` |
-| `LifetimePort` | Required | Graceful exits | `registerCleanup(handler)`, `onExit(handler)`, `getExitReason()`, `isShuttingDown()` |
-| `Repository[T, IdT]` | Required | Generic persistence contract | `save(entity)`, `findById(id)`, `findAll()`, `delete(id)` |
-| `*Checker` | Required | External validation | domain-specific |
-| `MetricsPort` | Recommended | Counters, gauges, timings | `counter(name, value, labels)`, `gauge(...)`, `timing(...)` |
-| `EventPublisherPort` | Recommended | Publish domain events | `publish(topic, payload)` |
-| `EventConsumerPort` | Recommended | Consume domain events | `subscribe(topic, handler)` |
-| `TracerPort` | Recommended | Span-based tracing | `startSpan(name)`, `endSpan(spanId)` |
-| `RandomPort` | Recommended | Seeded, reproducible randomness | `int(below)`, `bytes(n)` |
-| `FeatureFlagPort` | Recommended | Progressive delivery / kill switches | `isEnabled(flag, context)`, `variant(flag, context)` |
-| `PresenterPort` | Recommended | Rich, colored terminal output | `success/error/warn/info(message)`, `panel(title, body)`, `table(...)` |
-| `KeyValueStorePort` | Recommended | Generic KV storage | `get(key)`, `set(key, value)`, `delete(key)` |
-| `BlobStorePort` | Recommended | Binary/object storage | `put(key, bytes)`, `get(key)`, `delete(key)` |
-| `CachePort` | Recommended | Cache with TTL | `get(key)`, `set(key, value, ttlMs)`, `invalidate(key)` |
+| Port | Tier | Add when | Required methods |
+|------|------|----------|-----------------|
+| `TimePort` | Baseline | measuring duration or driving poll loops | `nowMs()`, `elapsedMs(start)`, `sleepMs(ms)` |
+| `LifetimePort` | Baseline | long-running process, or one that owns resources needing cleanup | `registerCleanup(handler)`, `onExit(handler)`, `getExitReason()`, `isShuttingDown()` |
+| `LoggerPort` | Conditional | the system emits structured logs | `info(message, **fields)`, `error(message, **fields)` |
+| `Repository[T, IdT]` | Conditional | persisting domain aggregates | `save(entity)`, `findById(id)`, `findAll()`, `delete(id)` |
+| `*Gateway` | Conditional | calling an external service/API | domain-specific capabilities (`charge`, `trackShipment`); transport in adapter config |
+| `*Checker` | Conditional | read-only external validation | domain-specific |
+| `MetricsPort` | Conditional | emitting counters, gauges, timings | `counter(name, value, labels)`, `gauge(...)`, `timing(...)` |
+| `EventPublisherPort` | Conditional | publishing domain events | `publish(topic, payload)` |
+| `EventConsumerPort` | Conditional | consuming domain events | `subscribe(topic, handler)` |
+| `TracerPort` | Conditional | span-based tracing | `startSpan(name)`, `endSpan(spanId)` |
+| `RandomPort` | Conditional | seeded, reproducible randomness | `int(below)`, `bytes(n)` |
+| `FeatureFlagPort` | Conditional | progressive delivery / kill switches | `isEnabled(flag, context)`, `variant(flag, context)` |
+| `PresenterPort` | Conditional | rich, colored terminal/CLI output | `success/error/warn/info(message)`, `panel(title, body)`, `table(...)` |
+| `KeyValueStorePort` | Conditional | generic key-value storage | `get(key)`, `set(key, value)`, `delete(key)` |
+| `BlobStorePort` | Conditional | binary/object storage | `put(key, bytes)`, `get(key)`, `delete(key)` |
+| `CachePort` | Conditional | cached reads with TTL | `get(key)`, `set(key, value, ttlMs)`, `invalidate(key)` |
 
 `*Repository` ports are aliases of the generic `Repository[T, IdT]` (e.g. `DocumentRepository = Repository[Document, str]`). Adapters target the generic contract and receive pure mappers, so one adapter serves every aggregate. Domain-specific ports remain valid for readability.
+
+`*Gateway` ports wrap one external system each and stay protocol-neutral — the wire transport (`HTTP`, `GRPC`, `GRAPHQL`, `WEBSOCKET`, `MQTT`, `TCP`) is declared by the adapter's injected config, never by the port signature (see [Gateway Ports](#gateway-ports-external-services)). A `*Checker` is a thin read-only gateway used purely for validation (e.g. stock, credit, address); promote it to a full `*Gateway` once it performs more than a single check.
 
 The dev DuckDB hub supplies local implementations of `LoggerPort`, `MetricsPort`, `EventPublisherPort`, and `EventConsumerPort`; prod swaps them in the composition root (see [Local-First Backing Services](#local-first-backing-services-duckdb-hub)).
 
@@ -1269,6 +1406,8 @@ These refine the [Core Principles](#core-principles) with concrete, checkable ru
 23. **Verify the Verifier** — Property tests cover all inputs; mutation testing proves the tests catch defects; the mutation score for `domain/` is a gate.
 24. **Prove the Critical Core** — The small, high-risk algorithm/protocol gets a formal model (TLA+/Kani/CBMC/Dafny), not just tests.
 25. **Fail Safe in Prod** — Ship behind `FeatureFlagPort`, canary the roll-out, and bound the blast radius with timeouts, circuit breakers, and automatic rollback.
+26. **Gateway Ports for External Services** — Wrap each external system behind a `*Gateway` port that exposes domain capabilities only. The networking protocol lives in the adapter's frozen config, never in the port signature; swap transports per environment without touching the domain or workflows.
+27. **Ports Only When They Make Sense** — Add a port only when the [Port Taxonomy](#port-taxonomy-when-to-add-a-port) test fires (real external dependency, substitution/test need, ≥2 implementations, or required determinism). Never create a port for pure logic, a pure transform, or an adapter-private concern.
 
 ## 12FA Compliance
 
@@ -1306,6 +1445,8 @@ This architecture satisfies the 12-Factor App methodology:
 Building a new feature?
 ├─ Define Domain Models first (pure data, no imports)
 ├─ Create Ports for any external dependency (Protocol/Interface/Trait)
+├─ Wrap each external service behind a *Gateway port; declare its transport in the injected config
+├─ Add a port only when a Port Taxonomy trigger fires — no speculative ports
 ├─ Add TimePort for any process that needs duration tracking
 ├─ Use single files for modules with < 3 files (errors.py, not errors/__init__.py)
 ├─ Add capabilities as files under domain/, infra/, adapters/, tests/ — never a new root folder
