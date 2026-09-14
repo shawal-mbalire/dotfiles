@@ -33,6 +33,14 @@ Singleton {
         popupVisible = false;
     }
 
+    // Send a notification through the session bus (lands in our own server).
+    function notify(summary, body, urgency) {
+        const args = ["notify-send", "-a", "shore"];
+        if (urgency === "critical") args.push("-u", "critical");
+        args.push(String(summary), String(body));
+        Quickshell.execDetached(args);
+    }
+
     NotificationServer {
         id: server
 

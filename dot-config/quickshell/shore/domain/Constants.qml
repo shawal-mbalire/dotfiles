@@ -14,6 +14,13 @@ Singleton {
     readonly property int batteryCritical: 15
     readonly property int batteryLow: 30
 
+    // Battery alert thresholds (percent), mirroring the hypr helper.
+    readonly property int batteryAlertCritical: 3
+    readonly property int batteryAlertLow: 10
+    readonly property int batteryAlertWarn: 20
+    readonly property int batteryAlertHigh: 80
+    readonly property int batteryAlertFull: 100
+
     // Volume step for scroll interaction (fraction).
     readonly property real volumeStep: 0.05
 

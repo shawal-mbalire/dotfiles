@@ -36,6 +36,9 @@ ShellRoot {
     NotificationPopups {}
     Osd {}
 
+    // Turns UPower changes into battery threshold notifications.
+    BatteryAlerts {}
+
     // Track the default sink so volume changes can raise the OSD.
     PwObjectTracker {
         objects: [ Pipewire.defaultAudioSink ]

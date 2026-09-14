@@ -84,9 +84,10 @@ M.LAYER_RULES = {
 -- Window rules (static domain knowledge about known clients)
 M.WINDOW_RULES = {
   {
-    -- Zen/Firefox picture-in-picture: always a floating, always-on-top window.
+    -- Zen/Firefox picture-in-picture: floating and always on top, opening at a
+    -- quarter of the screen area (50% width x 50% height) but still resizable.
     match = { class = "app.zen_browser.zen", title = "^(Picture-in-Picture)$" },
-    opts = { float = true, pin = true },
+    opts = { name = "zen-pip", float = true, pin = true, size = "50% 50%" },
   },
 }
 

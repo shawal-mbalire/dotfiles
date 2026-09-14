@@ -17,7 +17,11 @@ Singleton {
     }
 
     function toggle() {
-        if (!toggleProc.running) toggleProc.running = true;
+        if (toggleProc.running) return;
+        // Optimistic: reflect the new state immediately so the bar is reactive.
+        // refresh() on exit reconciles with the actual gammastep process.
+        root.active = !root.active;
+        toggleProc.running = true;
     }
 
     Process {
