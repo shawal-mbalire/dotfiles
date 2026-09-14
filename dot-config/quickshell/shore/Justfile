@@ -17,6 +17,14 @@ stop:
 # Apply edits live — Quickshell hot-reloads on save
 dev: run
 
+# Stop the daemons Quickshell replaces and stop mako from D-Bus-activating
+migrate:
+    -pkill -x waybar
+    -pkill -x swaync
+    -pkill -x mako
+    -pkill -x swayosd-server
+    -systemctl --user mask mako.service
+
 # Toggle the control center
 control:
     qs -c shore ipc call quickshell toggleControlCenter

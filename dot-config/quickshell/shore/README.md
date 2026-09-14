@@ -70,11 +70,18 @@ It is launched from Hyprland autostart (`infra/config.lua`, `M.autostart`).
 ### Migrating off the old daemons
 
 Quickshell's `NotificationServer` and OSD are exclusive with the old ones.
-Stop them before running:
+Stop them before running (or just run `just migrate` in this directory):
 
 ```sh
-pkill -x waybar; pkill -x swaync; pkill -x swayosd-server
+pkill -x waybar; pkill -x swaync; pkill -x mako; pkill -x swayosd-server
+systemctl --user mask mako.service
 ```
+
+Masking `mako.service` matters: `/usr/share/dbus-1/services/fr.emersion.mako.service`
+declares `Name=org.freedesktop.Notifications`, so D-Bus would otherwise
+auto-spawn mako whenever nothing owns the notification name (e.g. just before
+Quickshell starts). Masked, activation fails instead and Quickshell keeps the
+name.
 
 `hyprlock`, `hypridle`, `hyprpaper`, `hyprpolkitagent`, `cliphist`, `grimblast`
 and `fuzzel` are untouched and still do their jobs.
