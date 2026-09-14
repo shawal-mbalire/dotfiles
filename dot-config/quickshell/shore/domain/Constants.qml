@@ -26,4 +26,11 @@ Singleton {
 
     // Brightness step for scroll/key interaction (percent points).
     readonly property int brightnessStep: 5
+
+    // Idle timeouts (seconds) for the session.
+    readonly property int idleLockSeconds: 300
+    readonly property int idleSuspendSeconds: 1800
+
+    // Screenshot output directory (relative to $HOME).
+    readonly property string screenshotDir: "Pictures/Screenshots"
 }

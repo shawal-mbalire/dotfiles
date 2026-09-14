@@ -22,6 +22,7 @@ local function build(config)
     bind(mainMod, "E", models.Bind.exec(apps.file_manager)),
     bind(mainMod, "P", models.Bind.exec(apps.menu)),
     bind(mainMod, "B", models.Bind.exec(apps.bar_toggle)),
+    bind(mainMod, "L", models.Bind.exec(cmd.lock)),
     bind(mainMod, "M", models.Bind.exec(apps.display_toggle)),
     bind(mainMod, "V", models.Bind.exec(cmd.clipboard)),
     bind(mainMod, "N", models.Bind.exec(cmd.notify_toggle)),

@@ -35,4 +35,6 @@ Singleton {
     readonly property var networkPort: ["setWifi", "toggleWifi"]
     readonly property var notificationsPort: ["toggleDnd", "dismissAll", "closePopup", "notify"]
     readonly property var polkitPort: ["submit", "cancel"]
+    readonly property var launcherPort: ["search", "launch"]
+    readonly property var clipboardPort: ["refresh", "copy", "remove", "wipe"]
 }

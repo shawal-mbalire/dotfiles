@@ -15,6 +15,41 @@ Singleton {
     // Which bar submenu is open: "", "bluetooth", "audio", "power".
     property string activeMenu: ""
 
+    // ── Session surfaces ──────────────────────────────────────────────────
+    property bool locked: false
+    property bool launcherOpen: false
+    property string launcherMode: "apps"
+    property bool screenshotOpen: false
+
+    function lock() {
+        controlCenterOpen = false;
+        activeMenu = "";
+        launcherOpen = false;
+        screenshotOpen = false;
+        locked = true;
+    }
+
+    function toggleLauncher(mode) {
+        controlCenterOpen = false;
+        activeMenu = "";
+        launcherMode = mode ?? "apps";
+        launcherOpen = !launcherOpen;
+    }
+
+    function closeLauncher() {
+        launcherOpen = false;
+    }
+
+    function toggleScreenshot() {
+        controlCenterOpen = false;
+        activeMenu = "";
+        screenshotOpen = !screenshotOpen;
+    }
+
+    function closeScreenshot() {
+        screenshotOpen = false;
+    }
+
     function toggleBar() {
         barVisible = !barVisible;
     }

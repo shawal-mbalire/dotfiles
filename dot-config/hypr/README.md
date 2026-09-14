@@ -151,4 +151,8 @@ just logs       # tail the Hyprland log
 | `SUPER + B` | Toggle bar (Quickshell IPC) |
 | `SUPER + N` | Toggle control center (Quickshell IPC) |
 | `SUPER + SHIFT + N` | Clear notifications (Quickshell IPC) |
-| `SUPER + M` | Toggle mirror/extend |
+| `SUPER + P` | Open launcher (Quickshell IPC) |
+| `SUPER + V` | Open clipboard history (Quickshell IPC) |
+| `SUPER + L` | Lock session (Quickshell IPC) |
+| `Print` / `SUPER + ALT + 4` | Region screenshot (Quickshell IPC) |
+| `SUPER + M` | Toggle mirror/extend (Quickshell IPC for OSD) |

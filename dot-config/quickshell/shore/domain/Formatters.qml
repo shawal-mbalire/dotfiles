@@ -92,6 +92,13 @@ Singleton {
         return { marker: marker, summary: summary, body: body, urgency: urgency };
     }
 
+    // ── Clipboard ────────────────────────────────────────────────────────
+    function clipLabel(line) {
+        if (!line) return "";
+        const tab = line.indexOf("\t");
+        return tab === -1 ? line : line.substring(tab + 1);
+    }
+
     // ── Media ────────────────────────────────────────────────────────────
     function trackLabel(player) {
         if (!player) return "";

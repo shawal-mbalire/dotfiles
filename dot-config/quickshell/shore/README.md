@@ -21,11 +21,14 @@ shore/
 │   ├── Nightlight.qml     #   NightlightPort (gammastep via the waybar helper)
 │   ├── Network.qml        #   NetworkPort (native Quickshell.Networking)
 │   ├── Notifications.qml  #   NotificationPort (NotificationServer; replaces swaync)
-│   └── Polkit.qml         #   PolkitPort (auth agent; replaces hyprpolkitagent)
+│   ├── Polkit.qml         #   PolkitPort (auth agent; replaces hyprpolkitagent)
+│   ├── Idle.qml           #   idle detection (replaces hypridle)
+│   ├── Launcher.qml       #   DesktopEntries app catalog
+│   └── Clipboard.qml      #   cliphist history
 └── ui/                    # driving adapters: presentation
     ├── UiState.qml        #   panel/menu/OSD state
-    ├── components/        #   bar widgets, menus, reusable parts
-    └── panels/            #   control center, menu popup, notifications, OSD, polkit
+    ├── components/        #   bar widgets, menus, lock surface, wallpaper, reusable parts
+    └── panels/            #   control center, menus, notifications, OSD, polkit, launcher, screenshot
 ```
 
 Dependencies point inward: `ui → ports → domain`, and `adapters → domain`.
@@ -75,6 +78,7 @@ Stop them before running (or just run `just migrate` in this directory):
 
 ```sh
 pkill -x waybar; pkill -x swaync; pkill -x mako; pkill -x swayosd-server
+pkill -x hypridle; pkill -x hyprpaper; pkill -x hyprpolkitagent
 systemctl --user mask mako.service
 ```
 
@@ -84,10 +88,12 @@ auto-spawn mako whenever nothing owns the notification name (e.g. just before
 Quickshell starts). Masked, activation fails instead and Quickshell keeps the
 name.
 
-`hyprlock`, `hypridle`, `hyprpaper`, `cliphist`, `grimblast` and `fuzzel` are
-untouched and still do their jobs. Auth is handled by Quickshell's polkit agent
-(`Quickshell.Services.Polkit`), so `hyprpolkitagent` is **not** run — stop it
-with `pkill -x hyprpolkitagent` and it's already removed from autostart.
+Quickshell now owns: **bar, notifications, control center, OSD, polkit auth,
+idle/lock, wallpaper, launcher (apps + clipboard) and region screenshots**. That
+retires `waybar`, `swaync`, `mako`, `swayosd-server`, `hyprpolkitagent`,
+`hypridle`, `hyprpaper`, `fuzzel` (for the menu/clipboard) and `grimblast`.
+Hyprland's autostart and `HYPR_WALLPAPER_DAEMON` (default `0`) reflect this.
+`gammastep`, `cliphist`/`wl-clipboard` and `brightnessctl` remain as helpers.
 
 ## Wiring
 
@@ -99,11 +105,32 @@ Hyprland binds call Quickshell over IPC (`qs -c shore ipc call quickshell <fn>`)
 | `SUPER + B` | `qs -c shore ipc call quickshell toggleBar` |
 | `SUPER + N` | `qs -c shore ipc call quickshell toggleControlCenter` |
 | `SUPER + SHIFT + N` | `qs -c shore ipc call quickshell clearNotifications` |
+| `SUPER + P` | `qs -c shore ipc call quickshell openLauncher apps` |
+| `SUPER + V` | `qs -c shore ipc call quickshell openLauncher clipboard` |
+| `SUPER + L` | `qs -c shore ipc call quickshell lock` |
+| Print | `qs -c shore ipc call quickshell screenshot` |
 | brightness keys | `qs -c shore ipc call quickshell brightnessStep up\|down` (falls back to `brightnessctl`) |
 
 Available IPC functions: `toggleBar`, `toggleControlCenter`, `closePanels`,
 `toggleDnd`, `clearNotifications`, `brightnessStep <up|down>`,
-`openMenu <bluetooth|audio|power>`.
+`openMenu <bluetooth|wifi|audio|power|display>`, `openLauncher <apps|clipboard>`,
+`lock`, `screenshot`.
+
+## Session surfaces
+
+- **Lock** (`ui/components/LockSurface.qml` + `LockContext.qml`): `WlSessionLock`
+  surface per monitor, PAM auth via `Quickshell.Services.Pam` with a local
+  `pam/password.conf`. Idle locks it after `Constants.idleLockSeconds` (via
+  `adapters/Idle.qml`, replacing hypridle) and suspends after
+  `idleSuspendSeconds`.
+- **Wallpaper** (`ui/components/Wallpaper.qml`): rendered on the background
+  layer per monitor (`Config.wallpaper`), replacing hyprpaper.
+- **Launcher** (`ui/panels/Launcher.qml`): applications (`DesktopEntries`) and
+  clipboard history (`adapters/Clipboard.qml`, cliphist) in one searchable
+  overlay; replaces fuzzel for the menu and clipboard.
+- **Screenshot** (`ui/panels/ScreenshotOverlay.qml`): `ScreencopyView` region
+  capture saved to `~/Pictures/Screenshots` and copied to the clipboard;
+  replaces grimblast.
 
 ## Bar interactions
 

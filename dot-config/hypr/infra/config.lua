@@ -13,7 +13,7 @@ M.apps = {
   terminal       = os.getenv("HYPR_TERMINAL") or "kitty",
   browser        = os.getenv("HYPR_BROWSER") or "flatpak run app.zen_browser.zen",
   file_manager   = os.getenv("HYPR_FILE_MANAGER") or "nautilus",
-  menu           = os.getenv("HYPR_MENU") or "fuzzel",
+  menu           = os.getenv("HYPR_MENU") or "qs -c shore ipc call quickshell openLauncher apps",
   note_taker     = os.getenv("HYPR_NOTE_TAKER") or "obsidian",
   editor         = os.getenv("HYPR_EDITOR") or "code-insiders",
   audio          = os.getenv("HYPR_AUDIO") or "pavucontrol",
@@ -32,10 +32,11 @@ M.commands = {
   media_next    = "playerctl next",
   media_play    = "playerctl play-pause",
   media_prev    = "playerctl previous",
-  clipboard     = "cliphist list | fuzzel --dmenu | cliphist decode | wl-copy",
+  clipboard     = os.getenv("HYPR_CLIPBOARD") or "qs -c shore ipc call quickshell openLauncher clipboard",
   notify_toggle = os.getenv("HYPR_NOTIFY_TOGGLE") or "qs -c shore ipc call quickshell toggleControlCenter",
   notify_dismiss = os.getenv("HYPR_NOTIFY_DISMISS") or "qs -c shore ipc call quickshell clearNotifications",
-  screenshot    = "grimblast --freeze copysave area",
+  screenshot    = os.getenv("HYPR_SCREENSHOT") or "qs -c shore ipc call quickshell screenshot",
+  lock          = os.getenv("HYPR_LOCK") or "qs -c shore ipc call quickshell lock",
 }
 
 M.displays = {
@@ -95,10 +96,12 @@ M.env = {
   HYPRCURSOR_SIZE  = "24",
 }
 
--- Wallpaper: the domain renders a hyprpaper config, the daemon is launched at
--- start with `-c <conf_path>`. Empty `monitors` means "every monitor".
+-- Wallpaper: Quickshell renders the wallpaper itself, so the hyprpaper daemon
+-- is disabled by default. Set HYPR_WALLPAPER_DAEMON=1 to fall back to hyprpaper
+-- (the conf is still rendered below).
 local runtime_dir = os.getenv("XDG_RUNTIME_DIR") or "/tmp"
 M.wallpaper = {
+  daemon = (os.getenv("HYPR_WALLPAPER_DAEMON") or "0") ~= "0",
   conf_path = os.getenv("HYPR_WALLPAPER_CONF") or (runtime_dir .. "/hyprpaper.conf"),
   wallpapers = {
     {
@@ -115,8 +118,8 @@ M.autostart = {
   -- directly), so the standalone gammastep tray indicator is not started.
   "wl-paste --watch cliphist store",
   -- Auth is handled by the Quickshell polkit agent (Quickshell.Services.Polkit),
-  -- so hyprpolkitagent is not started.
-  "hypridle",
+  -- so hyprpolkitagent is not started. Idle/lock are handled by Quickshell too,
+  -- so hypridle is not started.
   -- Quickshell replaces waybar + swaync + swayosd-server:
   -- one process owns the bar, notifications, control center and OSD.
   -- Stop the old daemons before enabling this.

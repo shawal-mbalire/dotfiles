@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import Quickshell.Services.Pipewire
 import "domain"
 import "infra"
@@ -11,7 +12,8 @@ import "ui/components"
 import "ui/panels"
 
 // Composition root. Wires the driven adapters into the UI (driving adapters):
-//   bar (per monitor) + control center + notification daemon + OSD.
+//   wallpaper + bar (per monitor) + control center + notification daemon + OSD
+//   + launcher + screenshot + session lock.
 // The only place that knows every layer; it verifies each adapter against its
 // port contract before the shell is trusted.
 ShellRoot {
@@ -23,23 +25,68 @@ ShellRoot {
             { adapter: Nightlight, methods: Verify.nightlightPort, name: "NightlightPort" },
             { adapter: Network, methods: Verify.networkPort, name: "NetworkPort" },
             { adapter: Notifications, methods: Verify.notificationsPort, name: "NotificationPort" },
-            { adapter: Polkit, methods: Verify.polkitPort, name: "PolkitPort" }
+            { adapter: Polkit, methods: Verify.polkitPort, name: "PolkitPort" },
+            { adapter: Launcher, methods: Verify.launcherPort, name: "LauncherPort" },
+            { adapter: Clipboard, methods: Verify.clipboardPort, name: "ClipboardPort" }
         ]);
+        Idle.enabled = !UiState.locked;
     }
+
+    // ── Wallpaper ─────────────────────────────────────────────────────────
+    Wallpaper {}
 
     Variants {
         model: Quickshell.screens
         Bar {}
     }
 
+    // ── Overlays / panels ─────────────────────────────────────────────────
     ControlCenter {}
     MenuPopup {}
     NotificationPopups {}
     Osd {}
     PolkitPrompt {}
+    Launcher {}
+    ScreenshotOverlay {}
 
     // Turns UPower changes into battery threshold notifications.
     BatteryAlerts {}
+
+    // ── Session lock ──────────────────────────────────────────────────────
+    LockContext {
+        id: lockContext
+        onUnlocked: UiState.locked = false
+    }
+
+    WlSessionLock {
+        id: sessionLock
+        locked: UiState.locked
+
+        WlSessionLockSurface {
+            LockSurface {
+                anchors.fill: parent
+                context: lockContext
+            }
+        }
+    }
+
+    // ── Idle (replaces hypridle) ──────────────────────────────────────────
+    Connections {
+        target: Idle
+        function onLockRequested() {
+            UiState.lock();
+        }
+        function onSuspendRequested() {
+            Quickshell.execDetached(["systemctl", "suspend"]);
+        }
+    }
+
+    Connections {
+        target: UiState
+        function onLockedChanged() {
+            Idle.enabled = !UiState.locked;
+        }
+    }
 
     // Track the default sink so volume changes can raise the OSD.
     PwObjectTracker {
@@ -102,6 +149,18 @@ ShellRoot {
                 (Backlight.percent + delta) / 100,
                 (Backlight.percent + delta) + "%"
             );
+        }
+
+        function lock() {
+            UiState.lock();
+        }
+
+        function openLauncher(mode: string) {
+            UiState.toggleLauncher(mode);
+        }
+
+        function screenshot() {
+            UiState.toggleScreenshot();
         }
     }
 }

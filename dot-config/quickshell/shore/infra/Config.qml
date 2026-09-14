@@ -16,4 +16,7 @@ Singleton {
     // Backlight hardware window (raw units) mapped to 0-100%.
     readonly property int brightnessRawMin: 30
     readonly property int brightnessRawMax: 30000
+
+    // Wallpaper rendered by the shell (replaces hyprpaper).
+    readonly property string wallpaper: home + "/wallpaper.jpg"
 }

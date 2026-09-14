@@ -3,3 +3,6 @@ singleton Nightlight 1.0 Nightlight.qml
 singleton Network 1.0 Network.qml
 singleton Notifications 1.0 Notifications.qml
 singleton Polkit 1.0 Polkit.qml
+singleton Idle 1.0 Idle.qml
+singleton Launcher 1.0 Launcher.qml
+singleton Clipboard 1.0 Clipboard.qml

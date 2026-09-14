@@ -48,7 +48,8 @@ local before_reload = hl:count("exec_cmd")
 if reload then
   reload.args[2]()
 end
-expect("reload re-ensures wallpaper daemon", hl:count("exec_cmd") - before_reload, 1)
+-- Quickshell owns the wallpaper, so the hyprpaper daemon is not launched.
+expect("wallpaper daemon skipped when shell owns wallpaper", hl:count("exec_cmd") - before_reload, 0)
 
 local config = require("infra.config")
 local conf = io.open(config.wallpaper.conf_path, "r")
