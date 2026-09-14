@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Networking
+import "../domain"
 
 // Network status via Quickshell's native NetworkManager backend.
 // No polling, no subprocess.
@@ -47,11 +48,44 @@ Singleton {
 
     readonly property real signal: connectedWifi ? connectedWifi.signalStrength : 0
 
+    // Sorted networks for the Wi-Fi menu.
+    readonly property var wifiNetworks: root.wifiDevice
+        ? Formatters.sortWifiNetworks(root.wifiDevice.networks.values)
+        : []
+    readonly property bool wifiScanning: root.wifiDevice
+        ? root.wifiDevice.scannerEnabled
+        : false
+
+    // ── NetworkPort ───────────────────────────────────────────────────────
     function setWifi(enabled) {
         Networking.wifiEnabled = enabled;
     }
 
     function toggleWifi() {
         Networking.wifiEnabled = !Networking.wifiEnabled;
+    }
+
+    function setScanner(enabled) {
+        if (root.wifiDevice) root.wifiDevice.scannerEnabled = enabled;
+    }
+
+    function toggleScanner() {
+        if (root.wifiDevice) root.wifiDevice.scannerEnabled = !root.wifiDevice.scannerEnabled;
+    }
+
+    function connectNetwork(network) {
+        if (network) network.connect();
+    }
+
+    function disconnectNetwork(network) {
+        if (network) network.disconnect();
+    }
+
+    function forgetNetwork(network) {
+        if (network) network.forget();
+    }
+
+    function connectWithPsk(network, psk) {
+        if (network) network.connectWithPsk(psk);
     }
 }

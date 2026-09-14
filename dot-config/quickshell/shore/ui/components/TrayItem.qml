@@ -1,11 +1,14 @@
 import QtQuick
-import Quickshell.Services.SystemTray
 import Quickshell.Widgets
+import ".."
+import "../../domain"
+import "../../infra"
+import "../../adapters"
 
 Item {
     id: root
 
-    required property SystemTrayItem item
+    required property var item
 
     implicitWidth: 18
     implicitHeight: 18
@@ -29,10 +32,10 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         hoverEnabled: true
         onClicked: mouse => {
-            if (mouse.button === Qt.LeftButton) root.item.activate();
-            else if (mouse.button === Qt.MiddleButton) root.item.secondaryActivate();
-            else if (root.item.hasMenu) root.item.display(root, mouse.x, mouse.y);
+            if (mouse.button === Qt.LeftButton) Tray.activate(root.item);
+            else if (mouse.button === Qt.MiddleButton) Tray.secondaryActivate(root.item);
+            else Tray.display(root.item, root, mouse.x, mouse.y);
         }
-        onWheel: wheel => root.item.scroll(wheel.angleDelta.y, wheel.angleDelta.x !== 0)
+        onWheel: wheel => Tray.scroll(root.item, wheel.angleDelta.y, wheel.angleDelta.x !== 0)
     }
 }

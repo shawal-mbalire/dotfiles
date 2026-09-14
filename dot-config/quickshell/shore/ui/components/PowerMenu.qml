@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Services.UPower
 import ".."
 import "../../domain"
 import "../../infra"
@@ -14,25 +13,24 @@ ColumnLayout {
 
     MenuTitle {
         title: "Power profile"
-        subtitle: PowerProfile.toString(PowerProfiles.profile)
+        subtitle: Battery.profileLabel
     }
 
     Repeater {
-        model: [
-            { "label": "Power Saver", "value": PowerProfile.PowerSaver, "accent": Theme.blue },
-            { "label": "Balanced", "value": PowerProfile.Balanced, "accent": Theme.green },
-            { "label": "Performance", "value": PowerProfile.Performance, "accent": Theme.red }
-        ]
+        model: Battery.profiles
 
         Rectangle {
             id: row
             required property var modelData
-            readonly property bool current: PowerProfiles.profile === row.modelData.value
+            readonly property bool current: Battery.profile === row.modelData.value
+            readonly property color accent: row.modelData.label === "Performance" ? Theme.red
+                : row.modelData.label === "Power Saver" ? Theme.blue
+                : Theme.green
 
             Layout.fillWidth: true
             implicitHeight: 32
             radius: Theme.radius
-            color: current ? Theme.tint(row.modelData.accent, 0.8) : Theme.tint(Theme.surface0, 0.4)
+            color: current ? Theme.tint(row.accent, 0.8) : Theme.tint(Theme.surface0, 0.4)
             border.width: 1
             border.color: Theme.tint(Theme.surface1, 0.5)
 
@@ -47,7 +45,7 @@ ColumnLayout {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: PowerProfiles.profile = row.modelData.value
+                onClicked: Battery.setProfile(row.modelData.value)
             }
         }
     }

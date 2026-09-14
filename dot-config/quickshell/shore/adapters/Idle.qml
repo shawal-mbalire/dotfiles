@@ -3,7 +3,6 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import "../domain"
 
@@ -27,10 +26,7 @@ Singleton {
         return false;
     }
 
-    readonly property bool fullscreenActive: {
-        const workspace = Hyprland.focusedWorkspace;
-        return workspace ? workspace.hasFullscreen : false;
-    }
+    readonly property bool fullscreenActive: Compositor.focusedFullscreen
 
     readonly property bool active: enabled && !mediaPlaying && !fullscreenActive
     readonly property bool idle: lockMonitor.isIdle || suspendMonitor.isIdle

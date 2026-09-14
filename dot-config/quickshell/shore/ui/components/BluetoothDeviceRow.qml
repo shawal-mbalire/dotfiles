@@ -80,9 +80,9 @@ Rectangle {
         MenuButton {
             label: root.connected ? "Disconnect" : root.paired ? "Connect" : "Pair"
             onClicked: {
-                if (root.connected) root.device.disconnect();
-                else if (root.paired) root.device.connect();
-                else root.device.pair();
+                if (root.connected) Bluetooth.disconnectDevice(root.device);
+                else if (root.paired) Bluetooth.connectDevice(root.device);
+                else Bluetooth.pairDevice(root.device);
             }
         }
     }
@@ -90,6 +90,6 @@ Rectangle {
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.RightButton
-        onClicked: if (root.paired) root.device.forget()
+        onClicked: if (root.paired) Bluetooth.forgetDevice(root.device)
     }
 }

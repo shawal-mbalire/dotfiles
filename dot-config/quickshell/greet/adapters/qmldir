@@ -1,0 +1,4 @@
+singleton Login 1.0 Login.qml
+singleton Wallpaper 1.0 Wallpaper.qml
+singleton WallpaperColors 1.0 WallpaperColors.qml
+singleton Sessions 1.0 Sessions.qml

@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell.Services.UPower
 import ".."
 import "../../domain"
 import "../../infra"
@@ -8,7 +7,7 @@ import "../../adapters"
 Pill {
     id: root
 
-    readonly property string current: PowerProfile.toString(PowerProfiles.profile)
+    readonly property string current: Battery.profileLabel
 
     icon: Theme.iconPower
     iconColor: current === "performance" ? Theme.red

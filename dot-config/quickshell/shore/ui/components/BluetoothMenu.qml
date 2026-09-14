@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Bluetooth
 import ".."
 import "../../domain"
 import "../../infra"
@@ -9,12 +8,8 @@ import "../../adapters"
 ColumnLayout {
     id: root
 
-    readonly property var adapter: Bluetooth.defaultAdapter
-    readonly property var devices: adapter
-        ? Formatters.sortBluetoothDevices(adapter.devices.values)
-        : []
-    readonly property var mine: devices.filter(d => d.connected || Formatters.isPaired(d))
-    readonly property var available: devices.filter(d => !(d.connected || Formatters.isPaired(d)))
+    readonly property var mine: Bluetooth.pairedDevices
+    readonly property var available: Bluetooth.otherDevices
 
     implicitWidth: 300
     spacing: 10
@@ -25,23 +20,23 @@ ColumnLayout {
 
         MenuTitle {
             title: "Bluetooth"
-            subtitle: !root.adapter ? "No adapter"
-                : root.adapter.enabled ? (root.adapter.name || "Adapter") + " · on"
+            subtitle: !Bluetooth.available ? "No adapter"
+                : Bluetooth.enabled ? (Bluetooth.name || "Adapter") + " · on"
                 : "Off"
         }
 
         ToggleSwitch {
-            checked: root.adapter ? root.adapter.enabled : false
-            onToggled: if (root.adapter) root.adapter.enabled = !root.adapter.enabled
+            checked: Bluetooth.enabled
+            onToggled: Bluetooth.toggle()
         }
     }
 
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: 30
-        visible: root.adapter && root.adapter.enabled
+        visible: Bluetooth.available && Bluetooth.enabled
         radius: Theme.radius
-        color: root.adapter && root.adapter.discovering
+        color: Bluetooth.discovering
             ? Theme.tint(WallpaperColors.accent, 0.8)
             : Theme.tint(Theme.surface0, 0.5)
         border.width: 1
@@ -49,22 +44,22 @@ ColumnLayout {
 
         Text {
             anchors.centerIn: parent
-            text: root.adapter && root.adapter.discovering ? "Scanning…" : "Scan for devices"
+            text: Bluetooth.discovering ? "Scanning…" : "Scan for devices"
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize
-            color: root.adapter && root.adapter.discovering ? Theme.crust : Theme.text
+            color: Bluetooth.discovering ? Theme.crust : Theme.text
         }
 
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: if (root.adapter) root.adapter.discovering = !root.adapter.discovering
+            onClicked: Bluetooth.toggleDiscovering()
         }
     }
 
     Text {
         Layout.fillWidth: true
-        visible: root.adapter && root.adapter.enabled && root.devices.length === 0
+        visible: Bluetooth.available && Bluetooth.enabled && Bluetooth.devices.length === 0
         text: "No devices yet — scan to find some"
         font.family: Theme.fontFamily
         font.pixelSize: 11

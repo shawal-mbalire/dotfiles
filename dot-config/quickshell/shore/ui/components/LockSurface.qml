@@ -6,11 +6,11 @@ import "../../domain"
 import "../../adapters"
 
 // Lock surface (one per monitor): blurred wallpaper, large clock, password box.
-// Shares state via the LockContext so all monitors stay in sync.
+// Shares state via the Auth adapter so all monitors stay in sync.
 Rectangle {
     id: root
 
-    required property LockContext context
+    required property var context
 
     color: "black"
 

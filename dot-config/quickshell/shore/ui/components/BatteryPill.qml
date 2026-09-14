@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell.Services.UPower
 import ".."
 import "../../domain"
 import "../../infra"
@@ -8,12 +7,9 @@ import "../../adapters"
 Pill {
     id: root
 
-    readonly property var battery: UPower.displayDevice
-    readonly property bool present: battery && battery.isPresent
-    readonly property int pct: battery ? Formatters.percent(battery.percentage) : 0
-    readonly property bool charging: battery
-        && (battery.state === UPowerDeviceState.Charging
-            || battery.state === UPowerDeviceState.FullyCharged)
+    readonly property bool present: Battery.present
+    readonly property int pct: Battery.percent
+    readonly property bool charging: Battery.charging
 
     visible: present
     icon: Theme.iconBattery

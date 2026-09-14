@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Networking
 import ".."
 import "../../domain"
 import "../../infra"
@@ -62,11 +61,11 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onClicked: mouse => {
             if (mouse.button === Qt.RightButton) {
-                if (root.network.known) root.network.forget();
+                if (root.network.known) Network.forgetNetwork(root.network);
                 return;
             }
-            if (root.connected) root.network.disconnect();
-            else if (root.network.known || !root.secured) root.network.connect();
+            if (root.connected) Network.disconnectNetwork(root.network);
+            else if (root.network.known || !root.secured) Network.connectNetwork(root.network);
             else root.requestPassword(root.network);
         }
     }

@@ -1,9 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Hyprland
 import ".."
 import "../../domain"
-import "../../infra"
 import "../../adapters"
 
 // Workspace buttons. Each workspace carries its own bindable data, so a plain
@@ -24,7 +22,7 @@ Rectangle {
         spacing: 2
 
         Repeater {
-            model: Hyprland.workspaces
+            model: Compositor.workspaces
 
             Rectangle {
                 id: ws
@@ -49,7 +47,7 @@ Rectangle {
 
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: ws.modelData.activate()
+                    onClicked: Compositor.activateWorkspace(ws.modelData)
                 }
             }
         }

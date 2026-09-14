@@ -13,6 +13,9 @@ Singleton {
     readonly property string helper: home + "/.config/waybar/scripts/main.py"
     readonly property string displayToggle: home + "/.config/hypr/scripts/toggle_display.py"
 
+    // Audio filter tweaker (a PipeWire filter-chain front end).
+    readonly property string audioTweaker: "easyeffects"
+
     // Backlight hardware window (raw units) mapped to 0-100%.
     readonly property int brightnessRawMin: 30
     readonly property int brightnessRawMax: 30000
@@ -21,4 +24,10 @@ Singleton {
     // the stowed ~/wallpapers folder; `wallpaper` is the fallback when empty.
     readonly property string wallpaper: home + "/wallpapers/wallpaper.jpg"
     readonly property string wallpaperDir: home + "/wallpapers"
+
+    // Shared, world-readable copy of the current wallpaper. The greeter
+    // (dot-config/quickshell/greet) reads this before login, so the login
+    // screen matches the desktop. Written by adapters/Wallpaper.qml; the
+    // directory is created by greet/setup/install.sh.
+    readonly property string greeterWallpaper: "/var/lib/greetd/wallpaper/current"
 }

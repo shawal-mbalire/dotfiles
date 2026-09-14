@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Services.SystemTray
 import ".."
 import "../../domain"
 import "../../infra"
@@ -9,9 +8,7 @@ import "../../adapters"
 Rectangle {
     id: root
 
-    readonly property var items: SystemTray.items.values
-
-    visible: items.length > 0
+    visible: Tray.items.length > 0
     implicitWidth: row.implicitWidth + 12
     implicitHeight: Theme.barHeight - 6
     radius: Theme.radius
@@ -25,7 +22,7 @@ Rectangle {
         spacing: 6
 
         Repeater {
-            model: SystemTray.items
+            model: Tray.items
             TrayItem {
                 required property var modelData
                 item: modelData

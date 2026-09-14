@@ -2,7 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Services.Pipewire
 import "domain"
 import "infra"
 import "adapters"
@@ -21,13 +20,22 @@ ShellRoot {
 
     Component.onCompleted: {
         Verify.assertPorts([
+            { adapter: Audio, methods: Verify.audioPort, name: "AudioPort" },
+            { adapter: Auth, methods: Verify.authPort, name: "AuthPort" },
             { adapter: Backlight, methods: Verify.brightnessPort, name: "BrightnessPort" },
-            { adapter: Nightlight, methods: Verify.nightlightPort, name: "NightlightPort" },
+            { adapter: Battery, methods: Verify.batteryPort, name: "BatteryPort" },
+            { adapter: Bluetooth, methods: Verify.bluetoothPort, name: "BluetoothPort" },
+            { adapter: Compositor, methods: Verify.compositorPort, name: "CompositorPort" },
+            { adapter: Clipboard, methods: Verify.clipboardPort, name: "ClipboardPort" },
+            { adapter: Launcher, methods: Verify.launcherPort, name: "LauncherPort" },
+            { adapter: Media, methods: Verify.mediaPort, name: "MediaPort" },
             { adapter: Network, methods: Verify.networkPort, name: "NetworkPort" },
+            { adapter: Nightlight, methods: Verify.nightlightPort, name: "NightlightPort" },
             { adapter: Notifications, methods: Verify.notificationsPort, name: "NotificationPort" },
             { adapter: Polkit, methods: Verify.polkitPort, name: "PolkitPort" },
-            { adapter: Launcher, methods: Verify.launcherPort, name: "LauncherPort" },
-            { adapter: Clipboard, methods: Verify.clipboardPort, name: "ClipboardPort" },
+            { adapter: Screenshots, methods: Verify.screenshotsPort, name: "ScreenshotsPort" },
+            { adapter: Session, methods: Verify.sessionPort, name: "SessionPort" },
+            { adapter: Tray, methods: Verify.trayPort, name: "TrayPort" },
             { adapter: Wallpaper, methods: Verify.wallpaperPort, name: "WallpaperPort" }
         ]);
         Idle.enabled = !UiState.locked;
@@ -53,10 +61,15 @@ ShellRoot {
     // Turns UPower changes into battery threshold notifications.
     BatteryAlerts {}
 
+    // Raises the volume OSD on default-sink changes.
+    VolumeOsd {}
+
     // ── Session lock ──────────────────────────────────────────────────────
-    LockContext {
-        id: lockContext
-        onUnlocked: UiState.locked = false
+    Connections {
+        target: Auth
+        function onUnlocked() {
+            UiState.locked = false;
+        }
     }
 
     WlSessionLock {
@@ -66,7 +79,7 @@ ShellRoot {
         WlSessionLockSurface {
             LockSurface {
                 anchors.fill: parent
-                context: lockContext
+                context: Auth
             }
         }
     }
@@ -78,7 +91,7 @@ ShellRoot {
             UiState.lock();
         }
         function onSuspendRequested() {
-            Quickshell.execDetached(["systemctl", "suspend"]);
+            Session.suspend();
         }
     }
 
@@ -87,31 +100,6 @@ ShellRoot {
         function onLockedChanged() {
             Idle.enabled = !UiState.locked;
         }
-    }
-
-    // Track the default sink so volume changes can raise the OSD.
-    PwObjectTracker {
-        objects: [ Pipewire.defaultAudioSink ]
-    }
-
-    Connections {
-        target: Pipewire.defaultAudioSink ? Pipewire.defaultAudioSink.audio : null
-        function onVolumeChanged() {
-            root.showAudioOsd();
-        }
-        function onMutedChanged() {
-            root.showAudioOsd();
-        }
-    }
-
-    function showAudioOsd() {
-        const sink = Pipewire.defaultAudioSink;
-        if (!sink || !sink.audio) return;
-        UiState.showOsd(
-            sink.audio.muted ? Theme.iconVolumeMuted : Theme.iconVolume,
-            sink.audio.volume,
-            sink.audio.muted ? "muted" : Formatters.percent(sink.audio.volume) + "%"
-        );
     }
 
     // Called by Hyprland keybinds: `qs -c shore ipc call quickshell <function>`.

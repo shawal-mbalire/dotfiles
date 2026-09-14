@@ -11,24 +11,13 @@ Major packages required for this dotfiles configuration.
 | Multiplexer | `tmux` | Terminal multiplexer |
 | Editor | `nvim` | Neovim (configured via LazyVim) |
 | Compositor | `hyprland` | Wayland compositor |
-| Shell | `quickshell` | Bar + notifications + control center + OSD (replaces waybar/swaync/swayosd) |
-| Bar | `waybar` | Status bar (legacy, replaced by quickshell) |
-| Launcher | `fuzzel` | Application launcher |
-| Notifications | `swaync` | Notification daemon (legacy, replaced by quickshell) |
+| Login | `greetd` | Display manager (replaces gdm; see `dot-config/quickshell/greet`) |
+| Login | `cage` | Kiosk compositor that hosts the Quickshell login greeter |
+| Shell | `quickshell` | Bar + notifications + control center + OSD + lock + wallpaper + idle + polkit (replaces waybar/swaync/swayosd/hyprlock/hyprpaper/hypridle/hyprpolkitagent/grimblast/fuzzel) |
 | File Manager | `nautilus` | GUI file manager |
 | Git TUI | `lazygit` | Git interface |
 | Git | `git` | Version control |
 | GitHub CLI | `gh` | GitHub commands |
-
-## Hyprland Ecosystem
-
-| Package | Description |
-|---------|-------------|
-| `hyprlock` | Screen locker |
-| `hyprpaper` | Wallpaper daemon |
-| `hypridle` | Idle manager |
-| `hyprpolkitagent` | Polkit authentication |
-| `hyprsunset` | Blue light filter |
 
 ## System Utilities
 
@@ -36,10 +25,9 @@ Major packages required for this dotfiles configuration.
 |---------|-------------|
 | `wl-clipboard` | Wayland clipboard (wl-paste, wl-copy) |
 | `cliphist` | Clipboard history |
-| `grimblast` | Screenshot tool |
 | `brightnessctl` | Backlight control |
 | `playerctl` | Media player control |
-| `pavucontrol` | PulseAudio volume control |
+| `easyeffects` | Audio filter/effects tweaker (PipeWire), launched from the audio menu |
 | `network-manager-applet` | Network tray (nm-applet) |
 | `blueman` | Bluetooth manager |
 
@@ -66,27 +54,24 @@ Major packages required for this dotfiles configuration.
 ### Fedora
 ```sh
 sudo dnf install fish kitty tmux git lazygit \
-  quickshell waybar fuzzel wl-clipboard cliphist grimblast \
-  gammastep brightnessctl playerctl pavucontrol \
-  network-manager-applet blueman swaync nautilus \
-  hyprland hyprlock hypridle hyprpolkitagent hyprpaper \
+  quickshell wl-clipboard cliphist easyeffects \
+  gammastep brightnessctl playerctl \
+  network-manager-applet blueman nautilus \
+  hyprland greetd cage fprintd-pam \
   lua lua-devel luarocks go \
   jetbrains-mono-fonts
 
-# Enable Hyprland COPR
+# Enable Hyprland COPR (provides quickshell and hyprland on Fedora)
 sudo dnf copr enable lionheartp/Hyprland
-
-# Enable SwayNC COPR
-sudo dnf copr enable erikreider/SwayNotificationCenter
 ```
 
 ### Arch Linux
 ```sh
 sudo pacman -S fish kitty tmux git lazygit \
-  waybar fuzzel wl-clipboard cliphist grimblast \
-  gammastep brightnessctl playerctl pavucontrol \
-  network-manager-applet blueman swaync nautilus \
-  hyprland hyprlock hypridle hyprpolkitagent hyprpaper \
+  quickshell wl-clipboard cliphist easyeffects \
+  gammastep brightnessctl playerctl \
+  network-manager-applet blueman nautilus \
+  hyprland greetd cage fprintd \
   lua luarocks go \
   ttf-jetbrains-mono-nerd ttf-sono
 ```
@@ -94,12 +79,12 @@ sudo pacman -S fish kitty tmux git lazygit \
 ### Debian/Ubuntu
 ```sh
 sudo apt install fish kitty tmux git lazygit \
-  waybar fuzzel wl-clipboard cliphist \
-  brightnessctl playerctl pavucontrol \
-  network-manager-gnome blueman swaync nautilus \
+  wl-clipboard cliphist easyeffects \
+  brightnessctl playerctl \
+  network-manager-gnome blueman nautilus \
   fonts-jetbrains-mono
 
-# Hyprland may need to be built from source
+# quickshell, hyprland and greetd may need to be built from source
 ```
 
 ## Flatpaks

@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Services.Mpris
 import ".."
 import "../../domain"
 import "../../infra"
@@ -9,8 +8,7 @@ import "../../adapters"
 Rectangle {
     id: root
 
-    readonly property var players: Mpris.players.values
-    readonly property var player: players.length > 0 ? players[0] : null
+    readonly property var player: Media.current
 
     visible: player !== null
     implicitHeight: visible ? content.implicitHeight + 16 : 0
@@ -84,20 +82,20 @@ Rectangle {
             MediaButton {
                 icon: "\uF048"
                 enabled: root.player && root.player.canGoPrevious
-                onTriggered: if (root.player) root.player.previous()
+                onTriggered: Media.previous()
             }
 
             MediaButton {
                 icon: root.player && root.player.isPlaying ? "\uF04C" : "\uF04B"
                 active: true
                 enabled: root.player && root.player.canTogglePlaying
-                onTriggered: if (root.player) root.player.togglePlaying()
+                onTriggered: Media.togglePlaying()
             }
 
             MediaButton {
                 icon: "\uF051"
                 enabled: root.player && root.player.canGoNext
-                onTriggered: if (root.player) root.player.next()
+                onTriggered: Media.next()
             }
 
             Item { Layout.fillWidth: true }

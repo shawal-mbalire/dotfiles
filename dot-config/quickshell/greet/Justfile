@@ -1,0 +1,23 @@
+# greet — Quickshell login greeter DX
+
+root := justfile_directory()
+qml := '{{root}}/shell.qml {{root}}/domain/*.qml {{root}}/infra/*.qml {{root}}/ports/*.qml {{root}}/adapters/*.qml {{root}}/ui/*.qml'
+
+default:
+    @just --list
+
+# Install greetd + cage, publish the greeter, seed the wallpaper (needs root)
+install:
+    sudo {{root}}/setup/install.sh
+
+# Try greetd on a spare VT (7) while the current display manager is active
+test:
+    sudo {{root}}/setup/test.sh
+
+# Make greetd the display manager (disables gdm; reboot to apply)
+switch:
+    sudo {{root}}/setup/switch.sh
+
+# Lint every QML file (needs qt6-qtdeclarative-devel)
+lint:
+    qmllint -I /usr/lib64/qt6/qml {{qml}}

@@ -48,6 +48,8 @@ Singleton {
     readonly property string iconWired: "\uF6FF"
     readonly property string iconVolume: "\uF028"
     readonly property string iconVolumeMuted: "\uF026"
+    readonly property string iconHeadphones: "\uF025"
+    readonly property string iconMicrophone: "\uF130"
     readonly property string iconBrightness: "\uF185"
     readonly property string iconBattery: "\uF240"
     readonly property string iconBluetooth: "\uF293"

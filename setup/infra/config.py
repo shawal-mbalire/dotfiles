@@ -17,13 +17,7 @@ class CoprRepo:
 
 
 COPR_REPOS = {
-    "swaync": CoprRepo(name="SwayNotificationCenter", owner="erikreider"),
     "hyprland": CoprRepo(name="Hyprland", owner="lionheartp"),
-    "hyprlock": CoprRepo(name="Hyprland", owner="lionheartp"),
-    "hypridle": CoprRepo(name="Hyprland", owner="lionheartp"),
-    "hyprpaper": CoprRepo(name="Hyprland", owner="lionheartp"),
-    "hyprpolkitagent": CoprRepo(name="Hyprland", owner="lionheartp"),
-    "hyprsunset": CoprRepo(name="Hyprland", owner="lionheartp"),
 }
 
 PACKAGES = [
@@ -40,25 +34,22 @@ PACKAGES = [
 
     # ── Hyprland ────────────────────────────────────────────────────────────
     Package(name="hyprland",        dnf="hyprland",        copr="lionheartp/Hyprland"),
-    Package(name="hyprlock",        dnf="hyprlock",        copr="lionheartp/Hyprland"),
-    Package(name="hypridle",        dnf="hypridle",        copr="lionheartp/Hyprland"),
-    Package(name="hyprpaper",       dnf="hyprpaper",       copr="lionheartp/Hyprland",
-             user="cargo install --git https://github.com/hyprwm/hyprpaper.git"),
-    Package(name="hyprpolkitagent", dnf="hyprpolkitagent", copr="lionheartp/Hyprland"),
-    Package(name="hyprsunset",      dnf="hyprsunset",      copr="lionheartp/Hyprland"),
+
+    # ── Login (Quickshell greeter replaces gdm) ─────────────────────────────
+    Package(name="greetd",          dnf="greetd"),
+    Package(name="cage",            dnf="cage"),
+    Package(name="fprintd-pam",     dnf="fprintd-pam"),
 
     # ── Desktop ─────────────────────────────────────────────────────────────
-    Package(name="waybar",      dnf="waybar"),
-    Package(name="swaync",      dnf="swaync",
-             copr="erikreider/SwayNotificationCenter"),
-    Package(name="fuzzel",      dnf="fuzzel"),
+    # Bar, notifications, OSD, launcher, lock, idle, wallpaper, polkit and
+    # screenshots are all owned by Quickshell now (dot-config/quickshell/shore).
+    Package(name="quickshell",  dnf="quickshell",  copr="lionheartp/Hyprland"),
+    Package(name="easyeffects", dnf="easyeffects"),
     Package(name="wl-clipboard", dnf="wl-clipboard", brew="wl-clipboard"),
     Package(name="cliphist",    dnf="cliphist"),
-    Package(name="grimblast",   dnf="grimblast"),
     Package(name="gammastep",   dnf="gammastep",   brew="gammastep"),
     Package(name="brightnessctl", dnf="brightnessctl", brew="brightnessctl"),
     Package(name="playerctl",   dnf="playerctl",   brew="playerctl"),
-    Package(name="pavucontrol", dnf="pavucontrol", brew="pavucontrol"),
     Package(name="NetworkManager-applet", dnf="network-manager-applet"),
     Package(name="blueman",     dnf="blueman"),
     Package(name="nautilus",    dnf="nautilus"),

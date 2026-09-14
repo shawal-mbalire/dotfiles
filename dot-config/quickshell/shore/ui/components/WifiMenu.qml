@@ -1,26 +1,17 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Networking
 import ".."
 import "../../domain"
 import "../../infra"
 import "../../adapters"
 
 // Wi-Fi management: power, scan, pick a network, enter a password inline.
+// All NetworkManager access goes through the Network adapter.
 ColumnLayout {
     id: root
 
-    readonly property var device: {
-        const devices = Networking.devices.values;
-        for (let i = 0; i < devices.length; i++)
-            if (devices[i].type === DeviceType.Wifi) return devices[i];
-        return null;
-    }
-
-    readonly property var networks: {
-        if (!device) return [];
-        return Formatters.sortWifiNetworks(device.networks.values);
-    }
+    readonly property var device: Network.wifiDevice
+    readonly property var networks: Network.wifiNetworks
 
     property var passwordTarget: null
 
@@ -34,13 +25,13 @@ ColumnLayout {
         MenuTitle {
             title: "Wi-Fi"
             subtitle: !root.device ? "No device"
-                : Networking.wifiEnabled ? (root.device.name || "On")
+                : Network.wifiEnabled ? (root.device.name || "On")
                 : "Off"
         }
 
         ToggleSwitch {
-            checked: Networking.wifiEnabled
-            onToggled: Networking.wifiEnabled = !Networking.wifiEnabled
+            checked: Network.wifiEnabled
+            onToggled: Network.toggleWifi()
         }
     }
 
@@ -56,9 +47,9 @@ ColumnLayout {
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: 30
-        visible: root.device && Networking.wifiEnabled
+        visible: root.device && Network.wifiEnabled
         radius: Theme.radius
-        color: root.device && root.device.scannerEnabled
+        color: Network.wifiScanning
             ? Theme.tint(WallpaperColors.accent, 0.8)
             : Theme.tint(Theme.surface0, 0.5)
         border.width: 1
@@ -66,16 +57,16 @@ ColumnLayout {
 
         Text {
             anchors.centerIn: parent
-            text: root.device && root.device.scannerEnabled ? "Scanning…" : "Scan for networks"
+            text: Network.wifiScanning ? "Scanning…" : "Scan for networks"
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize
-            color: root.device && root.device.scannerEnabled ? Theme.crust : Theme.text
+            color: Network.wifiScanning ? Theme.crust : Theme.text
         }
 
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: if (root.device) root.device.scannerEnabled = !root.device.scannerEnabled
+            onClicked: Network.toggleScanner()
         }
     }
 
@@ -150,7 +141,7 @@ ColumnLayout {
 
     Text {
         Layout.fillWidth: true
-        visible: root.device && Networking.wifiEnabled && root.networks.length === 0
+        visible: root.device && Network.wifiEnabled && root.networks.length === 0
         text: "No networks — scan to find some"
         font.family: Theme.fontFamily
         font.pixelSize: 11
@@ -184,7 +175,7 @@ ColumnLayout {
 
     function submitPassword() {
         if (!root.passwordTarget) return;
-        root.passwordTarget.connectWithPsk(passwordInput.text);
+        Network.connectWithPsk(root.passwordTarget, passwordInput.text);
         root.passwordTarget = null;
         passwordInput.text = "";
     }

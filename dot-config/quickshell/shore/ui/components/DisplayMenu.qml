@@ -1,74 +1,35 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Io
 import ".."
 import "../../domain"
-import "../../infra"
 import "../../adapters"
 
 // Monitor management: list outputs, disable/enable, flip mirror/extend.
+// All hyprctl access lives in the Compositor adapter; this surface only ticks
+// a refresh timer and renders.
 ColumnLayout {
     id: root
-
-    property var monitors: []
 
     implicitWidth: 296
     spacing: 6
 
-    function refresh() {
-        if (!proc.running) proc.running = true;
-    }
-
-    function monitorEval(expr) {
-        evalProc.command = ["hyprctl", "eval", expr];
-        evalProc.running = true;
-    }
-
-    function setDisabled(name, disabled) {
-        if (disabled)
-            monitorEval('hl.monitor({ output = "' + name + '", disabled = true })');
-        else
-            monitorEval('hl.monitor({ output = "' + name + '", mode = "highres", position = "auto", scale = 1 })');
-    }
-
-    Component.onCompleted: refresh()
-
-    Process {
-        id: proc
-        command: ["hyprctl", "-j", "monitors", "all"]
-        stdout: StdioCollector {
-            id: out
-            onStreamFinished: {
-                try {
-                    root.monitors = JSON.parse(out.text) || [];
-                } catch (e) {
-                    root.monitors = [];
-                }
-            }
-        }
-    }
-
-    Process {
-        id: evalProc
-        stdout: StdioCollector {}
-        onExited: root.refresh()
-    }
+    Component.onCompleted: Compositor.refreshMonitors()
 
     Timer {
         interval: 3000
         running: true
         repeat: true
-        onTriggered: root.refresh()
+        onTriggered: Compositor.refreshMonitors()
     }
 
     MenuTitle {
         title: "Displays"
-        subtitle: root.monitors.length + (root.monitors.length === 1 ? " output" : " outputs")
+        subtitle: Compositor.monitors.length
+            + (Compositor.monitors.length === 1 ? " output" : " outputs")
     }
 
     Repeater {
-        model: root.monitors
+        model: Compositor.monitors
 
         Rectangle {
             id: row
@@ -120,15 +81,15 @@ ColumnLayout {
                     }
 
                     MenuButton {
-                        visible: !row.disabled && root.monitors.length > 1
+                        visible: !row.disabled && Compositor.monitors.length > 1
                         label: "Disable"
-                        onClicked: root.setDisabled(row.modelData.name, true)
+                        onClicked: Compositor.setMonitorDisabled(row.modelData.name, true)
                     }
 
                     MenuButton {
                         visible: row.disabled
                         label: "Enable"
-                        onClicked: root.setDisabled(row.modelData.name, false)
+                        onClicked: Compositor.setMonitorDisabled(row.modelData.name, false)
                     }
                 }
 
@@ -154,6 +115,6 @@ ColumnLayout {
     MenuButton {
         Layout.fillWidth: true
         label: "Mirror / Extend"
-        onClicked: Quickshell.execDetached([Config.displayToggle])
+        onClicked: Compositor.toggleMirror()
     }
 }

@@ -1,33 +1,23 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Services.Pipewire
 import ".."
 import "../../domain"
 import "../../infra"
 import "../../adapters"
 
-// Output + input device management. Rows select the default device and expose
-// per-device volume/mute natively through Pipewire.
+// Output + input device management. Devices are grouped under their parent
+// sound card (see domain/AudioGroups.qml) so multi-port cards read as one
+// device with ports. The audio adapter owns selection and volume.
 ColumnLayout {
     id: root
-
-    readonly property var devices: Pipewire.nodes.values.filter(n => n.audio && !n.isStream)
-    readonly property var sinks: devices.filter(n => n.isSink)
-    readonly property var sources: devices.filter(n => !n.isSink)
-    readonly property int sinkId: Pipewire.defaultAudioSink ? Pipewire.defaultAudioSink.id : -1
-    readonly property int sourceId: Pipewire.defaultAudioSource ? Pipewire.defaultAudioSource.id : -1
 
     implicitWidth: 296
     spacing: 6
 
-    // Bind every device so its audio iface is readable/writable.
-    PwObjectTracker {
-        objects: root.devices
-    }
-
     MenuTitle {
         title: "Audio"
-        subtitle: root.sinks.length + " outputs · " + root.sources.length + " inputs"
+        subtitle: Audio.outputGroups.length + " outputs · "
+            + Audio.inputGroups.length + " inputs"
     }
 
     SectionLabel {
@@ -36,19 +26,17 @@ ColumnLayout {
     }
 
     Repeater {
-        model: root.sinks
-        AudioDeviceRow {
+        model: Audio.outputGroups
+        AudioGroupSection {
             required property var modelData
-            Layout.fillWidth: true
-            node: modelData
-            selected: modelData.id === root.sinkId
-            onActivate: Pipewire.preferredDefaultAudioSink = modelData
+            group: modelData
+            sinks: true
         }
     }
 
     Text {
         Layout.fillWidth: true
-        visible: root.sinks.length === 0
+        visible: Audio.outputGroups.length === 0
         text: "No output devices"
         font.family: Theme.fontFamily
         font.pixelSize: 11
@@ -68,22 +56,39 @@ ColumnLayout {
     }
 
     Repeater {
-        model: root.sources
-        AudioDeviceRow {
+        model: Audio.inputGroups
+        AudioGroupSection {
             required property var modelData
-            Layout.fillWidth: true
-            node: modelData
-            selected: modelData.id === root.sourceId
-            onActivate: Pipewire.preferredDefaultAudioSource = modelData
+            group: modelData
+            sinks: false
         }
     }
 
     Text {
         Layout.fillWidth: true
-        visible: root.sources.length === 0
+        visible: Audio.inputGroups.length === 0
         text: "No input devices"
         font.family: Theme.fontFamily
         font.pixelSize: 11
         color: Theme.overlay0
+    }
+
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.topMargin: 4
+        implicitHeight: 1
+        color: Theme.tint(Theme.surface1, 0.5)
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.topMargin: 4
+
+        Item { Layout.fillWidth: true }
+
+        MenuButton {
+            label: "Audio effects"
+            onClicked: Audio.openTweaker()
+        }
     }
 }

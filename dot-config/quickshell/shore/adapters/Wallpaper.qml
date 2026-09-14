@@ -31,6 +31,32 @@ Singleton {
         root.index = (root.index - 1 + images.length) % images.length;
     }
 
+    // Mirror the current wallpaper to the greeter's shared location so the
+    // login screen matches the desktop. Best-effort: failures (greeter not
+    // installed, unwritable /var/lib/greetd) are ignored.
+    function syncWallpaper() {
+        if (root.current === "" || sync.running) return;
+        sync._src = root.current;
+        sync.running = true;
+    }
+
+    onCurrentChanged: syncWallpaper()
+
+    Process {
+        id: sync
+        property string _src: ""
+        command: ["sh", "-c",
+            "{ cp -f -- \"$1\" \"$2\" && chmod 0640 -- \"$2\"; } 2>/dev/null || true",
+            "sh", _src, Config.greeterWallpaper]
+        // If the wallpaper changed while copying, run again with the new one.
+        onExited: {
+            if (root.current !== "" && root.current !== _src) {
+                _src = root.current;
+                running = true;
+            }
+        }
+    }
+
     Process {
         id: listProc
         command: ["sh", "-c",
@@ -46,7 +72,10 @@ Singleton {
         }
     }
 
-    Component.onCompleted: refresh()
+    Component.onCompleted: {
+        refresh();
+        syncWallpaper();
+    }
 
     // Pick up images added to the folder while the shell is running.
     Timer {

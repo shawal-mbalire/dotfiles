@@ -74,6 +74,6 @@ PanelWindow {
         BacklightPill {}
         BatteryPill {}
         BluetoothPill {}
-        Tray {}
+        TrayCluster {}
     }
 }

@@ -1,9 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Bluetooth
-import Quickshell.Hyprland
-import Quickshell.Services.Pipewire
 import "../components"
 import ".."
 import "../../domain"
@@ -31,8 +28,8 @@ LazyLoader {
         Rectangle {
             id: panel
 
-            readonly property var sink: Pipewire.defaultAudioSink
-            readonly property var audio: sink ? sink.audio : null
+            readonly property var sink: Audio.defaultSink
+            readonly property var audio: Audio.defaultSinkAudio
 
             anchors.fill: parent
             implicitHeight: content.implicitHeight + 24
@@ -40,10 +37,6 @@ LazyLoader {
             color: Theme.tint(Theme.mantle, 0.97)
             border.width: 1
             border.color: Theme.tint(Theme.surface1, 0.6)
-
-            PwObjectTracker {
-                objects: [ panel.sink ]
-            }
 
             ColumnLayout {
                 id: content
@@ -73,7 +66,7 @@ LazyLoader {
                         Layout.fillWidth: true
                         icon: Theme.iconBluetooth
                         label: "Bluetooth"
-                        active: Bluetooth.defaultAdapter ? Bluetooth.defaultAdapter.enabled : false
+                        active: Bluetooth.enabled
                         accent: WallpaperColors.accent
                         onToggled: UiState.toggleMenu("bluetooth")
                     }
@@ -98,7 +91,7 @@ LazyLoader {
 
                     ToggleTile {
                         Layout.fillWidth: true
-                        visible: Hyprland.monitors.values.length > 1
+                        visible: Compositor.monitorCount > 1
                         icon: "\uF108"
                         label: "Displays"
                         active: false
@@ -117,7 +110,7 @@ LazyLoader {
                     onMoved: value => {
                         if (panel.audio) {
                             panel.audio.muted = false;
-                            panel.audio.volume = value;
+                            Audio.setVolume(panel.sink, value);
                         }
                     }
                 }
@@ -198,11 +191,11 @@ LazyLoader {
 
                     Repeater {
                         model: [
-                            { "icon": "\uF023", "cmd": ["hyprlock"] },
-                            { "icon": "\uF2F5", "cmd": ["hyprctl", "dispatch", "exit"] },
-                            { "icon": "\uF021", "cmd": ["systemctl", "reboot"] },
-                            { "icon": "\u23FB", "cmd": ["systemctl", "poweroff"] },
-                            { "icon": "\uF186", "cmd": ["systemctl", "suspend"] }
+                            { "icon": "\uF023", "action": "lock" },
+                            { "icon": "\uF2F5", "action": "logout" },
+                            { "icon": "\uF021", "action": "reboot" },
+                            { "icon": "\u23FB", "action": "poweroff" },
+                            { "icon": "\uF186", "action": "suspend" }
                         ]
 
                         Rectangle {
@@ -226,7 +219,14 @@ LazyLoader {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Quickshell.execDetached(powerButton.modelData.cmd)
+                                onClicked: {
+                                    const action = powerButton.modelData.action;
+                                    if (action === "lock") UiState.lock();
+                                    else if (action === "logout") Compositor.logout();
+                                    else if (action === "reboot") Session.reboot();
+                                    else if (action === "poweroff") Session.poweroff();
+                                    else if (action === "suspend") Session.suspend();
+                                }
                             }
                         }
                     }

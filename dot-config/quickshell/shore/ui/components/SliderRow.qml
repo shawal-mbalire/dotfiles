@@ -34,35 +34,11 @@ Rectangle {
             color: Theme.subtext1
         }
 
-        Rectangle {
-            id: track
+        Slider {
             Layout.fillWidth: true
-            implicitHeight: 6
-            radius: 3
-            color: Theme.tint(Theme.surface1, 0.8)
-
-            Rectangle {
-                anchors {
-                    left: parent.left
-                    top: parent.top
-                    bottom: parent.bottom
-                }
-                width: parent.width * Math.max(0, Math.min(1, root.value))
-                radius: parent.radius
-                color: root.accent
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                preventStealing: true
-                function emit(x) {
-                    root.moved(Math.max(0, Math.min(1, x / width)));
-                }
-                onClicked: mouse => emit(mouse.x)
-                onPositionChanged: mouse => {
-                    if (pressed) emit(mouse.x);
-                }
-            }
+            value: root.value
+            accent: root.accent
+            onMoved: v => root.moved(v)
         }
 
         Text {

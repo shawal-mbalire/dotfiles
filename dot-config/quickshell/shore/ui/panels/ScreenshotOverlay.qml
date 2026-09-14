@@ -6,7 +6,6 @@ import "../components"
 import "../../domain"
 import "../../adapters"
 import "../../infra"
-
 // Region screenshot overlay. Captures the screen, lets the user drag a
 // rectangle, then saves it and copies it to the clipboard. Replaces grimblast.
 LazyLoader {
@@ -46,10 +45,7 @@ LazyLoader {
             region.width = w;
             region.height = h;
             region.grabToImage(result => {
-                const dir = Config.home + "/" + Constants.screenshotDir;
-                const path = dir + "/shot-" + Date.now() + ".png";
-                result.saveToFile(path);
-                Quickshell.execDetached(["sh", "-c", 'mkdir -p "$(dirname "$1")"; wl-copy < "$1"', "sh", path]);
+                Screenshots.capture(result);
                 UiState.closeScreenshot();
             });
         }

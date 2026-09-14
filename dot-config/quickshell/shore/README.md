@@ -11,28 +11,45 @@ shore/
 ├── domain/                # pure: no I/O
 │   ├── Theme.qml          #   palette, fonts, metrics, glyphs
 │   ├── Formatters.qml     #   pure presentation logic (percent, sorting, labels)
+│   ├── AudioGroups.qml    #   pure audio device grouping/labelling (group by card)
 │   └── Constants.qml      #   named constants (thresholds, enum mirrors, steps)
 ├── infra/
 │   └── Config.qml         # deployment config (paths, hardware window); only env reader
 ├── ports/
-│   └── Verify.qml         # adapter contracts, asserted at startup
+│   ├── Verify.qml         # adapter contracts, asserted at startup
+│   └── Measure.qml        # TimePort: measures IPC operations against the budget
 ├── adapters/              # driven adapters: system access
+│   ├── Audio.qml          #   AudioPort (Pipewire; groups a card's ports under it)
+│   ├── Auth.qml           #   AuthPort (PAM lock: fingerprint first, password fallback)
 │   ├── Backlight.qml      #   BrightnessPort (brightnessctl)
+│   ├── Battery.qml        #   BatteryPort (UPower battery + power profiles)
+│   ├── Bluetooth.qml      #   BluetoothPort (Quickshell.Bluetooth)
+│   ├── Clipboard.qml      #   ClipboardPort (cliphist history)
+│   ├── Compositor.qml     #   CompositorPort (Hyprland: workspaces, monitors, logout)
+│   ├── Idle.qml           #   idle detection (replaces hypridle)
+│   ├── Launcher.qml       #   LauncherPort (DesktopEntries app catalog)
+│   ├── Media.qml          #   MediaPort (MPRIS transport)
+│   ├── Network.qml        #   NetworkPort (Quickshell.Networking)
 │   ├── Nightlight.qml     #   NightlightPort (gammastep via the waybar helper)
-│   ├── Network.qml        #   NetworkPort (native Quickshell.Networking)
 │   ├── Notifications.qml  #   NotificationPort (NotificationServer; replaces swaync)
 │   ├── Polkit.qml         #   PolkitPort (auth agent; replaces hyprpolkitagent)
-│   ├── Idle.qml           #   idle detection (replaces hypridle)
-│   ├── Launcher.qml       #   DesktopEntries app catalog
-│   └── Clipboard.qml      #   cliphist history
-└── ui/                    # driving adapters: presentation
+│   ├── Screenshots.qml    #   ScreenshotsPort (region capture save + clipboard)
+│   ├── Session.qml        #   SessionPort (suspend/reboot/poweroff)
+│   ├── Tray.qml           #   TrayPort (SystemTray)
+│   ├── Wallpaper.qml      #   WallpaperPort (replaces hyprpaper)
+│   └── WallpaperColors.qml#   wallpaper-derived accent palette
+└── ui/                    # driving adapters: presentation (no service access)
     ├── UiState.qml        #   panel/menu/OSD state
     ├── components/        #   bar widgets, menus, lock surface, wallpaper, reusable parts
     └── panels/            #   control center, menus, notifications, OSD, polkit, launcher, screenshot
 ```
 
 Dependencies point inward: `ui → ports → domain`, and `adapters → domain`.
-The composition root is the only place that knows every layer.
+Every driven adapter is checked against a contract in `ports/Verify.qml` at
+startup, so a drifted adapter fails loud. The `ui` layer imports no Quickshell
+service (`Quickshell.Services.*`, `.Networking`, `.Bluetooth`, `.Hyprland`) and
+does no I/O; it talks to the shell only through the adapters. The composition
+root is the only place that knows every layer.
 
 ## Performance budget
 
@@ -132,7 +149,7 @@ Available IPC functions: `toggleBar`, `toggleControlCenter`, `closePanels`,
 
 ## Session surfaces
 
-- **Lock** (`ui/components/LockSurface.qml` + `LockContext.qml`): `WlSessionLock`
+- **Lock** (`ui/components/LockSurface.qml` + `adapters/Auth.qml`): `WlSessionLock`
   surface per monitor, PAM auth via `Quickshell.Services.Pam` with a local
   `pam/password.conf`. The background is the current wallpaper blurred
   (`MultiEffect`), with a large clock. Idle locks it after
@@ -179,9 +196,13 @@ a scan button. Power is a switch **inside the menu**, so it can't be toggled by
 a stray bar click.
 
 The audio menu manages **outputs and inputs** (select default, per-device
-volume + mute) via Pipewire. The control center shows a **Displays** tile when
-more than one monitor is attached, opening a monitor menu (disable/enable,
-mirror/extend).
+volume + mute) via Pipewire, grouping every node of a sound card under one
+device — an onboard card shows as "HD Audio" with Speaker/HDMI ports as sub-rows
+instead of a flat list. Any horizontal slider uses the shared draggable
+`Slider` component. An **Audio effects** button launches EasyEffects (a PipeWire
+filter-chain front end) for EQ/filter tweaking. The control center shows a
+**Displays** tile when more than one monitor is attached, opening a monitor menu
+(disable/enable, mirror/extend).
 
 The Wi-Fi menu (left-click the network pill) toggles the radio, scans, lists
 networks by signal, and connects — prompting for a password inline instead of

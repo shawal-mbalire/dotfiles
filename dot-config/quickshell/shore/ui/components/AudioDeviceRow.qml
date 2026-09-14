@@ -5,7 +5,9 @@ import "../../domain"
 import "../../infra"
 import "../../adapters"
 
-// One audio device row: select as default, mute, and set volume.
+// One audio port row: select as default, mute, and set volume. The label is the
+// short port name (Speaker, HDMI 1, ...) since the parent card is shown by the
+// group header.
 Rectangle {
     id: root
 
@@ -37,7 +39,7 @@ Rectangle {
 
             Text {
                 Layout.fillWidth: true
-                text: root.node.description || root.node.name
+                text: AudioGroups.portLabel(root.node)
                 elide: Text.ElideRight
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSize
@@ -61,7 +63,7 @@ Rectangle {
                     anchors.fill: parent
                     anchors.margins: -4
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: if (root.audio) root.audio.muted = !root.audio.muted
+                    onClicked: Audio.toggleMute(root.node)
                 }
             }
 
@@ -75,35 +77,14 @@ Rectangle {
             }
         }
 
-        Rectangle {
+        Slider {
             Layout.fillWidth: true
-            implicitHeight: 6
-            radius: 3
-            color: root.selected ? Theme.tint(Theme.crust, 0.35) : Theme.tint(Theme.surface1, 0.8)
-
-            Rectangle {
-                anchors {
-                    left: parent.left
-                    top: parent.top
-                    bottom: parent.bottom
-                }
-                width: parent.width * Math.max(0, Math.min(1, root.audio ? root.audio.volume : 0))
-                radius: parent.radius
-                color: root.selected ? Theme.crust : Theme.sapphire
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                preventStealing: true
-                cursorShape: Qt.PointingHandCursor
-                function apply(x) {
-                    if (root.audio) root.audio.volume = Math.max(0, Math.min(1, x / width));
-                }
-                onClicked: mouse => apply(mouse.x)
-                onPositionChanged: mouse => {
-                    if (pressed) apply(mouse.x);
-                }
-            }
+            value: root.audio ? root.audio.volume : 0
+            accent: root.selected ? Theme.crust : Theme.sapphire
+            trackColor: root.selected
+                ? Theme.tint(Theme.crust, 0.35)
+                : Theme.tint(Theme.surface1, 0.8)
+            onMoved: v => Audio.setVolume(root.node, v)
         }
     }
 }
