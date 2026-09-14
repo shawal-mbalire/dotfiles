@@ -68,6 +68,11 @@ function A:apply_layer_rule(rule)
   self.hl.layer_rule(rule)
 end
 
+-- WindowRulePort
+function A:apply_window_rule(rule)
+  self.hl.window_rule(rule)
+end
+
 -- RuntimePort
 function A:on_event(event, callback)
   self.hl.on(event, callback)

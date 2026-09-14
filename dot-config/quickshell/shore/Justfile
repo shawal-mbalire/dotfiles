@@ -1,0 +1,26 @@
+# shore — Quickshell config DX
+
+root := justfile_directory()
+qml := '{{root}}/shell.qml {{root}}/domain/*.qml {{root}}/infra/*.qml {{root}}/ports/*.qml {{root}}/adapters/*.qml {{root}}/ui/*.qml {{root}}/ui/components/*.qml {{root}}/ui/panels/*.qml'
+
+default:
+    @just --list
+
+# Run the shell (replaces waybar + swaync + swayosd)
+run:
+    qs -c shore
+
+# Stop the running instance
+stop:
+    qs -c shore kill
+
+# Apply edits live — Quickshell hot-reloads on save
+dev: run
+
+# Toggle the control center
+control:
+    qs -c shore ipc call quickshell toggleControlCenter
+
+# Lint every QML file (needs qt6-qtdeclarative-devel)
+lint:
+    qmllint -I /usr/lib64/qt6/qml {{qml}}

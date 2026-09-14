@@ -148,5 +148,7 @@ just logs       # tail the Hyprland log
 | `SUPER + 1-0` | Switch workspace |
 | `SUPER + SHIFT + 1-0` | Move window to workspace |
 | `SUPER + S` | Toggle scratchpad |
-| `SUPER + B` | Toggle waybar |
+| `SUPER + B` | Toggle bar (Quickshell IPC) |
+| `SUPER + N` | Toggle control center (Quickshell IPC) |
+| `SUPER + SHIFT + N` | Clear notifications (Quickshell IPC) |
 | `SUPER + M` | Toggle mirror/extend |

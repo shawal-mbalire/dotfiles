@@ -76,6 +76,15 @@ function M.LayerRule.new(match, opts)
   return r
 end
 
+M.WindowRule = {}
+M.WindowRule.__index = M.WindowRule
+
+function M.WindowRule.new(match, opts)
+  local r = setmetatable({ match = match }, M.WindowRule)
+  if opts then for k, v in pairs(opts) do r[k] = v end end
+  return r
+end
+
 -- Visual/appearance settings (domain shape, flat fields).
 -- Mapping to the compositor's `general`/`decoration`/`misc` sections is an
 -- adapter concern (see adapters/hyprland_mappings.lua).

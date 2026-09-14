@@ -11,9 +11,10 @@ Major packages required for this dotfiles configuration.
 | Multiplexer | `tmux` | Terminal multiplexer |
 | Editor | `nvim` | Neovim (configured via LazyVim) |
 | Compositor | `hyprland` | Wayland compositor |
-| Bar | `waybar` | Status bar |
+| Shell | `quickshell` | Bar + notifications + control center + OSD (replaces waybar/swaync/swayosd) |
+| Bar | `waybar` | Status bar (legacy, replaced by quickshell) |
 | Launcher | `fuzzel` | Application launcher |
-| Notifications | `swaync` | Notification daemon |
+| Notifications | `swaync` | Notification daemon (legacy, replaced by quickshell) |
 | File Manager | `nautilus` | GUI file manager |
 | Git TUI | `lazygit` | Git interface |
 | Git | `git` | Version control |
@@ -65,7 +66,7 @@ Major packages required for this dotfiles configuration.
 ### Fedora
 ```sh
 sudo dnf install fish kitty tmux git lazygit \
-  waybar fuzzel wl-clipboard cliphist grimblast \
+  quickshell waybar fuzzel wl-clipboard cliphist grimblast \
   gammastep brightnessctl playerctl pavucontrol \
   network-manager-applet blueman swaync nautilus \
   hyprland hyprlock hypridle hyprpolkitagent hyprpaper \

@@ -116,6 +116,7 @@ function Hypr:configure_visual(section) self:_call("configure_visual", section) 
 function Hypr:register_curve(bezier) self:_call("register_curve", bezier) end
 function Hypr:register_animation(anim) self:_call("register_animation", anim) end
 function Hypr:apply_layer_rule(rule) self:_call("apply_layer_rule", rule) end
+function Hypr:apply_window_rule(rule) self:_call("apply_window_rule", rule) end
 function Hypr:on_event(event, callback) self:_call("on_event", event, callback) end
 
 function Hypr:find(name)
@@ -140,7 +141,7 @@ function M.sample_config()
     apps = {
       terminal = "kitty", browser = "zen", file_manager = "nautilus",
       menu = "fuzzel", note_taker = "obsidian", editor = "code-insiders",
-      audio = "pavucontrol", waybar_toggle = "toggle_waybar", display_toggle = "toggle_display",
+      audio = "pavucontrol", bar_toggle = "toggle_bar", display_toggle = "toggle_display",
     },
     commands = {
       volume_up = "vol up", volume_down = "vol down", volume_mute = "vol mute",
@@ -197,6 +198,7 @@ function M.deps(overrides)
     command = hypr,
     visual = hypr,
     layer = hypr,
+    window_rule = hypr,
     runtime = hypr,
     hypr = hypr,
     wallpaper = M.new_wallpaper(),

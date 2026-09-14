@@ -39,6 +39,7 @@ local deps = {
   visual = hypr,
   layer = hypr,
   runtime = hypr,
+  window_rule = hypr,
   wallpaper = wallpaper,
 }
 

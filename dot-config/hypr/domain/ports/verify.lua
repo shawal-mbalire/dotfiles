@@ -10,6 +10,7 @@ M.binding = require("domain.ports.binding")
 M.command = require("domain.ports.command")
 M.visual = require("domain.ports.visual")
 M.layer = require("domain.ports.layer")
+M.window_rule = require("domain.ports.window_rule")
 M.runtime = require("domain.ports.runtime")
 M.wallpaper = require("domain.ports.wallpaper")
 M.logger = require("domain.ports.logger")
@@ -25,6 +26,7 @@ M.HYPR_PORTS = {
   M.command,
   M.visual,
   M.layer,
+  M.window_rule,
   M.runtime,
 }
 

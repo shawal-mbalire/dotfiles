@@ -17,7 +17,7 @@ M.apps = {
   note_taker     = os.getenv("HYPR_NOTE_TAKER") or "obsidian",
   editor         = os.getenv("HYPR_EDITOR") or "code-insiders",
   audio          = os.getenv("HYPR_AUDIO") or "pavucontrol",
-  waybar_toggle  = os.getenv("HYPR_WAYBAR_TOGGLE") or "pkill -x waybar || (waybar &)",
+  bar_toggle     = os.getenv("HYPR_BAR_TOGGLE") or "qs -c shore ipc call quickshell toggleBar",
   display_toggle = os.getenv("HYPR_DISPLAY_TOGGLE") or "~/.config/hypr/scripts/toggle_display.py",
 }
 
@@ -27,14 +27,14 @@ M.commands = {
   volume_down   = os.getenv("HYPR_VOLUME_DOWN") or "~/.config/waybar/scripts/main.py audio volume down",
   volume_mute   = os.getenv("HYPR_VOLUME_MUTE") or "~/.config/waybar/scripts/main.py audio volume mute",
   mic_mute      = "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
-  brightness_up = os.getenv("HYPR_BRIGHTNESS_UP") or "brightnessctl s 10%+",
-  brightness_down = os.getenv("HYPR_BRIGHTNESS_DOWN") or "brightnessctl s 10%-",
+  brightness_up = os.getenv("HYPR_BRIGHTNESS_UP") or "sh -c 'qs -c shore ipc call quickshell brightnessStep up || brightnessctl s 10%+'",
+  brightness_down = os.getenv("HYPR_BRIGHTNESS_DOWN") or "sh -c 'qs -c shore ipc call quickshell brightnessStep down || brightnessctl s 10%-'",
   media_next    = "playerctl next",
   media_play    = "playerctl play-pause",
   media_prev    = "playerctl previous",
   clipboard     = "cliphist list | fuzzel --dmenu | cliphist decode | wl-copy",
-  notify_toggle = "swaync-client -t -sw",
-  notify_dismiss = "swaync-client -d -sw",
+  notify_toggle = os.getenv("HYPR_NOTIFY_TOGGLE") or "qs -c shore ipc call quickshell toggleControlCenter",
+  notify_dismiss = os.getenv("HYPR_NOTIFY_DISMISS") or "qs -c shore ipc call quickshell clearNotifications",
   screenshot    = "grimblast --freeze copysave area",
 }
 
@@ -111,12 +111,15 @@ M.wallpaper = {
 
 M.autostart = {
   "nm-applet",
-  "gammastep-indicator",
-  "swaync",
-  "systemctl --user start hyprpolkitagent",
+  -- Night light is owned by the Quickshell bar pill (which drives gammastep
+  -- directly), so the standalone gammastep tray indicator is not started.
   "wl-paste --watch cliphist store",
-  "swayosd-server",
+  "systemctl --user start hyprpolkitagent",
   "hypridle",
+  -- Quickshell replaces waybar + swaync + swayosd-server:
+  -- one process owns the bar, notifications, control center and OSD.
+  -- Stop the old daemons before enabling this.
+  "qs -c shore",
 }
 
 return M

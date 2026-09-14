@@ -81,4 +81,13 @@ M.LAYER_RULES = {
   { match = { namespace = "fuzzel" }, opts = { blur = true, ignore_alpha = 0, animation = "slide top" } },
 }
 
+-- Window rules (static domain knowledge about known clients)
+M.WINDOW_RULES = {
+  {
+    -- Zen/Firefox picture-in-picture: always a floating, always-on-top window.
+    match = { class = "app.zen_browser.zen", title = "^(Picture-in-Picture)$" },
+    opts = { float = true, pin = true },
+  },
+}
+
 return M

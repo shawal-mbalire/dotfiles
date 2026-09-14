@@ -122,11 +122,13 @@ return {
     end,
   },
   {
-    name = "windows_applies_layer_rules",
+    name = "windows_applies_layer_and_window_rules",
     run = function()
       local deps = fakes.deps()
       windows(deps)
       assert(deps.hypr:count("apply_layer_rule") == 3, "expected 3 layer rules")
+      assert(deps.hypr:count("apply_window_rule") == 1, "expected 1 window rule")
+      assert(deps.logger:has_message("rules_applied"), "no rules completion log")
     end,
   },
   {

@@ -42,6 +42,7 @@ function M.new()
     curve = record("curve"),
     animation = record("animation"),
     layer_rule = record("layer_rule"),
+    window_rule = record("window_rule"),
     on = record("on"),
     exec_cmd = record("exec_cmd"),
   }
