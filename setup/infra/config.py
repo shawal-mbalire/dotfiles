@@ -85,6 +85,19 @@ PACKAGES = [
     Package(name="unzip",   dnf="unzip",   brew="unzip"),
     Package(name="curl",    dnf="curl",    brew="curl"),
     Package(name="wget",    dnf="wget",    brew="wget"),
+    Package(name="eza",     dnf="eza",     brew="eza"),
+    Package(name="yazi",    dnf="yazi",    brew="yazi"),
+    Package(name="uv",      dnf="uv",      brew="uv"),
+    Package(name="pgcli",   dnf="pgcli",   brew="pgcli"),
+    Package(name="gh",      dnf="gh",      brew="gh"),
+    Package(name="colima",  brew="colima"),
+    Package(name="mise",    dnf="mise",    brew="mise"),
+    Package(name="tailscale", dnf="tailscale", brew="tailscale"),
+    Package(name="maven",   dnf="maven",   brew="maven"),
+    Package(name="imagemagick", dnf="ImageMagick", brew="imagemagick"),
+    Package(name="ghostscript", dnf="ghostscript", brew="ghostscript"),
+    Package(name="openjdk", brew="openjdk"),
+    Package(name="stylua",  dnf="stylua",  brew="stylua"),
 
     # ── Flatpak-only apps ──────────────────────────────────────────────────
     Package(name="zen-browser", flatpak="app.zen_browser.zen"),
@@ -94,6 +107,17 @@ PACKAGES = [
     # ── Snap-only apps ─────────────────────────────────────────────────────
     Package(name="android-studio", snap="android-studio", snap_classic=True),
     Package(name="code-insiders",  snap="code-insiders",  snap_classic=True),
+
+    # ── DevOps ──────────────────────────────────────────────────────────────
+    Package(name="docker",  dnf="docker",  brew="docker"),
+    Package(name="docker-compose", dnf="docker-compose", brew="docker-compose"),
+    Package(name="terraform", dnf="terraform", brew="terraform"),
+    Package(name="bun",     dnf="bun",     brew="bun"),
+    Package(name="nushell", dnf="nushell", brew="nushell"),
+    Package(name="clisp",   dnf="clisp",   brew="clisp"),
+    Package(name="latexmk", dnf="texlive-latexmk", brew="latexmk"),
+    Package(name="texlive", dnf="texlive-scheme-full", brew="texlive"),
+    Package(name="fastfetch", dnf="fastfetch", brew="fastfetch"),
 
     # ── User / cargo / pipx / curl (no dnf/brew/flatpak) ──────────────────
     Package(name="rustup", bin="rustup",
@@ -125,4 +149,12 @@ PACKAGES = [
              user="pipx install yt-dlp"),
     Package(name="tldr",    dnf="tldr",    brew="tlrc",
              user="pipx install tlrc"),
+    Package(name="tesseract", dnf="tesseract", brew="tesseract"),
+    Package(name="tree-sitter", dnf="tree-sitter", brew="tree-sitter"),
+    Package(name="xterm",   dnf="xterm",   brew="xterm"),
+    Package(name="firebase-cli", dnf="firebase-tools", brew="firebase-cli"),
+    Package(name="doppler", brew="doppler"),
+    Package(name="plotutils", dnf="plotutils", brew="plotutils"),
+    Package(name="potrace", dnf="potrace", brew="potrace"),
+    Package(name="pstoedit", dnf="pstoedit", brew="pstoedit"),
 ]
