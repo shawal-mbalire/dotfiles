@@ -2,3 +2,4 @@ singleton Backlight 1.0 Backlight.qml
 singleton Nightlight 1.0 Nightlight.qml
 singleton Network 1.0 Network.qml
 singleton Notifications 1.0 Notifications.qml
+singleton Polkit 1.0 Polkit.qml

@@ -114,7 +114,8 @@ M.autostart = {
   -- Night light is owned by the Quickshell bar pill (which drives gammastep
   -- directly), so the standalone gammastep tray indicator is not started.
   "wl-paste --watch cliphist store",
-  "systemctl --user start hyprpolkitagent",
+  -- Auth is handled by the Quickshell polkit agent (Quickshell.Services.Polkit),
+  -- so hyprpolkitagent is not started.
   "hypridle",
   -- Quickshell replaces waybar + swaync + swayosd-server:
   -- one process owns the bar, notifications, control center and OSD.

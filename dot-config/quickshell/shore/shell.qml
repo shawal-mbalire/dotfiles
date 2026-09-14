@@ -22,7 +22,8 @@ ShellRoot {
             { adapter: Backlight, methods: Verify.brightnessPort, name: "BrightnessPort" },
             { adapter: Nightlight, methods: Verify.nightlightPort, name: "NightlightPort" },
             { adapter: Network, methods: Verify.networkPort, name: "NetworkPort" },
-            { adapter: Notifications, methods: Verify.notificationsPort, name: "NotificationPort" }
+            { adapter: Notifications, methods: Verify.notificationsPort, name: "NotificationPort" },
+            { adapter: Polkit, methods: Verify.polkitPort, name: "PolkitPort" }
         ]);
     }
 
@@ -35,6 +36,7 @@ ShellRoot {
     MenuPopup {}
     NotificationPopups {}
     Osd {}
+    PolkitPrompt {}
 
     // Turns UPower changes into battery threshold notifications.
     BatteryAlerts {}

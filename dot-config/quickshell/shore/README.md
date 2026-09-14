@@ -20,11 +20,12 @@ shore/
 │   ├── Backlight.qml      #   BrightnessPort (brightnessctl)
 │   ├── Nightlight.qml     #   NightlightPort (gammastep via the waybar helper)
 │   ├── Network.qml        #   NetworkPort (native Quickshell.Networking)
-│   └── Notifications.qml  #   NotificationPort (NotificationServer; replaces swaync)
+│   ├── Notifications.qml  #   NotificationPort (NotificationServer; replaces swaync)
+│   └── Polkit.qml         #   PolkitPort (auth agent; replaces hyprpolkitagent)
 └── ui/                    # driving adapters: presentation
     ├── UiState.qml        #   panel/menu/OSD state
     ├── components/        #   bar widgets, menus, reusable parts
-    └── panels/            #   control center, menu popup, notifications, OSD
+    └── panels/            #   control center, menu popup, notifications, OSD, polkit
 ```
 
 Dependencies point inward: `ui → ports → domain`, and `adapters → domain`.
@@ -83,8 +84,10 @@ auto-spawn mako whenever nothing owns the notification name (e.g. just before
 Quickshell starts). Masked, activation fails instead and Quickshell keeps the
 name.
 
-`hyprlock`, `hypridle`, `hyprpaper`, `hyprpolkitagent`, `cliphist`, `grimblast`
-and `fuzzel` are untouched and still do their jobs.
+`hyprlock`, `hypridle`, `hyprpaper`, `cliphist`, `grimblast` and `fuzzel` are
+untouched and still do their jobs. Auth is handled by Quickshell's polkit agent
+(`Quickshell.Services.Polkit`), so `hyprpolkitagent` is **not** run — stop it
+with `pkill -x hyprpolkitagent` and it's already removed from autostart.
 
 ## Wiring
 
