@@ -3,20 +3,23 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import "../domain"
 
 // Driven adapter: idle detection via ext-idle-notify. Emits when the session
 // has been idle long enough to lock or suspend; the composition root decides
 // what to do. Replaces hypridle.
+//
+// Idle only ever fires when nothing is being watched: media playing (MPRIS)
+// or a fullscreen window on the focused workspace means the session is treated
+// as always-active, so the idle timer is paused entirely.
 Singleton {
     id: root
 
     // Set false to pause idle handling (e.g. while locked).
     property bool enabled: true
 
-    // Don't count time spent watching/playing media as idle. MPRIS covers
-    // browsers (YouTube etc.); respectInhibitors covers native players.
     readonly property bool mediaPlaying: {
         const players = Mpris.players.values;
         for (const player of players)
@@ -24,7 +27,12 @@ Singleton {
         return false;
     }
 
-    readonly property bool active: enabled && !mediaPlaying
+    readonly property bool fullscreenActive: {
+        const workspace = Hyprland.focusedWorkspace;
+        return workspace ? workspace.hasFullscreen : false;
+    }
+
+    readonly property bool active: enabled && !mediaPlaying && !fullscreenActive
     readonly property bool idle: lockMonitor.isIdle || suspendMonitor.isIdle
 
     signal lockRequested()
