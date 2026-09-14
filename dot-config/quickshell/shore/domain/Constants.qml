@@ -33,4 +33,8 @@ Singleton {
 
     // Screenshot output directory (relative to $HOME).
     readonly property string screenshotDir: "Pictures/Screenshots"
+
+    // Time budget per operation (milliseconds). 25 soft, 50 hard.
+    readonly property int timeBudgetSoftMs: 25
+    readonly property int timeBudgetMs: 50
 }

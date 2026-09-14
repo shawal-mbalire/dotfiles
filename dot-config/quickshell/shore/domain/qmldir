@@ -1,3 +1,4 @@
 singleton Theme 1.0 Theme.qml
 singleton Formatters 1.0 Formatters.qml
 singleton Constants 1.0 Constants.qml
+singleton Time 1.0 Time.qml

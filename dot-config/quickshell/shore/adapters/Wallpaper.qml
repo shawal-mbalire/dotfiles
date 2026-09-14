@@ -50,7 +50,7 @@ Singleton {
 
     // Pick up images added to the folder while the shell is running.
     Timer {
-        interval: 30000
+        interval: 60000
         running: true
         repeat: true
         onTriggered: root.refresh()

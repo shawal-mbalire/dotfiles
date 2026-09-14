@@ -115,57 +115,63 @@ ShellRoot {
     }
 
     // Called by Hyprland keybinds: `qs -c shore ipc call quickshell <function>`.
+    // Every operation is measured against Constants.timeBudgetMs.
     IpcHandler {
         target: "quickshell"
 
         function toggleControlCenter() {
-            UiState.toggleControlCenter();
+            Measure.run("toggleControlCenter", () => UiState.toggleControlCenter());
         }
 
         function toggleBar() {
-            UiState.toggleBar();
+            Measure.run("toggleBar", () => UiState.toggleBar());
         }
 
         function closePanels() {
-            UiState.closePanels();
+            Measure.run("closePanels", () => UiState.closePanels());
         }
 
         function openMenu(name: string) {
-            UiState.toggleMenu(name);
+            Measure.run("openMenu:" + name, () => UiState.toggleMenu(name));
         }
 
         function toggleDnd() {
-            Notifications.toggleDnd();
+            Measure.run("toggleDnd", () => Notifications.toggleDnd());
         }
 
         function clearNotifications() {
-            Notifications.dismissAll();
+            Measure.run("clearNotifications", () => Notifications.dismissAll());
         }
 
         function brightnessStep(direction: string) {
-            const delta = direction === "up" ? Constants.brightnessStep : -Constants.brightnessStep;
-            Backlight.step(delta);
-            UiState.showOsd(
-                Theme.iconBrightness,
-                (Backlight.percent + delta) / 100,
-                (Backlight.percent + delta) + "%"
-            );
+            Measure.run("brightnessStep:" + direction, () => {
+                const delta = direction === "up" ? Constants.brightnessStep : -Constants.brightnessStep;
+                Backlight.step(delta);
+                UiState.showOsd(
+                    Theme.iconBrightness,
+                    (Backlight.percent + delta) / 100,
+                    (Backlight.percent + delta) + "%"
+                );
+            });
         }
 
         function lock() {
-            UiState.lock();
+            Measure.run("lock", () => UiState.lock());
         }
 
         function openLauncher(mode: string) {
-            UiState.toggleLauncher(mode);
+            Measure.run("openLauncher:" + mode, () => {
+                if (mode === "clipboard") Clipboard.refresh();
+                UiState.toggleLauncher(mode);
+            });
         }
 
         function screenshot() {
-            UiState.toggleScreenshot();
+            Measure.run("screenshot", () => UiState.toggleScreenshot());
         }
 
         function nextWallpaper() {
-            Wallpaper.next();
+            Measure.run("nextWallpaper", () => Wallpaper.next());
         }
     }
 }

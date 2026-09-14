@@ -34,6 +34,19 @@ shore/
 Dependencies point inward: `ui → ports → domain`, and `adapters → domain`.
 The composition root is the only place that knows every layer.
 
+## Performance budget
+
+Every IPC operation runs through `ports/Measure.qml` and is measured against
+`Constants.timeBudgetMs` (50 ms hard, 25 ms soft). Anything slower logs
+`[budget] <name> took <ms>ms` at warning level, so regressions are visible in
+the Quickshell log.
+
+The expensive parts of a wallpaper switch (JPEG decode + `ColorQuantizer`) are
+kept off the critical path: `adapters/WallpaperColors.qml` prefetches accents in
+the background and caches them per path, the wallpaper image is decoded at
+screen size (`sourceSize`), and the next image is preloaded — so `nextWallpaper`
+is a cache hit and returns in well under the budget.
+
 
 ## Why one process
 
