@@ -11,8 +11,14 @@ Singleton {
     id: root
 
     readonly property var source: Wallpaper.current
-    readonly property color accent: pick(quantizer.colors)
+    readonly property color accent: normalize(pick(quantizer.colors))
     readonly property color accentAlt: Qt.lighter(accent, 1.25)
+
+    // Keep the accent bright enough to read as a highlight on dark surfaces.
+    function normalize(c) {
+        if (c.hsvValue < 0.55) return Qt.lighter(c, 1.6);
+        return c;
+    }
 
     function pick(colors) {
         let best = Theme.blue;

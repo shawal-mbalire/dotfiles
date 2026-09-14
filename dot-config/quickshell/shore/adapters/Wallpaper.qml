@@ -34,7 +34,7 @@ Singleton {
     Process {
         id: listProc
         command: ["sh", "-c",
-            "find \"$1\" -maxdepth 1 -type f \\( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \\) 2>/dev/null | sort",
+            "find -L \"$1\" -maxdepth 1 -type f \\( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \\) 2>/dev/null | sort",
             "sh", Config.wallpaperDir]
         stdout: StdioCollector {
             id: out

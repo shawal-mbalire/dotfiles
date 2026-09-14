@@ -127,7 +127,7 @@ Available IPC functions: `toggleBar`, `toggleControlCenter`, `closePanels`,
   suspends after `idleSuspendSeconds`.
 - **Wallpaper** (`ui/components/WallpaperSurface.qml`): rendered on the
   background layer per monitor. It cycles through every image in
-  `Config.wallpaperDir` (`~/Pictures/Wallpapers`); `SUPER+W` /
+  `Config.wallpaperDir` (the stowed `~/wallpapers`); `SUPER+W` /
   `nextWallpaper` advances it (falls back to `Config.wallpaper` when the folder
   is empty). Replaces hyprpaper.
 - **Dynamic theming**: `adapters/WallpaperColors.qml` runs `ColorQuantizer` on
