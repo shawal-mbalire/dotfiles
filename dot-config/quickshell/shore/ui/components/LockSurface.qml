@@ -87,14 +87,13 @@ Rectangle {
                 verticalAlignment: TextInput.AlignVCenter
                 echoMode: TextInput.Password
                 inputMethodHints: Qt.ImhSensitiveData
-                enabled: !root.context.unlockInProgress
                 color: Theme.text
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSize + 2
                 clip: true
 
                 onTextChanged: root.context.currentText = text
-                onAccepted: root.context.tryUnlock()
+                onAccepted: root.context.submit()
 
                 Connections {
                     target: root.context
@@ -126,7 +125,19 @@ Rectangle {
             font.pixelSize: 13
             color: Theme.red
         }
+
+        Text {
+            Layout.alignment: Qt.AlignHCenter
+            visible: !root.context.showFailure && root.context.message !== ""
+            text: root.context.message
+            font.family: Theme.fontFamily
+            font.pixelSize: 13
+            color: Theme.subtext0
+        }
     }
 
-    Component.onCompleted: input.forceActiveFocus()
+    Component.onCompleted: {
+        input.forceActiveFocus();
+        root.context.start();
+    }
 }

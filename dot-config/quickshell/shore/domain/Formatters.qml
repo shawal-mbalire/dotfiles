@@ -68,17 +68,11 @@ Singleton {
 
     // ── Battery ──────────────────────────────────────────────────────────
     // Pure: the single alert a battery state warrants, if any.
+    // Only discharging warrants an alert — while charging we stay quiet
+    // (plugged-in laptop users don't need "full"/"nearly full" popups).
     // Duplicate suppression / state re-arming is the caller's concern.
     function batteryAlert(capacity, charging) {
-        if (charging) {
-            if (capacity >= Constants.batteryAlertFull)
-                return alert("100c", "Battery Full", capacity + "% — fully charged", "normal");
-            if (capacity >= Constants.batteryAlertHigh)
-                return alert("80c", "Battery", capacity + "% — nearing full", "normal");
-            if (capacity <= Constants.batteryAlertWarn)
-                return alert("20c", "Battery", capacity + "% — still low", "normal");
-            return null;
-        }
+        if (charging) return null;
         if (capacity <= Constants.batteryAlertCritical)
             return alert("3p", "Critically Low Battery", capacity + "% — plug in now!", "critical");
         if (capacity <= Constants.batteryAlertLow)

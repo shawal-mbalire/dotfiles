@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Services.Mpris
 import "../domain"
 
 // Driven adapter: idle detection via ext-idle-notify. Emits when the session
@@ -11,9 +12,19 @@ import "../domain"
 Singleton {
     id: root
 
-    // Set false to pause idle handling (e.g. while locked or inhibited).
+    // Set false to pause idle handling (e.g. while locked).
     property bool enabled: true
 
+    // Don't count time spent watching/playing media as idle. MPRIS covers
+    // browsers (YouTube etc.); respectInhibitors covers native players.
+    readonly property bool mediaPlaying: {
+        const players = Mpris.players.values;
+        for (const player of players)
+            if (player.isPlaying) return true;
+        return false;
+    }
+
+    readonly property bool active: enabled && !mediaPlaying
     readonly property bool idle: lockMonitor.isIdle || suspendMonitor.isIdle
 
     signal lockRequested()
@@ -21,7 +32,7 @@ Singleton {
 
     IdleMonitor {
         id: lockMonitor
-        enabled: root.enabled
+        enabled: root.active
         timeout: Constants.idleLockSeconds
         respectInhibitors: true
         onIsIdleChanged: if (isIdle) root.lockRequested()
@@ -29,7 +40,7 @@ Singleton {
 
     IdleMonitor {
         id: suspendMonitor
-        enabled: root.enabled
+        enabled: root.active
         timeout: Constants.idleSuspendSeconds
         respectInhibitors: true
         onIsIdleChanged: if (isIdle) root.suspendRequested()
