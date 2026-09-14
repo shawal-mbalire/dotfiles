@@ -661,9 +661,9 @@ $env.config = {
 
 def up [] {
   sudo dnf update -y 
-  sudo flatpak update 
-  brew upgrade 
-  brew update
+  sudo flatpak upgrade -y
+  brew upgrade -y
+  brew update -y
 }
 
 def cleanup [] {
