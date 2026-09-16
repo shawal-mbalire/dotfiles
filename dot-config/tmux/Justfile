@@ -2,66 +2,47 @@
 default:
     @just --list
 
-# Install dependencies on macOS via brew
-install-deps-macos:
-    brew install fzf zoxide neovim
-    brew install tmux || true
+# Install dependencies (default: fedora)
+deps os="fedora":
+    #!/usr/bin/env bash
+    if [ "{{os}}" = "mac" ]; then
+        brew install fzf zoxide neovim tmux
+    elif [ "{{os}}" = "fedora" ]; then
+        sudo dnf install -y fzf zoxide neovim tmux
+    else
+        echo "Unknown OS: {{os}}. Use 'mac' or 'fedora'."
+        exit 1
+    fi
 
-# Install dependencies on Fedora via dnf
-install-deps-fedora:
-    sudo dnf install -y fzf zoxide neovim tmux
-
-# Install TPM (Tmux Plugin Manager) if missing
-install-tpm:
+# Full setup: install TPM and all plugins (default: fedora)
+setup os="fedora": (deps os)
     @if [ ! -d "$HOME/.config/tmux/plugins/tpm" ]; then \
         echo "Installing TPM..."; \
         git clone https://github.com/tmux-plugins/tpm "$HOME/.config/tmux/plugins/tpm"; \
     else \
         echo "TPM already installed"; \
     fi
-
-# Install all tmux plugins via TPM
-install-plugins:
-    @echo "Installing plugins..."
-    ~/.config/tmux/plugins/tpm/bin/install_plugins
-
-# Update all tmux plugins
-update-plugins:
-    @echo "Updating plugins..."
-    ~/.config/tmux/plugins/tpm/bin/update_plugins all
-
-# Clean unused plugins
-clean-plugins:
-    @echo "Cleaning unused plugins..."
-    ~/.config/tmux/plugins/tpm/bin/clean_plugins
+    TMUX_PLUGIN_MANAGER_PATH="$HOME/.config/tmux/plugins" ~/.config/tmux/plugins/tpm/bin/install_plugins
+    @#!/usr/bin/env bash
+    RESURRECT_DIR="$HOME/.local/share/tmux/resurrect"
+    if [ -d "$RESURRECT_DIR" ]; then
+        LAST=$(readlink "$RESURRECT_DIR/last" 2>/dev/null)
+        if [ -n "$LAST" ] && [ ! -s "$RESURRECT_DIR/$LAST" ]; then
+            echo "Warning: Empty save file $LAST, fixing..."
+            rm "$RESURRECT_DIR/$LAST" "$RESURRECT_DIR/last"
+            PREV=$(ls -t "$RESURRECT_DIR"/tmux_resurrect_*.txt 2>/dev/null | head -1)
+            if [ -n "$PREV" ]; then
+                ln -s "$(basename "$PREV")" "$RESURRECT_DIR/last"
+                echo "Fixed: linked to $(basename "$PREV")"
+            fi
+        fi
+    fi
 
 # Reload tmux configuration
 reload:
     tmux source-file ~/.config/tmux/tmux.conf
-    @echo "Config reloaded"
 
-# Start a new tmux session (or attach to existing)
-new:
-    tmux attach || tmux new-session
-
-# Attach to last session
-attach:
-    tmux attach-session
-
-# List all sessions
-sessions:
-    tmux list-sessions
-
-# Kill the tmux server (kills all sessions)
-kill:
-    tmux kill-server
-
-# Save tmux state now (via continuum/resurrect)
-save:
-    tmux run-shell ~/.config/tmux/plugins/tmux-continuum/scripts/save_continuum.sh
-    @echo "State saved"
-
-# Restore tmux state
-restore:
-    tmux run-shell ~/.config/tmux/plugins/tmux-resurrect/scripts/restore.sh
-    @echo "State restored"
+# Debug: test config without plugins
+debug:
+    @tmux -f ~/.config/tmux/tmux-debug.conf new-session -d && echo "Base config OK" || echo "Base config FAIL"
+    @tmux kill-server 2>/dev/null || true
