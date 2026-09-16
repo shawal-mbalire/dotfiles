@@ -1,0 +1,2 @@
+singleton InfraConfig 1.0 config.qml
+singleton Verify 1.0 verify.qml

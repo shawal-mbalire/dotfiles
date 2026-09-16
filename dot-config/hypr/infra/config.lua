@@ -13,11 +13,11 @@ M.apps = {
   terminal       = os.getenv("HYPR_TERMINAL") or "kitty",
   browser        = os.getenv("HYPR_BROWSER") or "flatpak run app.zen_browser.zen",
   file_manager   = os.getenv("HYPR_FILE_MANAGER") or "nautilus",
-  menu           = os.getenv("HYPR_MENU") or "qs -c shore ipc call quickshell openLauncher apps",
+  menu           = os.getenv("HYPR_MENU") or "qs ipc call quickshell openLauncher apps",
   note_taker     = os.getenv("HYPR_NOTE_TAKER") or "obsidian",
   editor         = os.getenv("HYPR_EDITOR") or "code-insiders",
   audio          = os.getenv("HYPR_AUDIO") or "pavucontrol",
-  bar_toggle     = os.getenv("HYPR_BAR_TOGGLE") or "qs -c shore ipc call quickshell toggleBar",
+  bar_toggle     = os.getenv("HYPR_BAR_TOGGLE") or "qs ipc call quickshell toggleBar",
   display_toggle = os.getenv("HYPR_DISPLAY_TOGGLE") or "~/.config/hypr/scripts/toggle_display.py",
 }
 
@@ -27,17 +27,18 @@ M.commands = {
   volume_down   = os.getenv("HYPR_VOLUME_DOWN") or "~/.config/waybar/scripts/main.py audio volume down",
   volume_mute   = os.getenv("HYPR_VOLUME_MUTE") or "~/.config/waybar/scripts/main.py audio volume mute",
   mic_mute      = "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
-  brightness_up = os.getenv("HYPR_BRIGHTNESS_UP") or "sh -c 'qs -c shore ipc call quickshell brightnessStep up || brightnessctl s 10%+'",
-  brightness_down = os.getenv("HYPR_BRIGHTNESS_DOWN") or "sh -c 'qs -c shore ipc call quickshell brightnessStep down || brightnessctl s 10%-'",
+  brightness_up = os.getenv("HYPR_BRIGHTNESS_UP") or "sh -c 'qs ipc call quickshell brightnessStep up || brightnessctl s 10%+'",
+  brightness_down = os.getenv("HYPR_BRIGHTNESS_DOWN") or "sh -c 'qs ipc call quickshell brightnessStep down || brightnessctl s 10%-'",
   media_next    = "playerctl next",
   media_play    = "playerctl play-pause",
   media_prev    = "playerctl previous",
-  clipboard     = os.getenv("HYPR_CLIPBOARD") or "qs -c shore ipc call quickshell openLauncher clipboard",
-  notify_toggle = os.getenv("HYPR_NOTIFY_TOGGLE") or "qs -c shore ipc call quickshell toggleControlCenter",
-  notify_dismiss = os.getenv("HYPR_NOTIFY_DISMISS") or "qs -c shore ipc call quickshell clearNotifications",
-  screenshot    = os.getenv("HYPR_SCREENSHOT") or "qs -c shore ipc call quickshell screenshot",
-  lock          = os.getenv("HYPR_LOCK") or "qs -c shore ipc call quickshell lock",
-  wallpaper_next = os.getenv("HYPR_WALLPAPER_NEXT") or "qs -c shore ipc call quickshell nextWallpaper",
+  clipboard     = os.getenv("HYPR_CLIPBOARD") or "qs ipc call quickshell openLauncher clipboard",
+  notify_toggle = os.getenv("HYPR_NOTIFY_TOGGLE") or "qs ipc call quickshell toggleControlCenter",
+  notify_dismiss = os.getenv("HYPR_NOTIFY_DISMISS") or "qs ipc call quickshell clearNotifications",
+  screenshot    = os.getenv("HYPR_SCREENSHOT") or "qs ipc call quickshell screenshot",
+  lock          = os.getenv("HYPR_LOCK") or "qs ipc call quickshell lock",
+  wallpaper_next = os.getenv("HYPR_WALLPAPER_NEXT") or "qs ipc call quickshell nextWallpaper",
+  frost_toggle   = "sh -c 'if [ -f /tmp/hypr_frost ]; then rm -f /tmp/hypr_frost; hyprctl keyword windowrulev2 \"opacity 1.0 1.0, class:kitty\"; else touch /tmp/hypr_frost; hyprctl keyword windowrulev2 \"opacity 0.85 0.85, class:kitty\"; fi'",
 }
 
 M.displays = {
@@ -65,7 +66,7 @@ M.input = {
 M.visual = {
   gaps_in     = M.laptop and 4 or 0,
   gaps_out    = M.laptop and 5 or 0,
-  border_size = 1,
+  border_size = 0,
   rounding    = M.laptop and 5 or 3,
   rounding_power = 2,
   gradient_angle = 90,
@@ -75,8 +76,8 @@ M.visual = {
   shadow_range = 4,
   shadow_render_power = 3,
   blur_enabled = true,
-  blur_size = 3,
-  blur_passes = 1,
+  blur_size = 5,
+  blur_passes = 4,
   blur_vibrancy = 0.1696,
   resize_on_border = false,
   allow_tearing = false,
@@ -115,16 +116,13 @@ M.wallpaper = {
 
 M.autostart = {
   "nm-applet",
-  -- Night light is owned by the Quickshell bar pill (which drives gammastep
-  -- directly), so the standalone gammastep tray indicator is not started.
+  "gammastep -O 16000",
   "wl-paste --watch cliphist store",
-  -- Auth is handled by the Quickshell polkit agent (Quickshell.Services.Polkit),
-  -- so hyprpolkitagent is not started. Idle/lock are handled by Quickshell too,
-  -- so hypridle is not started.
+  "/usr/libexec/hyprpolkitagent",
   -- Quickshell replaces waybar + swaync + swayosd-server:
   -- one process owns the bar, notifications, control center and OSD.
   -- Stop the old daemons before enabling this.
-  "qs -c shore",
+  "qs",
 }
 
 return M

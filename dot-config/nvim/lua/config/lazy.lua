@@ -1,3 +1,12 @@
+-- lazy.nvim bootstrap + plugin specification
+--
+-- This is the lazy.nvim entry point. It loads:
+--   1. LazyVim base config (colorscheme, defaults)
+--   2. All files in lua/plugins/ (auto-discovered category files)
+--
+-- Plugin files in lua/plugins/ call adapters, which read from domain.
+-- This keeps the wiring thin and the domain pure.
+
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
 	local lazyrepo = "https://github.com/folke/lazy.nvim.git"
@@ -14,36 +23,32 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+local domain = require("domain.ui")
+
 require("lazy").setup({
 	spec = {
-		-- add LazyVim and import its plugins
-		{ "LazyVim/LazyVim", import = "lazyvim.plugins", colorscheme = "catppuccin-mocha" },
-		-- import/override with your plugins
-		--
+		-- LazyVim base + language extras
+		{ "LazyVim/LazyVim", import = "lazyvim.plugins", colorscheme = domain.colorscheme },
+
+		-- Auto-discovered plugin specs (ui.lua, editor.lua, navigation.lua, lang.lua, tools.lua)
+		-- Each file calls adapters which read from domain modules.
 		{ import = "plugins" },
 	},
 	defaults = {
-		-- By default, only LazyVim plugins will be lazy-loaded. Your custom plugins will load during startup.
-		-- If you know what you're doing, you can set this to `true` to have all your custom plugins lazy-loaded by default.
 		lazy = false,
-		-- It's recommended to leave version=false for now, since a lot the plugin that support versioning,
-		-- have outdated releases, which may break your Neovim install.
-		version = false, -- always use the latest git commit
-		-- version = "*", -- try installing the latest stable version for plugins that support semver
+		version = false,
 	},
-	install = { colorscheme = { "catppuccin-mocha", "catppuccin" } },
+	install = { colorscheme = { domain.colorscheme, "catppuccin" } },
 	checker = {
-		enabled = true, -- check for plugin updates periodically
-		notify = false, -- notify on update
-	}, -- automatically check for plugin updates
+		enabled = true,
+		notify = false,
+	},
 	performance = {
 		rtp = {
-			-- disable some rtp plugins
 			disabled_plugins = {
 				"gzip",
 				"matchit",
 				"matchparen",
-				-- "netrwPlugin",
 				"tarPlugin",
 				"tohtml",
 				"tutor",

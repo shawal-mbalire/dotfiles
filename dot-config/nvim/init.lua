@@ -1,2 +1,18 @@
--- bootstrap lazy.nvim, LazyVim and your plugins
+-- Bootstrap lazy.nvim, LazyVim and your plugins
+--
+-- Composition Root: wires domain → ports → adapters → plugins.
+--
+-- Architecture:
+--   lua/domain/     — User intent (pure config, no plugin imports)
+--   lua/ports/      — Capability contracts (duck-typed interfaces)
+--   lua/adapters/   — Plugin implementations of ports
+--   lua/plugins/    — Lazy.nvim specs (auto-discovered, calls adapters)
+--   lua/config/     — Neovim infrastructure (options, keymaps, autocmds)
+--
+-- Adding a new plugin:
+--   1. Define preference in lua/domain/<category>.lua
+--   2. Define port contract in lua/ports/<capability>.lua
+--   3. Implement adapter in lua/adapters/<plugin>.lua
+--   4. Register in lua/plugins/<category>.lua
+--   Done — lazy.nvim auto-discovers it on next startup.
 require("config.lazy")

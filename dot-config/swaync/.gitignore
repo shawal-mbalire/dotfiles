@@ -1,8 +1,0 @@
-# Build artifacts (recreatable from source)
-build/
-.venv/
-uv.lock
-__pycache__/
-*.pyc
-.pytest_cache/
-.ruff_cache/

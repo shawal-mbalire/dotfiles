@@ -1,0 +1,5 @@
+singleton Theme 1.0 Theme.qml
+singleton Constants 1.0 Constants.qml
+singleton Formatters 1.0 Formatters.qml
+singleton AudioGroups 1.0 AudioGroups.qml
+singleton Time 1.0 Time.qml

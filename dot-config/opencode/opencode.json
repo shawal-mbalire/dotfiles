@@ -1,16 +1,16 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "mt5": {
-      "type": "remote",
-      "url": "http://127.0.0.1:22346/mcp",
-      "headers": {
-        "Authorization": "Bearer QJa8clbw8ZxqnSC1G7BTPET2j3w7bIhEHojxRkGmCr"
-      },
-      "oauth": false,
-      "enabled": true
-    }
-  },
+  // "mcp": {
+  //   "mt5": {
+  //     "type": "remote",
+  //     "url": "http://127.0.0.1:22346/mcp",
+  //     "headers": {
+  //       "Authorization": "Bearer QJa8clbw8ZxqnSC1G7BTPET2j3w7bIhEHojxRkGmCr"
+  //     },
+  //     "oauth": false,
+  //     "enabled": true
+  //   }
+  // },
   "plugin": [
     "opencode-lmstudio"
   ],

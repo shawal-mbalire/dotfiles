@@ -1,3 +1,6 @@
 -- Keymaps are automatically loaded on the VeryLazy event
--- Default keymaps that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/keymaps.lua
--- Add any additional keymaps here
+-- Default keymaps: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/keymaps.lua
+--
+-- Infrastructure layer: Neovim keybindings.
+-- Domain key preferences are in lua/domain/navigation.lua.
+-- Plugin-specific keymaps are defined in adapter specs (lua/adapters/).

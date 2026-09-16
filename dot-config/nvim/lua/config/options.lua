@@ -1,9 +1,12 @@
 -- Options are automatically loaded before lazy.nvim startup
--- Default options that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/options.lua
--- Add any additional options here
+-- Default options: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/options.lua
+--
+-- Infrastructure layer: Neovim-specific configuration.
+-- Domain preferences are in lua/domain/.
 
 vim.opt.autoread = true
 vim.opt.updatetime = 200
+vim.opt.termguicolors = true
 
 -- Workaround for Neovim 0.12.5 bug: vim.fs.abspath asserts uv.cwd() ~= nil
 -- but uv.cwd() can return nil during BufNewFile autocommands
@@ -14,7 +17,6 @@ vim.fs.abspath = function(path, opts)
   if ok then
     return result
   end
-  -- Fallback: if cwd is nil, return the path as-is (or try to handle gracefully)
   if type(path) == "string" then
     return path
   end

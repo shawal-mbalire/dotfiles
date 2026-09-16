@@ -76,19 +76,12 @@ M.ANIMATIONS = {
 
 -- Layer-surface rules (static domain knowledge about known clients)
 M.LAYER_RULES = {
-  { match = { namespace = "waybar" }, opts = { blur = true } },
+  { match = { namespace = "^(quickshell.*)$" }, opts = { blur = true, ignore_alpha = 0.2 } },
   { match = { namespace = "swaync" }, opts = { blur = true, ignore_alpha = 0, animation = "slide top" } },
   { match = { namespace = "fuzzel" }, opts = { blur = true, ignore_alpha = 0, animation = "slide top" } },
 }
 
 -- Window rules (static domain knowledge about known clients)
-M.WINDOW_RULES = {
-  {
-    -- Zen/Firefox picture-in-picture: floating and always on top, opening at a
-    -- quarter of the screen area (50% width x 50% height) but still resizable.
-    match = { class = "app.zen_browser.zen", title = "^(Picture-in-Picture)$" },
-    opts = { name = "zen-pip", float = true, pin = true, size = "50% 50%" },
-  },
-}
+M.WINDOW_RULES = {}
 
 return M
