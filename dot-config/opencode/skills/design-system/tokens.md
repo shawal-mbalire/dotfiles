@@ -32,6 +32,11 @@ Text opacity creates visual importance without changing hue:
 | **Tertiary** | --text-tertiary | 50% | Captions, hints, disabled text, metadata |
 | **Disabled** | --text-disabled | 30% | Inactive elements, placeholder text |
 
+**Fallback for busy backgrounds**: When text overlays images or gradients, do not use opacity-based hierarchy. Instead, use solid colors with sufficient contrast:
+- Apply a semi-transparent overlay behind text (e.g., `background: rgba(0, 0, 0, 0.6)`)
+- Use solid color tokens with verified contrast ratios (4.5:1 for normal text, 3:1 for large text)
+- Test contrast using tools like WebAIM Contrast Checker
+
 ```css
 :root {
   --text-primary: rgba(var(--text-color-rgb), 1);
@@ -76,6 +81,9 @@ Background opacity indicates layering and importance:
 | --font-size-2xl | 1.5rem (24px) | 2rem | Section headings |
 | --font-size-3xl | 1.875rem (30px) | 2.25rem | Page titles |
 | --font-size-4xl | 2.25rem (36px) | 2.5rem | Hero headings |
+| --font-size-5xl | 3rem (48px) | 3rem | Display headings, hero sections |
+| --font-size-6xl | 3.75rem (60px) | 3.75rem | Large display, landing page heroes |
+| --font-size-7xl | 4.5rem (72px) | 4.5rem | Maximum display size |
 
 ### Font Weight Hierarchy
 
@@ -145,6 +153,22 @@ h3 {
 | --font-body | Body text, paragraphs, labels |
 | --font-mono | Code, technical content, data |
 
+## Border Radius Tokens
+
+| Token | Value | Use Case |
+|-------|-------|----------|
+| --border-radius-sm | 3px | Small elements (badges, tags) |
+| --border-radius | 5px | Standard components (cards, buttons, inputs) |
+| --border-radius-lg | 8px | Elevated surfaces, modals |
+| --border-radius-xl | 12px | Large containers, pattern 3 flat theme |
+| --border-radius-full | 9999px | Pill shapes, circular avatars |
+
+**Rules:**
+- Always use border-radius tokens, never raw values
+- Pattern 1 uses `--border-radius` (5px) for strict geometric consistency
+- Pattern 2 uses `0` (sharp edges) — override at component level
+- Pattern 3 uses `--border-radius-lg` or `--border-radius-xl` for softer aesthetics
+
 ## Spacing Scale
 
 Spacing follows a conceptual scale. Use consistent relative sizing:
@@ -186,7 +210,7 @@ Shadow tokens indicate depth and hierarchy:
 | --easing-default | cubic-bezier(0.4, 0, 0.2, 1) | Most transitions |
 | --easing-in | cubic-bezier(0.4, 0, 1, 1) | Elements exiting |
 | --easing-out | cubic-bezier(0, 0, 0.2, 1) | Elements entering |
-| --easing-in-out | cubic-bezier(0.4, 0, 0.2, 1) | Symmetric animations |
+| --easing-in-out | cubic-bezier(0.42, 0, 0.58, 1) | Symmetric animations |
 | --easing-bounce | cubic-bezier(0.68, -0.55, 0.265, 1.55) | Playful emphasis |
 
 ## Z-index Scale

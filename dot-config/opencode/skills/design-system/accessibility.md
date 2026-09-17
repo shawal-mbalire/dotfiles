@@ -24,10 +24,10 @@
 
 ## Target Sizes (WCAG AA)
 
-| Element Type | Minimum Size | Standard |
-|--------------|--------------|----------|
-| Interactive elements | 24x24px | WCAG 2.5.8 |
-| Touch targets | 44x44px (recommended) | WCAG 2.5.5 Enhanced |
+| Element Type | Minimum Size | Recommended | Standard |
+|--------------|--------------|-------------|----------|
+| Interactive elements | 24x24px | 44x44px | WCAG 2.5.8 |
+| Touch targets | 44x44px | 48x48px | WCAG 2.5.5 Enhanced |
 
 ## Keyboard Navigation
 
@@ -96,7 +96,27 @@ Support Windows High Contrast Mode:
 - [ ] All interactive elements keyboard accessible
 - [ ] Focus indicators visible
 - [ ] ARIA roles applied correctly
-- [ ] Target sizes meet 24x24px minimum
+- [ ] Target sizes meet 44x44px recommended (24x24px minimum)
 - [ ] Reduced motion supported
 - [ ] High contrast mode supported
 - [ ] Screen reader tested
+
+## Contrast Verification
+
+To verify contrast ratios when generating code:
+
+1. **Calculate relative luminance**: For colors in sRGB, use the formula:
+   - L = 0.2126 * R + 0.7152 * G + 0.0722 * B
+   - Where R, G, B are linearized (convert from sRGB: if value <= 0.03928, divide by 12.92; else raise to power 2.4 after adding 0.055 and dividing by 1.055)
+
+2. **Calculate contrast ratio**: (L1 + 0.05) / (L2 + 0.05) where L1 is the lighter color
+
+3. **Verify thresholds**:
+   - Normal text (<18px): 4.5:1 minimum
+   - Large text (≥18px or ≥14px bold): 3:1 minimum
+   - UI components: 3:1 minimum
+
+4. **Recommended tools**:
+   - WebAIM Contrast Checker: https://webaim.org/resources/contrastchecker/
+   - Chrome DevTools: Inspect element → Accessibility panel → Contrast ratio
+   - Colour Contrast Analyser (desktop app)

@@ -79,7 +79,7 @@ When generating HTML, CSS, or component code based on these guidelines, evaluate
 
 16. **Consistent Interaction Patterns**: Similar components should behave similarly. Users should be able to predict interactions based on prior experience.
 
-15. **Documentation as Code**: Design decisions should be documented through token names, component contracts, and pattern specifications.
+17. **Documentation as Code**: Design decisions should be documented through token names, component contracts, and pattern specifications.
 
 ---
 

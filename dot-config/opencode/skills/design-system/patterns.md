@@ -85,7 +85,7 @@ Base components provide inherited structure for all patterns. They establish con
 
 ### Base Component Rules
 
-1. **No Gradients**: Base components MUST NOT use gradients. Use flat, solid colors only.
+1. **No Decorative Gradients**: Base components MUST NOT use gradients for visual decoration (backgrounds, borders, fills). Use flat, solid colors only. Exception: functional animations like skeleton screen shimmers are permitted.
 2. **Minimal Decoration**: Borders, shadows, and backgrounds are optional and pattern-specific.
 3. **Responsive by Default**: All base components adapt to viewport width.
 4. **Semantic HTML**: Use `<header>`, `<main>`, `<section>`, `<article>`, `<aside>` before `<div>`.
@@ -136,9 +136,11 @@ Base components provide inherited structure for all patterns. They establish con
 
 ### Mono Tone Color Palettes
 
+**Important**: These values are theme definitions. Place them in your root theme stylesheet as CSS variables. Component CSS must always reference `var(--token-name)`, never the raw hex values.
+
 **Gray Mono Tone**
-| Token | Value |
-|-------|-------|
+| Token | Reference Value |
+|-------|----------------|
 | --bg-primary | #ffffff |
 | --surface-primary | #f8f9fa |
 | --text-primary | #212529 |
@@ -147,8 +149,8 @@ Base components provide inherited structure for all patterns. They establish con
 | --border-secondary | #e9ecef |
 
 **Blue Mono Tone**
-| Token | Value |
-|-------|-------|
+| Token | Reference Value |
+|-------|----------------|
 | --bg-primary | #f8f9fa |
 | --surface-primary | #e9ecef |
 | --text-primary | #212529 |
@@ -157,8 +159,8 @@ Base components provide inherited structure for all patterns. They establish con
 | --border-secondary | #dee2e6 |
 
 **Slate Mono Tone**
-| Token | Value |
-|-------|-------|
+| Token | Reference Value |
+|-------|----------------|
 | --bg-primary | #f8fafc |
 | --surface-primary | #f1f5f9 |
 | --text-primary | #0f172a |
@@ -195,35 +197,35 @@ Base components provide inherited structure for all patterns. They establish con
 
 ### Minimal Color Palettes
 
-Use these restricted palettes (3-5 colors maximum):
+Use these restricted palettes (3-5 colors maximum). Place values in your root theme stylesheet as CSS variables. Component CSS must always reference `var(--token-name)`.
 
 **Clean Light**
-| Token | Value |
-|-------|-------|
+| Token | Reference Value |
+|-------|----------------|
 | --bg-primary | #ffffff |
 | --surface-primary | #f8f9fa |
 | --text-primary | #212529 |
 | --accent-primary | #0d6efd |
 
 **Clean Dark**
-| Token | Value |
-|-------|-------|
+| Token | Reference Value |
+|-------|----------------|
 | --bg-primary | #121212 |
 | --surface-primary | #1e1e1e |
 | --text-primary | #e0e0e0 |
 | --accent-primary | #64b5f6 |
 
 **Warm Light**
-| Token | Value |
-|-------|-------|
+| Token | Reference Value |
+|-------|----------------|
 | --bg-primary | #fafaf8 |
 | --surface-primary | #f5f5f0 |
 | --text-primary | #2d2d2d |
 | --accent-primary | #d97706 |
 
 **Warm Dark**
-| Token | Value |
-|-------|-------|
+| Token | Reference Value |
+|-------|----------------|
 | --bg-primary | #1a1814 |
 | --surface-primary | #2d2a24 |
 | --text-primary | #e8e4de |

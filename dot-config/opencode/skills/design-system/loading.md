@@ -1,5 +1,7 @@
 # Loading States
 
+**Note on gradients**: Skeleton screens use `linear-gradient` for the shimmer effect. This is a functional animation for loading feedback, not visual decoration. The "no gradients" rule in patterns.md applies to decorative styling of base components (backgrounds, borders), not to loading state animations.
+
 ## Skeleton Screens
 
 Use skeleton screens for content loading:

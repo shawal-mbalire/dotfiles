@@ -291,18 +291,7 @@ transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 
 ## Reduced Motion Support
 
-```css
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-```
+See [Accessibility Requirements](./accessibility.md#reduced-motion) for the full implementation. Always include this media query in production CSS.
 
 ## JavaScript Animation Control
 

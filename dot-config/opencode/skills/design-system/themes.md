@@ -19,32 +19,11 @@ ThemePort:
 
 ## High Contrast Mode
 
-Support Windows High Contrast Mode:
-
-```css
-@media (forced-colors: active) {
-  .btn {
-    border: 2px solid ButtonText;
-  }
-  .card {
-    border: 2px solid CanvasText;
-  }
-}
-```
+See [Accessibility Requirements](./accessibility.md#high-contrast-mode) for implementation.
 
 ## Reduced Motion
 
-Respect user motion preferences:
-
-```css
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-```
+See [Accessibility Requirements](./accessibility.md#reduced-motion) for implementation.
 
 ## Theme Palette Template
 
@@ -120,7 +99,7 @@ Respect user motion preferences:
   /* Border */
   --border-primary: #dee2e6;
   --border-secondary: #e9ecef;
-  --border-focus: #86b7fe;
+  --border-focus: #2563eb;
   
   /* Accent */
   --accent-primary: #0d6efd;
@@ -151,6 +130,13 @@ Respect user motion preferences:
   --z-tooltip: 600;
   --z-toast: 700;
   
+  /* Border Radius */
+  --border-radius-sm: 3px;
+  --border-radius: 5px;
+  --border-radius-lg: 8px;
+  --border-radius-xl: 12px;
+  --border-radius-full: 9999px;
+
   /* Spacing */
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;
@@ -171,11 +157,17 @@ Respect user motion preferences:
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.25rem;
   --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+  --font-size-6xl: 3.75rem;
+  --font-size-7xl: 4.5rem;
   
   /* Font weights */
   --font-weight-light: 300;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
+  --font-weight-semibold: 600;
   --font-weight-bold: 700;
   
   /* Line heights */
@@ -194,7 +186,7 @@ Respect user motion preferences:
   --easing-default: cubic-bezier(0.4, 0, 0.2, 1);
   --easing-in: cubic-bezier(0.4, 0, 1, 1);
   --easing-out: cubic-bezier(0, 0, 0.2, 1);
-  --easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-in-out: cubic-bezier(0.42, 0, 0.58, 1);
   --easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
   
   /* Breakpoints */
@@ -228,7 +220,7 @@ Respect user motion preferences:
   /* Border */
   --border-primary: #495057;
   --border-secondary: #6c757d;
-  --border-focus: #86b7fe;
+  --border-focus: #93c5fd;
   
   /* Accent */
   --accent-primary: #6ea8fe;
@@ -246,6 +238,10 @@ Respect user motion preferences:
   --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.4);
   --shadow-xl: 0 1rem 3rem rgba(0, 0, 0, 0.5);
+  
+  /* Dark mode elevation: shadows on dark backgrounds are subtle.
+     For visible elevation, use lighter shadows or combine with
+     subtle border highlights (e.g., border: 1px solid rgba(255,255,255,0.1)) */
 }
 ```
 

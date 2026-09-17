@@ -155,31 +155,9 @@ styles/
 
 ## Responsive Patterns
 
-### Mobile-First
-```css
-/* Base styles (mobile) */
-.container {
-  padding: var(--space-sm);
-}
+**This skill uses Desktop-First by default** (see tokens.md and responsive.md). Use `max-width` media queries to adapt downward from desktop layouts.
 
-/* Tablet and up */
-@media (min-width: 768px) {
-  .container {
-    padding: var(--space-md);
-  }
-}
-
-/* Desktop and up */
-@media (min-width: 1024px) {
-  .container {
-    padding: var(--space-lg);
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-}
-```
-
-### Desktop-First
+### Desktop-First (Default)
 ```css
 /* Base styles (desktop) */
 .container {
@@ -199,6 +177,31 @@ styles/
 @media (max-width: 768px) {
   .container {
     padding: var(--space-sm);
+  }
+}
+```
+
+### Mobile-First (Alternative)
+Use only when explicitly required by project constraints. Uses `min-width` to build upward.
+```css
+/* Base styles (mobile) */
+.container {
+  padding: var(--space-sm);
+}
+
+/* Tablet and up */
+@media (min-width: 768px) {
+  .container {
+    padding: var(--space-md);
+  }
+}
+
+/* Desktop and up */
+@media (min-width: 1024px) {
+  .container {
+    padding: var(--space-lg);
+    max-width: 1200px;
+    margin: 0 auto;
   }
 }
 ```

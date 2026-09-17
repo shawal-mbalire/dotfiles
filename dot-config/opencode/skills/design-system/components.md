@@ -97,7 +97,7 @@ All components must establish visual hierarchy through:
 
 ### Accessibility
 - Must have visible focus indicator
-- Minimum touch target: 24x24px (WCAG AA)
+- Minimum touch target: 44x44px (recommended), 24x24px absolute minimum (WCAG 2.5.8)
 - Disabled state must be announced to screen readers
 
 ---
@@ -237,3 +237,158 @@ All components must establish visual hierarchy through:
 - Must be focusable via keyboard
 - Distinct from surrounding text (color, underline, or both)
 - Skip link for main content navigation
+
+---
+
+## Modal/Dialog Component
+
+**Required Elements**: `<dialog>` or `<div role="dialog">`, `<header>`, `<footer>`
+**Required Tokens**: --bg-primary, --text-primary, --shadow-xl, --z-modal
+**Variants**:
+- `default`: standard modal with overlay backdrop
+- `fullscreen`: full viewport overlay
+- `confirmation`: minimal dialog for confirm/cancel actions
+
+### Typography Hierarchy
+- **Modal Title**: --font-size-xl, --font-weight-semibold, --text-primary (100% opacity)
+- **Modal Body**: --font-size-base, --font-weight-normal, --text-primary (100% opacity)
+- **Modal Caption**: --font-size-sm, --font-weight-normal, --text-secondary (70% opacity)
+
+### Interactions
+- Open: fade in overlay + scale up dialog
+- Close: fade out overlay + scale down dialog
+- Backdrop click: closes modal (unless persistent)
+- Escape key: closes modal
+- Transition: `opacity 0.2s ease, transform 0.2s ease`
+
+### States
+- Default: visible, interactive
+- Closed: hidden from DOM or `aria-hidden="true"`
+- Loading: spinner in body area
+
+### Accessibility
+- Use `<dialog>` element or `role="dialog"` with `aria-modal="true"`
+- Title linked via `aria-labelledby`
+- Focus trapped within modal when open
+- Return focus to trigger element on close
+- Background scroll locked when open
+
+```css
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.modal--open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal__content {
+  background: var(--surface-primary);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-lg);
+  max-width: 500px;
+  width: 90%;
+  box-shadow: var(--shadow-xl);
+  transform: scale(0.95);
+  transition: transform 0.2s ease;
+}
+
+.modal--open .modal__content {
+  transform: scale(1);
+}
+```
+
+---
+
+## Toast/Notification Component
+
+**Required Elements**: `<div role="status">` or `<div role="alert">`, optional icon, close button
+**Required Tokens**: --bg-primary, --text-primary, --state-success, --state-warning, --state-error, --state-info, --z-toast
+**Variants**:
+- `success`: positive outcome feedback
+- `warning`: caution or attention needed
+- `error`: failure or critical message
+- `info`: neutral information
+
+### Typography Hierarchy
+- **Toast Message**: --font-size-sm, --font-weight-normal, --text-primary (100% opacity)
+- **Toast Title**: --font-size-sm, --font-weight-semibold, --text-primary (100% opacity)
+- **Toast Action**: --font-size-sm, --font-weight-medium, --accent-primary
+
+### Interactions
+- Enter: slide in from edge + fade
+- Exit: slide out + fade
+- Auto-dismiss: after 5-8 seconds (configurable)
+- Pause auto-dismiss on hover
+- Transition: `transform 0.3s ease, opacity 0.3s ease`
+
+### States
+- Entering: slide + fade in
+- Visible: persistent until dismissed
+- Exiting: slide + fade out
+- Dismissed: removed from DOM
+
+### Accessibility
+- Use `role="status"` for non-critical toasts
+- Use `role="alert"` for error/critical toasts
+- Announce content to screen readers via `aria-live`
+- Provide close button with `aria-label="Dismiss"`
+- Do not auto-dismiss error toasts
+
+```css
+.toast-container {
+  position: fixed;
+  bottom: var(--space-lg);
+  inset-inline-end: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  z-index: var(--z-toast);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-lg);
+  min-width: 300px;
+  max-width: 450px;
+  pointer-events: auto;
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.toast--visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.toast--success { border-inline-start: 3px solid var(--state-success); }
+.toast--warning { border-inline-start: 3px solid var(--state-warning); }
+.toast--error { border-inline-start: 3px solid var(--state-error); }
+.toast--info { border-inline-start: 3px solid var(--state-info); }
+
+[dir="rtl"] .toast {
+  transform: translateX(-100%);
+}
+
+[dir="rtl"] .toast--visible {
+  transform: translateX(0);
+}
+```
