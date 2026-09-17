@@ -16,11 +16,18 @@ Rectangle {
         : paired ? ("Paired · " + device.address)
         : device.address
 
-    implicitHeight: 48
+    property bool confirmingForget: false
+
+    implicitHeight: Theme.menuWideRowHeight
     radius: Theme.radius
-    color: connected ? Theme.tint(Theme.green, 0.85) : Theme.tint(Theme.surface0, 0.85)
+    color: connected ? Theme.tint(WallpaperColors.accent, 0.85)
+         : btRowHover.pressed ? Theme.tint(Theme.surface0, 0.6)
+         : btRowHover.containsMouse ? Theme.tint(Theme.surface0, 0.85)
+         : Theme.tint(Theme.surface0, 0.85)
     border.width: 1
-    border.color: connected ? Theme.tint(Theme.green, 0.85) : Theme.tint(Theme.surface1, 0.85)
+    border.color: connected ? Theme.tint(WallpaperColors.accent, 0.85) : Theme.tint(Theme.surface1, 0.85)
+
+    Behavior on color { ColorAnimation { duration: 80 } }
 
     RowLayout {
         anchors {
@@ -34,14 +41,14 @@ Rectangle {
             implicitWidth: 30
             implicitHeight: 30
             radius: 15
-            color: root.connected ? Theme.tint(Theme.green, 0.85) : Theme.tint(Theme.surface1, 0.85)
+            color: root.connected ? Theme.tint(WallpaperColors.accent, 0.85) : Theme.tint(Theme.surface1, 0.85)
 
             Text {
                 anchors.centerIn: parent
                 text: Theme.iconBluetooth
                 font.family: Theme.iconFontFamily
                 font.pixelSize: 15
-                color: root.connected ? Theme.green : Theme.subtext0
+                color: root.connected ? WallpaperColors.accent : Theme.subtext0
             }
         }
 
@@ -64,7 +71,7 @@ Rectangle {
                 elide: Text.ElideRight
                 font.family: Theme.fontFamily
                 font.pixelSize: 10
-                color: root.connected ? Theme.green : Theme.subtext0
+                color: root.connected ? WallpaperColors.accent : Theme.subtext0
             }
         }
 
@@ -78,8 +85,16 @@ Rectangle {
 
         MenuButton {
             visible: root.paired
-            label: "Forget"
-            onClicked: Bluetooth.forgetDevice(root.device)
+            label: root.confirmingForget ? "Confirm?" : "Forget"
+            onClicked: {
+                if (root.confirmingForget) {
+                    root.confirmingForget = false;
+                    Bluetooth.forgetDevice(root.device);
+                } else {
+                    root.confirmingForget = true;
+                    confirmTimer.restart();
+                }
+            }
         }
 
         MenuButton {
@@ -90,5 +105,19 @@ Rectangle {
                 else Bluetooth.pairDevice(root.device);
             }
         }
+    }
+
+    Timer {
+        id: confirmTimer
+        interval: 2000
+        onTriggered: root.confirmingForget = false
+    }
+
+    MouseArea {
+        id: btRowHover
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        acceptedButtons: Qt.NoButton
     }
 }

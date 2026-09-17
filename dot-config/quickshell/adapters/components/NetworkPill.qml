@@ -1,7 +1,6 @@
 import QtQuick
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 Pill {
@@ -16,7 +15,7 @@ Pill {
         : Network.wireless ? signalPercent + "%"
         : "offline"
 
-    // left: connectivity menu, right: control center
+    // left: connectivity menu, right: system menu
     onClicked: UiState.toggleMenu("connectivity")
-    onSecondaryClicked: UiState.toggleControlCenter()
+    onSecondaryClicked: UiState.toggleMenu("system")
 }

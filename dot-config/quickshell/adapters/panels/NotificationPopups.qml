@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import Quickshell
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // Transient notification toast, top-right under the bar.

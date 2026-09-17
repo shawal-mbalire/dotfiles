@@ -4,12 +4,17 @@ import ".."
 import "../../domain"
 import "../../adapters"
 
-// Audio menu: main volume slider, per-app mixer, inputs.
+// Audio menu: main volume slider, output devices, per-app mixer.
+// Inputs are collapsed behind a toggle since most laptop users never switch mics.
 BaseMenu {
     id: root
 
     readonly property var sink: Audio.defaultSink
     readonly property var sinkAudio: Audio.defaultSinkAudio
+    property bool showInputs: false
+    readonly property bool singleOutput: Audio.outputGroups.length <= 1
+        && Audio.outputGroups.length > 0
+        && Audio.outputGroups[0].nodes.length <= 1
 
     // ── Output volume ─────────────────────────────────────────────────
     MenuTitle {
@@ -23,7 +28,7 @@ BaseMenu {
         icon: sinkAudio && sinkAudio.muted ? Theme.iconVolumeMuted : Theme.iconVolume
         value: sinkAudio ? Math.min(sinkAudio.volume, 1.0) : 0
         label: sinkAudio ? Math.round(sinkAudio.volume * 100) + "%" : "--"
-        accent: Theme.sapphire
+        accent: WallpaperColors.accent
         onMoved: value => {
             if (sinkAudio) {
                 sinkAudio.muted = false;
@@ -32,19 +37,14 @@ BaseMenu {
         }
     }
 
-
     // ── Output devices ────────────────────────────────────────────────
-    Text {
-        Layout.fillWidth: true
-        text: "Outputs"
-        font.family: Theme.fontFamily
-        font.pixelSize: 11
-        font.bold: true
-        color: Theme.overlay0
+    SectionLabel {
+        label: "Outputs"
+        visible: !root.singleOutput
     }
 
     Repeater {
-        model: Audio.outputGroups
+        model: root.singleOutput ? [] : Audio.outputGroups
         AudioGroupSection {
             required property var modelData
             group: modelData
@@ -52,16 +52,8 @@ BaseMenu {
         }
     }
 
-
     // ── Per-app volume ────────────────────────────────────────────────
-    Text {
-        Layout.fillWidth: true
-        text: "Apps"
-        font.family: Theme.fontFamily
-        font.pixelSize: 11
-        font.bold: true
-        color: Theme.overlay0
-    }
+    SectionLabel { label: "Apps" }
 
     Repeater {
         model: Audio.streams
@@ -111,7 +103,7 @@ BaseMenu {
                 Slider {
                     Layout.fillWidth: true
                     value: modelData.audio ? Math.min(modelData.audio.volume, 1.0) : 0
-                    accent: Theme.sapphire
+                    accent: WallpaperColors.accent
                     onMoved: value => {
                         if (modelData.audio) {
                             modelData.audio.muted = false;
@@ -132,45 +124,73 @@ BaseMenu {
         color: Theme.overlay0
     }
 
-
-    // ── Inputs ────────────────────────────────────────────────────────
-    Text {
+    // ── Inputs (collapsed) ───────────────────────────────────────────
+    Rectangle {
         Layout.fillWidth: true
-        text: "Inputs"
-        font.family: Theme.fontFamily
-        font.pixelSize: 11
-        font.bold: true
-        color: Theme.overlay0
-    }
+        implicitHeight: Theme.menuCompactRowHeight
+        radius: Theme.radius
+        color: inputToggleHover.pressed ? Theme.tint(Theme.surface0, 0.6)
+             : inputToggleHover.containsMouse ? Theme.tint(Theme.surface0, 0.85)
+             : Theme.tint(Theme.surface0, 0.5)
+        border.width: 1
+        border.color: Theme.tint(Theme.surface1, 0.85)
 
-    Repeater {
-        model: Audio.inputGroups
-        AudioGroupSection {
-            required property var modelData
-            group: modelData
-            sinks: false
+        Behavior on color { ColorAnimation { duration: 80 } }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+
+            Text {
+                text: root.showInputs ? "Hide inputs" : "Show inputs"
+                font.family: Theme.fontFamily
+                font.pixelSize: 11
+                color: Theme.subtext0
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+                text: root.showInputs ? "\uF077" : "\uF078"
+                font.family: Theme.iconFontFamily
+                font.pixelSize: 10
+                color: Theme.subtext0
+            }
+        }
+
+        MouseArea {
+            id: inputToggleHover
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.showInputs = !root.showInputs
         }
     }
 
-    Text {
+    ColumnLayout {
         Layout.fillWidth: true
-        visible: Audio.inputGroups.length === 0
-        text: "No input devices"
-        font.family: Theme.fontFamily
-        font.pixelSize: 11
-        color: Theme.overlay0
-    }
+        visible: root.showInputs
+        spacing: 8
 
+        SectionLabel { label: "Inputs" }
 
-    RowLayout {
-        Layout.fillWidth: true
-        Layout.topMargin: 4
+        Repeater {
+            model: Audio.inputGroups
+            AudioGroupSection {
+                required property var modelData
+                group: modelData
+                sinks: false
+            }
+        }
 
-        Item { Layout.fillWidth: true }
-
-        MenuButton {
-            label: "Audio effects"
-            onClicked: Audio.openTweaker()
+        Text {
+            Layout.fillWidth: true
+            visible: Audio.inputGroups.length === 0
+            text: "No input devices"
+            font.family: Theme.fontFamily
+            font.pixelSize: 11
+            color: Theme.overlay0
         }
     }
 }

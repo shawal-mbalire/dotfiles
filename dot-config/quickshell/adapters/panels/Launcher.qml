@@ -5,7 +5,6 @@ import Quickshell.Wayland
 import ".."
 import "../components"
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // Launcher: applications and clipboard history in one searchable overlay.

@@ -15,12 +15,41 @@ Rectangle {
     color: "black"
 
     property date now: new Date()
+    property bool idle: true
 
     Timer {
         running: true
         repeat: true
         interval: 1000
         onTriggered: root.now = new Date()
+    }
+
+    // Return to idle after 5 seconds of no interaction.
+    Timer {
+        id: idleTimer
+        interval: 600000
+        onTriggered: root.idle = true
+    }
+
+    // ── Input detection (wake from idle) ──────────────────────────────────
+    MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        onPositionChanged: root.wake()
+        onClicked: root.wake()
+        onPressed: root.wake()
+        cursorShape: Qt.ArrowCursor
+    }
+
+    function wake() {
+        if (!root.idle) {
+            idleTimer.restart();
+            return;
+        }
+        root.idle = false;
+        idleTimer.restart();
+        root.context.start();
+        input.forceActiveFocus();
     }
 
     // ── Blurred wallpaper background ──────────────────────────────────────
@@ -68,76 +97,93 @@ Rectangle {
 
         Item { implicitHeight: 30 }
 
-        Rectangle {
+        // Interactive area: password field + messages (hidden when idle).
+        Item {
+            id: interactiveArea
             Layout.alignment: Qt.AlignHCenter
-            implicitWidth: 420
-            implicitHeight: 46
-            radius: Theme.radius
-            color: Theme.tint(Theme.surface0, 0.85)
-            border.width: 1
-            border.color: root.context.showFailure ? Theme.red : WallpaperColors.accent
+            Layout.preferredWidth: 420
+            Layout.preferredHeight: 120
+            opacity: root.idle ? 0 : 1
+            visible: opacity > 0
 
-            TextInput {
-                id: input
-                anchors {
-                    fill: parent
-                    leftMargin: 14
-                    rightMargin: 14
-                }
-                verticalAlignment: TextInput.AlignVCenter
-                echoMode: TextInput.Password
-                inputMethodHints: Qt.ImhSensitiveData
-                color: Theme.text
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize + 2
-                clip: true
+            Behavior on opacity {
+                NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+            }
 
-                onTextChanged: root.context.currentText = text
-                onAccepted: root.context.submit()
+            Rectangle {
+                id: passwordBox
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                implicitWidth: 420
+                implicitHeight: 46
+                radius: Theme.radius
+                color: Theme.tint(Theme.surface0, 0.85)
+                border.width: 1
+                border.color: root.context.showFailure ? Theme.red : WallpaperColors.accent
 
-                Connections {
-                    target: root.context
-                    function onCurrentTextChanged() {
-                        if (input.text !== root.context.currentText)
-                            input.text = root.context.currentText;
-                    }
-                }
-
-                Text {
+                TextInput {
+                    id: input
                     anchors {
-                        left: parent.left
-                        verticalCenter: parent.verticalCenter
+                        fill: parent
+                        leftMargin: 14
+                        rightMargin: 14
                     }
-                    visible: input.text === ""
-                    text: "Password"
+                    verticalAlignment: TextInput.AlignVCenter
+                    echoMode: TextInput.Password
+                    inputMethodHints: Qt.ImhSensitiveData
+                    color: Theme.text
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSize + 2
-                    color: Theme.overlay0
+                    clip: true
+
+                    onTextChanged: root.context.currentText = text
+                    onAccepted: root.context.submit()
+
+                    Connections {
+                        target: root.context
+                        function onCurrentTextChanged() {
+                            if (input.text !== root.context.currentText)
+                                input.text = root.context.currentText;
+                        }
+                    }
+
+                    Text {
+                        anchors {
+                            left: parent.left
+                            verticalCenter: parent.verticalCenter
+                        }
+                        visible: input.text === ""
+                        text: "Password"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize + 2
+                        color: Theme.overlay0
+                    }
                 }
             }
-        }
 
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            visible: root.context.showFailure
-            text: "Incorrect password"
-            font.family: Theme.fontFamily
-            font.pixelSize: 13
-            color: Theme.red
-        }
+            Text {
+                anchors.top: passwordBox.bottom
+                anchors.topMargin: 6
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: root.context.showFailure
+                text: "Incorrect password"
+                font.family: Theme.fontFamily
+                font.pixelSize: 13
+                color: Theme.red
+            }
 
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            visible: !root.context.showFailure && root.context.message !== ""
-            text: root.context.message
-            font.family: Theme.fontFamily
-            font.pixelSize: 13
-            color: Theme.subtext0
+            Text {
+                anchors.top: passwordBox.bottom
+                anchors.topMargin: 6
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: !root.context.showFailure && root.context.message !== ""
+                text: root.context.message
+                font.family: Theme.fontFamily
+                font.pixelSize: 13
+                color: Theme.subtext0
+            }
         }
     }
 
-    Component.onCompleted: {
-        input.forceActiveFocus();
-        root.context.start();
-    }
+    Component.onCompleted: root.context.start()
 }

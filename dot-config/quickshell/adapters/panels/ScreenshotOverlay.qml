@@ -5,7 +5,6 @@ import ".."
 import "../components"
 import "../../domain"
 import "../../adapters"
-import "../../domain"
 // Region screenshot overlay. Captures the screen, lets the user drag a
 // rectangle, then saves it and copies it to the clipboard. Replaces grimblast.
 LazyLoader {

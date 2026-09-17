@@ -1,7 +1,6 @@
 import QtQuick
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // Deliberate on/off switch (a click toggles it, but it lives inside a menu
@@ -15,7 +14,7 @@ Rectangle {
     implicitWidth: 44
     implicitHeight: 24
     radius: 12
-    color: checked ? Theme.tint(Theme.green, 0.85) : Theme.tint(Theme.surface1, 0.85)
+    color: checked ? Theme.tint(WallpaperColors.accent, 0.85) : Theme.tint(Theme.surface1, 0.85)
     border.width: 1
     border.color: Theme.tint(Theme.surface1, 0.85)
 
@@ -33,7 +32,7 @@ Rectangle {
         color: Theme.text
 
         Behavior on x {
-            NumberAnimation { duration: 120 }
+            NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
         }
     }
 

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell
 import ".."
 import "../../domain"
@@ -105,14 +106,7 @@ BaseMenu {
 
 
     // ── Scale ─────────────────────────────────────────────────────────
-    Text {
-        Layout.fillWidth: true
-        text: "Scale"
-        font.family: Theme.fontFamily
-        font.pixelSize: 11
-        font.bold: true
-        color: Theme.overlay0
-    }
+    SectionLabel { label: "Scale" }
 
     RowLayout {
         Layout.fillWidth: true
@@ -121,7 +115,7 @@ BaseMenu {
         Repeater {
             model: [
                 { label: "100%", scale: 1.0 },
-                { label: "75%",  scale: 0.75 },
+                { label: "125%", scale: 1.25 },
                 { label: "150%", scale: 1.5 }
             ]
 
@@ -129,14 +123,14 @@ BaseMenu {
                 id: scaleBtn
                 required property var modelData
                 Layout.fillWidth: true
-                implicitHeight: 30
+                implicitHeight: Theme.menuCompactRowHeight
                 radius: Theme.radius
                 readonly property bool isActive: {
                     const mon = Compositor.monitors.length > 0 ? Compositor.monitors[0] : null;
                     const current = mon ? mon.scale : 1;
                     return Math.abs(current - modelData.scale) < 0.01;
                 }
-                color: isActive ? Theme.tint(Theme.teal, 0.85)
+                color: isActive ? Theme.tint(WallpaperColors.accent, 0.85)
                      : scaleBtnHover.pressed ? Theme.tint(Theme.surface0, 0.6)
                      : scaleBtnHover.containsMouse ? Theme.tint(Theme.surface0, 0.85)
                      : Theme.tint(Theme.surface0, 0.5)
@@ -165,46 +159,31 @@ BaseMenu {
     }
 
 
-    // ── Night light + gamma ───────────────────────────────────────────
-    Text {
-        Layout.fillWidth: true
-        text: "Night light"
-        font.family: Theme.fontFamily
-        font.pixelSize: 11
-        font.bold: true
-        color: Theme.overlay0
-    }
-
+    // ── Night light / gammastep ───────────────────────────────────────
     RowLayout {
         Layout.fillWidth: true
-        spacing: 6
+        spacing: 8
 
-        MenuButton {
-            Layout.fillWidth: true
-            label: Nightlight.active
-                ? "On  (" + Nightlight.temperature + "K)"
-                : "Off  (" + Nightlight.defaultTemp + "K)"
-            onClicked: Nightlight.toggle()
+        Text {
+            text: Theme.iconNight
+            font.family: Theme.iconFontFamily
+            font.pixelSize: 14
+            color: Nightlight.active ? WallpaperColors.accent : Theme.overlay0
         }
 
-        MenuButton {
+        Text {
             Layout.fillWidth: true
-            label: "Warmer  \u25B6"
-            onClicked: Nightlight.step(-100)
+            text: Nightlight.active
+                ? "Gammastep " + Nightlight.temperature + "K"
+                : "Gammastep"
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+            color: Nightlight.active ? Theme.text : Theme.overlay0
         }
 
-        MenuButton {
-            Layout.fillWidth: true
-            label: "\u25C0  Cooler"
-            onClicked: Nightlight.step(100)
+        ToggleSwitch {
+            checked: Nightlight.active
+            onToggled: Nightlight.toggle()
         }
-    }
-
-
-    // ── Mirror / Extend ───────────────────────────────────────────────
-    MenuButton {
-        Layout.fillWidth: true
-        label: "Mirror / Extend"
-        onClicked: Compositor.toggleMirror()
     }
 }

@@ -9,10 +9,9 @@ Singleton {
     id: root
 
     // ── Panels ────────────────────────────────────────────────────────────
-    property bool controlCenterOpen: false
     property bool barVisible: true
 
-    // Which bar submenu is open: "", "bluetooth", "audio", "power".
+    // Which bar submenu is open: "", "connectivity", "audio", "power", "display", "system".
     property string activeMenu: ""
 
     // ── Session surfaces ──────────────────────────────────────────────────
@@ -22,7 +21,6 @@ Singleton {
     property bool screenshotOpen: false
 
     function lock() {
-        controlCenterOpen = false;
         activeMenu = "";
         launcherOpen = false;
         screenshotOpen = false;
@@ -30,7 +28,6 @@ Singleton {
     }
 
     function toggleLauncher(mode) {
-        controlCenterOpen = false;
         activeMenu = "";
         launcherMode = mode ?? "apps";
         launcherOpen = !launcherOpen;
@@ -41,7 +38,6 @@ Singleton {
     }
 
     function toggleScreenshot() {
-        controlCenterOpen = false;
         activeMenu = "";
         screenshotOpen = !screenshotOpen;
     }
@@ -55,22 +51,14 @@ Singleton {
     }
 
     function openMenu(name) {
-        controlCenterOpen = false;
         activeMenu = name;
     }
 
     function toggleMenu(name) {
-        controlCenterOpen = false;
         activeMenu = activeMenu === name ? "" : name;
     }
 
-    function toggleControlCenter() {
-        activeMenu = "";
-        controlCenterOpen = !controlCenterOpen;
-    }
-
     function closePanels() {
-        controlCenterOpen = false;
         activeMenu = "";
     }
 

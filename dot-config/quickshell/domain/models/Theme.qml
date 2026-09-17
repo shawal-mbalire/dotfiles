@@ -41,6 +41,9 @@ Singleton {
     readonly property int radius: 5
     readonly property int gap: 2
     readonly property int padH: 10
+    readonly property int menuRowHeight: 32
+    readonly property int menuCompactRowHeight: 28
+    readonly property int menuWideRowHeight: 44
 
     // ── Nerd Font glyphs ─────────────────────────────────────────────────
     readonly property string iconClock: "\uF017"

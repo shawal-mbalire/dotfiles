@@ -18,6 +18,7 @@ Singleton {
     property bool showFailure: false
     property bool unlockInProgress: false
     property bool awaitingResponse: false
+    property bool _autoRespond: false
 
     onCurrentTextChanged: showFailure = false
 
@@ -27,6 +28,7 @@ Singleton {
         if (pam.active) return;
         root.message = "";
         root.unlockInProgress = true;
+        root._autoRespond = false;
         pam.start();
     }
 
@@ -46,8 +48,24 @@ Singleton {
         if (root.awaitingResponse) {
             root.unlockInProgress = true;
             pam.respond(root.currentText);
+        } else if (pam.active && root.currentText.length > 0) {
+            // User typed a password while fingerprint reader is active.
+            // Cancel fingerprint so PAM falls through to the password rule.
+            root._autoRespond = true;
+            pam.cancel();
+            restartTimer.restart();
         } else {
             root.start();
+        }
+    }
+
+    Timer {
+        id: restartTimer
+        interval: 50
+        onTriggered: {
+            if (root._autoRespond && !pam.active) {
+                root.start();
+            }
         }
     }
 
@@ -60,6 +78,11 @@ Singleton {
         onPamMessage: {
             root.message = pam.message ?? "";
             root.awaitingResponse = pam.responseRequired;
+            if (root._autoRespond && pam.responseRequired && root.currentText.length > 0) {
+                root._autoRespond = false;
+                root.unlockInProgress = true;
+                pam.respond(root.currentText);
+            }
         }
 
         onCompleted: result => {
@@ -71,6 +94,7 @@ Singleton {
                 root.showFailure = true;
                 root.awaitingResponse = false;
             }
+            root._autoRespond = false;
             root.unlockInProgress = false;
         }
     }

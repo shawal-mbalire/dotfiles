@@ -22,6 +22,12 @@ Singleton {
 
     property var monitors: []
 
+    Timer {
+        id: refreshTimer
+        interval: 500
+        onTriggered: root.refreshMonitors()
+    }
+
     // ── CompositorPort ────────────────────────────────────────────────────
     function activateWorkspace(workspace) {
         if (workspace) workspace.activate();
@@ -48,9 +54,10 @@ Singleton {
         const name = monitors.length > 0 ? monitors[0].name : "eDP-1";
         const mon = monitors.find(m => m.name === name);
         const mode = mon ? mon.width + "x" + mon.height + "@" + mon.refreshRate.toFixed(0) : "1920x1200@60";
-        evalProc.command = ["hyprctl", "keyword", "monitor",
-            name + "," + mode + ",0x0," + String(scale)];
-        evalProc.running = true;
+        const expr = 'hl.monitor({ output = "' + name + '", mode = "' + mode
+            + '", position = "auto", scale = ' + String(scale) + ' })';
+        Quickshell.execDetached(["hyprctl", "eval", expr]);
+        refreshTimer.restart();
     }
 
     function logout() {

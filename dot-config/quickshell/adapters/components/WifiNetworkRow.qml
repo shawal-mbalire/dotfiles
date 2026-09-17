@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 Rectangle {
@@ -16,7 +15,9 @@ Rectangle {
     readonly property bool secured: !Formatters.isOpenNetwork(
         network.security, Constants.securityOpen, Constants.securityUnknown)
 
-    implicitHeight: 34
+    property bool confirmingForget: false
+
+    implicitHeight: Theme.menuRowHeight
     radius: Theme.radius
     color: connected ? Theme.tint(WallpaperColors.accent, 0.85)
          : wifiRowHover.pressed ? Theme.tint(Theme.surface0, 0.6)
@@ -53,10 +54,20 @@ Rectangle {
         }
 
         Text {
+            visible: !root.confirmingForget
             text: root.connected ? "connected" : Formatters.percent(root.network.signalStrength) + "%"
             font.family: Theme.fontFamily
             font.pixelSize: 11
             color: root.connected ? Theme.crust : Theme.subtext0
+        }
+
+        Text {
+            visible: root.confirmingForget
+            text: "Forget?"
+            font.family: Theme.fontFamily
+            font.pixelSize: 11
+            font.bold: true
+            color: Theme.red
         }
     }
 
@@ -68,12 +79,27 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onClicked: mouse => {
             if (mouse.button === Qt.RightButton) {
-                if (root.network.known) Network.forgetNetwork(root.network);
+                if (root.network.known) {
+                    if (root.confirmingForget) {
+                        root.confirmingForget = false;
+                        Network.forgetNetwork(root.network);
+                    } else {
+                        root.confirmingForget = true;
+                        forgetConfirmTimer.restart();
+                    }
+                }
                 return;
             }
+            root.confirmingForget = false;
             if (root.connected) Network.disconnectNetwork(root.network);
             else if (root.network.known || !root.secured) Network.connectNetwork(root.network);
             else root.requestPassword(root.network);
         }
+    }
+
+    Timer {
+        id: forgetConfirmTimer
+        interval: 2000
+        onTriggered: root.confirmingForget = false
     }
 }

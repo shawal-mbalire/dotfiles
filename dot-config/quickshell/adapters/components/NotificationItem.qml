@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 Rectangle {
@@ -36,7 +35,7 @@ Rectangle {
                 elide: Text.ElideRight
                 font.family: Theme.fontFamily
                 font.pixelSize: 11
-                color: Theme.mauve
+                color: WallpaperColors.accent
             }
 
             Text {

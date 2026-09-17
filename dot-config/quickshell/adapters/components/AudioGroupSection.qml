@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // One sound card inside the audio menu: a header with the card name when it

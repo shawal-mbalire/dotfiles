@@ -48,7 +48,6 @@ ShellRoot {
     }
 
     // ── Overlays / panels ─────────────────────────────────────────────────
-    ControlCenter {}
     MenuPopup {}
     NotificationPopups {}
     Osd {}
@@ -106,7 +105,7 @@ ShellRoot {
         target: "quickshell"
 
         function toggleControlCenter() {
-            Measure.run("toggleControlCenter", () => UiState.toggleControlCenter());
+            Measure.run("toggleControlCenter", () => UiState.toggleMenu("system"));
         }
 
         function toggleBar() {

@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // The shared bar chip: rounded, translucent, optionally icon + text.

@@ -1,7 +1,6 @@
 import QtQuick
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // Driving watcher: turns battery changes into threshold notifications, at most

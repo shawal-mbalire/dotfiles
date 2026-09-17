@@ -1,7 +1,6 @@
 import QtQuick
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // Driving adapter: watches the default sink and raises the volume OSD. Keeps

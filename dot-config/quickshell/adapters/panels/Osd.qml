@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import Quickshell
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // Volume / brightness OSD. Created only while visible so the window tree does

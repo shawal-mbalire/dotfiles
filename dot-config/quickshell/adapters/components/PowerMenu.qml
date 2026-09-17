@@ -2,13 +2,10 @@ import QtQuick
 import QtQuick.Layouts
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 BaseMenu {
     id: root
-
-    implicitWidth: 260
 
     MenuTitle {
         title: "Power profile"
@@ -27,7 +24,7 @@ BaseMenu {
                 : Theme.green
 
             Layout.fillWidth: true
-            implicitHeight: 32
+            implicitHeight: Theme.menuRowHeight
             radius: Theme.radius
             color: current ? Theme.tint(row.accent, 0.8)
                  : rowHover.pressed ? Theme.tint(Theme.surface0, 0.6)

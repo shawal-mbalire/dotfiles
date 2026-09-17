@@ -1,7 +1,6 @@
 import QtQuick
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // Larger, hover-highlighted control button for the media player.

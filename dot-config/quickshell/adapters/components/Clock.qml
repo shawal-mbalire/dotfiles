@@ -2,7 +2,6 @@ import QtQuick
 import Quickshell
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 Pill {

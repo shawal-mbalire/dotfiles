@@ -10,4 +10,5 @@ ColumnLayout {
 
     implicitWidth: 296
     spacing: 8
+    clip: true
 }

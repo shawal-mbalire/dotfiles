@@ -12,9 +12,8 @@ Singleton {
     id: root
 
     readonly property int defaultTemp: 16000
-    readonly property int nightTemp: 3500
     property bool active: false
-    property int temperature: nightTemp
+    property int temperature: defaultTemp
 
     function refresh() {
         if (!statusProc.running) statusProc.running = true;
@@ -22,10 +21,17 @@ Singleton {
 
     function toggle() {
         if (toggleProc.running) return;
-        // Optimistic: reflect the new state immediately so the bar is reactive.
-        // refresh() on exit reconciles with the actual gammastep process.
-        root.active = !root.active;
         toggleProc.running = true;
+    }
+
+    function start() {
+        Quickshell.execDetached(["gammastep", "-O", String(defaultTemp)]);
+        root.active = true;
+    }
+
+    function stop() {
+        Quickshell.execDetached(["pkill", "-f", "gammastep"]);
+        root.active = false;
     }
 
     function step(delta) {
@@ -46,18 +52,22 @@ Singleton {
 
     Process {
         id: statusProc
-        command: [InfraConfig.python, "-S", InfraConfig.helper, "nightlight", "status"]
-        stdout: StdioCollector {
-            id: statusOut
-            onStreamFinished: root.active = statusOut.text.trim() === "On"
-        }
+        command: ["pgrep", "-x", "gammastep"]
+        stdout: StdioCollector {}
+        onExited: root.active = exitCode === 0
     }
 
     Process {
         id: toggleProc
-        command: [InfraConfig.python, "-S", InfraConfig.helper, "nightlight", "toggle"]
+        command: ["pgrep", "-x", "gammastep"]
         stdout: StdioCollector {}
-        onExited: root.refresh()
+        onExited: {
+            if (exitCode === 0) {
+                root.stop();
+            } else {
+                root.start();
+            }
+        }
     }
 
     Timer {

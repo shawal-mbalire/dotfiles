@@ -4,7 +4,6 @@ import Quickshell
 import Quickshell.Wayland
 import ".."
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 // One bar per monitor. Instantiated by a Variants over Quickshell.screens.
@@ -91,5 +90,9 @@ PanelWindow {
             icon: Theme.iconVolume
             iconColor: Theme.sapphire
         }
+
+        Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: Theme.tint(Theme.surface1, 0.85) }
+
+        BatteryPill {}
     }
 }

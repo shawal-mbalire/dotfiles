@@ -29,7 +29,7 @@ BaseMenu {
     Rectangle {
         id: wifiScan
         Layout.fillWidth: true
-        implicitHeight: 30
+        implicitHeight: Theme.menuCompactRowHeight
         visible: Network.wifiDevice && Network.wifiEnabled
         radius: Theme.radius
         color: Network.wifiScanning
@@ -106,7 +106,7 @@ BaseMenu {
     Rectangle {
         id: btScan
         Layout.fillWidth: true
-        implicitHeight: 30
+        implicitHeight: Theme.menuCompactRowHeight
         visible: Bluetooth.available && Bluetooth.enabled
         radius: Theme.radius
         color: Bluetooth.discovering

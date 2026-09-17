@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import ".."
 import "../components"
 import "../../domain"
-import "../../domain"
 import "../../adapters"
 
 Rectangle {
