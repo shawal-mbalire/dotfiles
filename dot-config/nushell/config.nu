@@ -683,7 +683,6 @@ alias lt = eza --tree --level=2 --long --icons --git
 alias v = nvim .
 alias j = just
 alias oc = opencode 
-alias t = tuicr
 
 # Git
 alias ghs = gh auth status --active
