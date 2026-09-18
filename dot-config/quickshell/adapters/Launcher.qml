@@ -5,12 +5,29 @@ import Quickshell
 
 // Driven adapter: application catalog for the launcher.
 // Implements the LauncherPort (search / launch).
+// Search results are debounced (50ms) so rapid keystrokes don't re-score all
+// applications on every character.
 Singleton {
     id: root
 
     readonly property var applications: {
         const all = DesktopEntries.applications.values;
         return all.filter(e => e && e.name && !e.noDisplay);
+    }
+
+    // Debounced search state — the panel reads `results` instead of calling
+    // search() directly in a binding.
+    property string _pendingQuery: ""
+    property var _lastResults: []
+    property int _revision: 0
+
+    readonly property var results: root._lastResults
+    readonly property int resultsRevision: root._revision
+
+    Timer {
+        id: debounceTimer
+        interval: 50
+        onTriggered: root._executeSearch(root._pendingQuery)
     }
 
     // Fuzzy match: returns score > 0 if every char in q appears in s in order, else 0.
@@ -70,16 +87,25 @@ Singleton {
         return _fuzzyScore(hay, q);
     }
 
+    // Public entry point: debounce rapid calls, execute after quiet period.
     function search(query) {
-        const q = (query || "").trim().toLowerCase();
+        root._pendingQuery = (query || "").trim().toLowerCase();
+        debounceTimer.restart();
+    }
+
+    function _executeSearch(q) {
         const apps = root.applications;
-        if (q === "") return apps.slice(0, 8);
-        return apps
-            .map(e => ({ entry: e, score: root._score(e, q) }))
-            .filter(r => r.score > 0)
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 50)
-            .map(r => r.entry);
+        if (q === "") {
+            root._lastResults = apps.slice(0, 8);
+        } else {
+            root._lastResults = apps
+                .map(e => ({ entry: e, score: root._score(e, q) }))
+                .filter(r => r.score > 0)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 50)
+                .map(r => r.entry);
+        }
+        root._revision++;
     }
 
     function launch(entry) {

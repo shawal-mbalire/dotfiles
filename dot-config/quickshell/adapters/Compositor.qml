@@ -22,10 +22,11 @@ Singleton {
 
     property var monitors: []
 
-    Timer {
-        id: refreshTimer
-        interval: 500
-        onTriggered: root.refreshMonitors()
+    // Event-driven: refresh when Quickshell's native monitor list changes,
+    // instead of polling hyprctl every 500ms.
+    Connections {
+        target: Hyprland.monitors
+        function onValuesChanged() { root.refreshMonitors(); }
     }
 
     // ── CompositorPort ────────────────────────────────────────────────────
@@ -57,7 +58,7 @@ Singleton {
         const expr = 'hl.monitor({ output = "' + name + '", mode = "' + mode
             + '", position = "auto", scale = ' + String(scale) + ' })';
         Quickshell.execDetached(["hyprctl", "eval", expr]);
-        refreshTimer.restart();
+        refreshMonitors();
     }
 
     function logout() {

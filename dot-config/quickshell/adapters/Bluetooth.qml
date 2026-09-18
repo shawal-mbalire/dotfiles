@@ -20,19 +20,59 @@ Singleton {
 
     property var nameCache: ({})
 
-    readonly property var devices: root.adapter
-        ? Formatters.sortBluetoothDevices(
-            root.adapter.devices.values.filter(d => Formatters.hasBtName(d, root.nameCache)),
-            root.nameCache)
-        : []
-    readonly property var connectedDevices: root.devices.filter(d => d.connected)
-    readonly property var pairedDevices: root.devices.filter(
-        d => d.connected || Formatters.isPaired(d))
-    readonly property var otherDevices: root.devices.filter(
-        d => !(d.connected || Formatters.isPaired(d)))
-    readonly property int connectedCount: root.connectedDevices.length
+    // Cached filter results — single-pass sort + partition from source.
+    property var _devices: []
+    property var _connectedDevices: []
+    property var _pairedDevices: []
+    property var _otherDevices: []
 
-    Component.onCompleted: refreshNameCache()
+    readonly property var devices: root._devices
+    readonly property var connectedDevices: root._connectedDevices
+    readonly property var pairedDevices: root._pairedDevices
+    readonly property var otherDevices: root._otherDevices
+    readonly property int connectedCount: root._connectedDevices.length
+
+    function _recomputeDevices() {
+        if (!root.adapter) {
+            root._devices = [];
+            root._connectedDevices = [];
+            root._pairedDevices = [];
+            root._otherDevices = [];
+            return;
+        }
+        const cache = root.nameCache;
+        const sorted = Formatters.sortBluetoothDevices(
+            root.adapter.devices.values.filter(d => Formatters.hasBtName(d, cache)),
+            cache);
+        const connected = [];
+        const paired = [];
+        const other = [];
+        for (let i = 0; i < sorted.length; i++) {
+            const d = sorted[i];
+            if (d.connected) connected.push(d);
+            if (d.connected || Formatters.isPaired(d)) paired.push(d);
+            else other.push(d);
+        }
+        root._devices = sorted;
+        root._connectedDevices = connected;
+        root._pairedDevices = paired;
+        root._otherDevices = other;
+    }
+
+    Connections {
+        target: root.adapter ? root.adapter.devices : null
+        function onValuesChanged() { root._recomputeDevices(); }
+    }
+
+    Connections {
+        target: root
+        function onNameCacheChanged() { root._recomputeDevices(); }
+    }
+
+    Component.onCompleted: {
+        refreshNameCache();
+        _recomputeDevices();
+    }
 
     onDiscoveringChanged: refreshNameCache()
 

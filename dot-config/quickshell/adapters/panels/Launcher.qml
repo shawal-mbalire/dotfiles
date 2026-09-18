@@ -28,27 +28,29 @@ LazyLoader {
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
         readonly property bool clipboard: UiState.launcherMode === "clipboard"
-        readonly property var appResults: Launcher.search(query.text)
-        readonly property var clipResults: {
-            const q = query.text.trim().toLowerCase();
+        readonly property var appResults: Launcher.results
+        property string _clipQuery: ""
+        property var clipResults: _computeClipResults("")
+
+        function _fuzzyScore(s, q) {
+            if (q === "") return 1;
+            let si = 0, qi = 0, score = 0, consecutive = 0;
+            while (si < s.length && qi < q.length) {
+                if (s[si] === q[qi]) {
+                    qi++;
+                    consecutive++;
+                    score += consecutive * 10;
+                } else {
+                    consecutive = 0;
+                }
+                si++;
+            }
+            return qi === q.length ? score : 0;
+        }
+
+        function _computeClipResults(q) {
             const items = Clipboard.items;
             if (q === "") return items.slice(0, 100);
-
-            function fuzzyScore(s, q) {
-                if (q === "") return 1;
-                let si = 0, qi = 0, score = 0, consecutive = 0;
-                while (si < s.length && qi < q.length) {
-                    if (s[si] === q[qi]) {
-                        qi++;
-                        consecutive++;
-                        score += consecutive * 10;
-                    } else {
-                        consecutive = 0;
-                    }
-                    si++;
-                }
-                return qi === q.length ? score : 0;
-            }
 
             return items
                 .map(l => {
@@ -57,13 +59,29 @@ LazyLoader {
                     let score = 0;
                     if (pos === 0) score = 5000 + (q.length / label.length) * 1000;
                     else if (pos !== -1) score = 3000 - pos;
-                    else score = fuzzyScore(label, q);
+                    else score = prompt._fuzzyScore(label, q);
                     return { line: l, score: score };
                 })
                 .filter(r => r.score > 0)
                 .sort((a, b) => b.score - a.score)
                 .slice(0, 100)
                 .map(r => r.line);
+        }
+
+        Timer {
+            id: clipDebounce
+            interval: 50
+            onTriggered: {
+                prompt._clipQuery = query.text.trim().toLowerCase();
+                prompt.clipResults = prompt._computeClipResults(prompt._clipQuery);
+            }
+        }
+
+        Connections {
+            target: Clipboard
+            function onItemsChanged() {
+                prompt.clipResults = prompt._computeClipResults(prompt._clipQuery);
+            }
         }
         readonly property int count: clipboard ? clipResults.length : appResults.length
 
@@ -165,7 +183,11 @@ LazyLoader {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSize + 2
                         clip: true
-                        onTextChanged: list.currentIndex = prompt.count > 0 ? 0 : -1
+                        onTextChanged: {
+                            if (prompt.clipboard) clipDebounce.restart();
+                            else Launcher.search(query.text);
+                            list.currentIndex = prompt.count > 0 ? 0 : -1;
+                        }
                         onAccepted: prompt.activate()
                         Keys.onDownPressed: prompt.move(1)
                         Keys.onUpPressed: prompt.move(-1)
@@ -193,6 +215,7 @@ LazyLoader {
                     model: prompt.clipboard ? prompt.clipResults : prompt.appResults
                     spacing: 3
                     clip: true
+                    cacheSize: 5
                     currentIndex: count > 0 ? 0 : -1
                     boundsBehavior: Flickable.StopAtBounds
 
@@ -285,6 +308,9 @@ LazyLoader {
             }
         }
 
-        Component.onCompleted: query.forceActiveFocus()
+        Component.onCompleted: {
+            query.forceActiveFocus();
+            if (!clipboard) Launcher.search("");
+        }
     }
 }

@@ -17,6 +17,8 @@ Singleton {
     property var _cache: ({})
     property int _revision: 0
     property string _pending: ""
+    property var _orderedCache: null
+    property string _orderedKey: ""
 
     readonly property color accent: {
         root._revision; // re-evaluate when the cache grows
@@ -39,11 +41,18 @@ Singleton {
     Component.onCompleted: pump()
 
     // Prefer the current wallpaper, then the rest of the set.
+    // Cache the sorted list to avoid re-sorting on repeated pump() calls.
     function ordered() {
         const current = Wallpaper.current;
-        const images = Wallpaper.images.slice();
-        images.sort((a, b) => a === current ? -1 : b === current ? 1 : 0);
-        return images;
+        const images = Wallpaper.images;
+        const key = current + "|" + images.length;
+        if (root._orderedKey === key && root._orderedCache !== null)
+            return root._orderedCache;
+        const sorted = images.slice();
+        sorted.sort((a, b) => a === current ? -1 : b === current ? 1 : 0);
+        root._orderedCache = sorted;
+        root._orderedKey = key;
+        return sorted;
     }
 
     function pump() {

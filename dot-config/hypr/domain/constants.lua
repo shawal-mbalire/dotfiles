@@ -48,37 +48,26 @@ M.MOUSE = {
 -- Animation curves (static aesthetic rules)
 M.CURVES = {
   { name = "easeOutQuint",   points = { { 0.23, 1 },    { 0.32, 1 } } },
-  { name = "easeInOutCubic", points = { { 0.65, 0.05 }, { 0.36, 1 } } },
   { name = "linear",         points = { { 0, 0 },       { 1, 1 } } },
-  { name = "almostLinear",   points = { { 0.5, 0.5 },   { 0.75, 1 } } },
   { name = "quick",          points = { { 0.15, 0 },    { 0.1, 1 } } },
 }
 
--- Animations (static aesthetic rules)
+-- Animations (subtle, tasteful)
 M.ANIMATIONS = {
-  { leaf = "global",        speed = 10,   bezier = "default" },
-  { leaf = "border",        speed = 5.39, bezier = "easeOutQuint" },
-  { leaf = "windows",       speed = 4.79, bezier = "easeOutQuint" },
-  { leaf = "windowsIn",     speed = 4.1,  bezier = "easeOutQuint", style = "popin 87%" },
-  { leaf = "windowsOut",    speed = 1.49, bezier = "linear",       style = "popin 87%" },
-  { leaf = "fadeIn",        speed = 1.73, bezier = "almostLinear" },
-  { leaf = "fadeOut",       speed = 1.46, bezier = "almostLinear" },
-  { leaf = "fade",          speed = 3.03, bezier = "quick" },
-  { leaf = "layers",        speed = 3.81, bezier = "easeOutQuint" },
-  { leaf = "layersIn",      speed = 4,    bezier = "easeOutQuint", style = "fade" },
-  { leaf = "layersOut",     speed = 1.5,  bezier = "linear",       style = "fade" },
-  { leaf = "fadeLayersIn",  speed = 1.79, bezier = "almostLinear" },
-  { leaf = "fadeLayersOut", speed = 1.39, bezier = "almostLinear" },
-  { leaf = "workspaces",    speed = 1.94, bezier = "almostLinear", style = "fade" },
-  { leaf = "workspacesIn",  speed = 1.21, bezier = "almostLinear", style = "fade" },
-  { leaf = "workspacesOut", speed = 1.94, bezier = "almostLinear", style = "fade" },
+  { leaf = "global",        speed = 12,  bezier = "default" },
+  { leaf = "border",        speed = 8,   bezier = "easeOutQuint" },
+  { leaf = "windows",       speed = 8,   bezier = "easeOutQuint" },
+  { leaf = "windowsIn",     speed = 8,   bezier = "easeOutQuint", style = "popin 87%" },
+  { leaf = "windowsOut",    speed = 12,  bezier = "linear",       style = "popin 87%" },
+  { leaf = "fade",          speed = 10,  bezier = "quick" },
+  { leaf = "workspaces",    speed = 0.1, bezier = "linear",       style = "fade" },
+  { leaf = "workspacesIn",  speed = 0.1, bezier = "linear",       style = "fade" },
+  { leaf = "workspacesOut", speed = 0.1, bezier = "linear",       style = "fade" },
 }
 
 -- Layer-surface rules (static domain knowledge about known clients)
 M.LAYER_RULES = {
-  { match = { namespace = "^(quickshell.*)$" }, opts = { blur = true, ignore_alpha = 0.2 } },
-  { match = { namespace = "swaync" }, opts = { blur = true, ignore_alpha = 0, animation = "slide top" } },
-  { match = { namespace = "fuzzel" }, opts = { blur = true, ignore_alpha = 0, animation = "slide top" } },
+  { match = { namespace = "^(quickshell.*)$" }, opts = { blur = false, ignore_alpha = 0.2 } },
 }
 
 -- Window rules (static domain knowledge about known clients)

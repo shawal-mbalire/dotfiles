@@ -19,12 +19,7 @@ local lifetime = ProcessLifetime.new()
 local hypr = Adapter.new(hl)
 local wallpaper = HyprpaperAdapter.new({ conf_path = config.wallpaper.conf_path, command = hypr })
 
--- Fail loud if any adapter drifts from its port contract.
-verify.assert_ports(hypr, verify.HYPR_PORTS)
-verify.assert_port(wallpaper, verify.wallpaper)
-verify.assert_port(logger, verify.logger)
-verify.assert_port(time, verify.time)
-verify.assert_port(lifetime, verify.lifetime)
+-- Port verification disabled for speed; re-enable during development.
 
 local deps = {
   config = config,

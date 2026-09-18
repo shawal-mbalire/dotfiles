@@ -8,13 +8,36 @@ import "../../adapters"
 Rectangle {
     id: root
 
-    readonly property var filteredItems: Tray.items.filter(item => {
-        const id = (item.id || "").toLowerCase();
-        const title = (item.title || "").toLowerCase();
-        // Exclude bluetooth and network — handled by the connectivity group.
-        return id !== "blueman" && id !== "nm-applet"
-            && title !== "bluetooth" && title !== "network";
-    })
+    property var _filteredItems: []
+
+    function _recomputeFiltered() {
+        const items = Tray.items;
+        const result = [];
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const id = (item.id || "").toLowerCase();
+            const title = (item.title || "").toLowerCase();
+            if (id !== "blueman" && id !== "nm-applet"
+                && title !== "bluetooth" && title !== "network")
+                result.push(item);
+        }
+        root._filteredItems = result;
+    }
+
+    Timer {
+        id: refilterDebounce
+        interval: 100
+        onTriggered: root._recomputeFiltered()
+    }
+
+    Connections {
+        target: Tray
+        function onItemsChanged() { refilterDebounce.restart(); }
+    }
+
+    Component.onCompleted: _recomputeFiltered()
+
+    readonly property var filteredItems: root._filteredItems
 
     visible: filteredItems.length > 0
     implicitWidth: row.implicitWidth + 12

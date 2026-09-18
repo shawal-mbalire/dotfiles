@@ -12,7 +12,7 @@ Singleton {
     readonly property var batteryPort: ["setProfile"]
     readonly property var bluetoothPort: ["setEnabled", "toggle", "setDiscovering", "toggleDiscovering", "connectDevice", "disconnectDevice", "pairDevice", "forgetDevice"]
     readonly property var brightnessPort: ["refresh", "setPercent", "step"]
-    readonly property var clipboardPort: ["refresh", "copy", "remove", "wipe"]
+    readonly property var clipboardPort: ["refresh", "copy", "write", "remove", "wipe"]
     readonly property var compositorPort: ["activateWorkspace", "refreshMonitors", "setMonitorDisabled", "toggleMirror", "logout"]
     readonly property var launcherPort: ["search", "launch"]
     readonly property var mediaPort: ["previous", "next", "togglePlaying"]

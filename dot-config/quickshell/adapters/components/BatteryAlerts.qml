@@ -37,9 +37,7 @@ Item {
         const alert = Formatters.batteryAlert(Battery.percent, Battery.charging);
         if (!alert || root.claimed[alert.marker]) return;
 
-        const claimed = root.claimed;
-        claimed[alert.marker] = true;
-        root.claimed = claimed;
+        root.claimed[alert.marker] = true;
         Notifications.notify(alert.summary, alert.body, alert.urgency);
     }
 }

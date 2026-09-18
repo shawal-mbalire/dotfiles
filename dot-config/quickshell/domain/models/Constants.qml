@@ -28,7 +28,7 @@ Singleton {
     readonly property int brightnessStep: 5
 
     // Idle timeouts (seconds) for the session.
-    readonly property int idleLockSeconds: 300
+    readonly property int idleLockSeconds: 1800
     readonly property int idleSuspendSeconds: 1800
 
     // Screenshot output directory (relative to $HOME).

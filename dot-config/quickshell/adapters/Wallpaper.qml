@@ -77,12 +77,4 @@ Singleton {
         refresh();
         syncWallpaper();
     }
-
-    // Pick up images added to the folder while the shell is running.
-    Timer {
-        interval: 60000
-        running: true
-        repeat: true
-        onTriggered: root.refresh()
-    }
 }

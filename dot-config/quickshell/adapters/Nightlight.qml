@@ -20,8 +20,9 @@ Singleton {
     }
 
     function toggle() {
-        if (toggleProc.running) return;
-        toggleProc.running = true;
+        if (statusProc.running) return;
+        statusProc._pendingToggle = true;
+        statusProc.running = true;
     }
 
     function start() {
@@ -52,27 +53,22 @@ Singleton {
 
     Process {
         id: statusProc
-        command: ["pgrep", "-x", "gammastep"]
-        stdout: StdioCollector {}
-        onExited: root.active = exitCode === 0
-    }
-
-    Process {
-        id: toggleProc
+        property bool _pendingToggle: false
         command: ["pgrep", "-x", "gammastep"]
         stdout: StdioCollector {}
         onExited: {
-            if (exitCode === 0) {
-                root.stop();
-            } else {
-                root.start();
+            root.active = exitCode === 0;
+            if (_pendingToggle) {
+                _pendingToggle = false;
+                if (exitCode === 0) root.stop();
+                else root.start();
             }
         }
     }
 
     Timer {
         interval: 10000
-        running: true
+        running: root.active
         repeat: true
         triggeredOnStart: true
         onTriggered: root.refresh()

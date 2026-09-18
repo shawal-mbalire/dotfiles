@@ -86,6 +86,7 @@ LazyLoader {
 
             Loader {
                 id: menuLoader
+                asynchronous: true
                 anchors {
                     left: parent.left
                     right: parent.right

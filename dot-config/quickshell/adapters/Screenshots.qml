@@ -27,8 +27,7 @@ Singleton {
 
     function copyToClipboard(path) {
         if (!path) return;
-        wlCopyProc.command = ["sh", "-c", "wl-copy < \"$1\"", "sh", path];
-        wlCopyProc.running = true;
+        Clipboard.write(path);
     }
 
     Process {
@@ -41,10 +40,5 @@ Singleton {
             root.lastPath = root._pendingPath;
             root.copyToClipboard(root.lastPath);
         }
-    }
-
-    Process {
-        id: wlCopyProc
-        stdout: StdioCollector {}
     }
 }

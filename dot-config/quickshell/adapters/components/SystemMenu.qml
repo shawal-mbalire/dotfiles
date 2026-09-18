@@ -172,6 +172,7 @@ BaseMenu {
         model: Notifications.model
         spacing: 6
         clip: true
+        cacheSize: 5
         boundsBehavior: Flickable.StopAtBounds
 
         delegate: NotificationItem {

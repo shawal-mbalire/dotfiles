@@ -12,6 +12,7 @@ Item {
     property color accent: "#89b4fa"
     property color trackColor: Qt.rgba(1, 1, 1, 0.15)
     property color handleColor: accent
+    property real _lastEmit: 0
 
     signal moved(real value)
 
@@ -74,7 +75,13 @@ Item {
 
         onPressed: mouse => emit(mouse.x)
         onPositionChanged: mouse => {
-            if (pressed) emit(mouse.x);
+            if (pressed) {
+                const now = Date.now();
+                if (now - root._lastEmit > 16) {
+                    root._lastEmit = now;
+                    emit(mouse.x);
+                }
+            }
         }
     }
 }

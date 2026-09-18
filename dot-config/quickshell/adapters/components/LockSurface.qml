@@ -63,7 +63,7 @@ Rectangle {
         layer.effect: MultiEffect {
             blurEnabled: true
             blur: 1.0
-            blurMax: 64
+            blurMax: 32
         }
     }
 

@@ -20,6 +20,11 @@ Singleton {
         copyProc.running = true;
     }
 
+    function write(path) {
+        writeProc.command = ["sh", "-c", "cat \"$1\" | cliphist write && wl-copy < \"$1\"", "sh", path];
+        writeProc.running = true;
+    }
+
     function remove(line) {
         removeProc.command = ["sh", "-c", "printf '%s' \"$1\" | cliphist delete", "sh", line];
         removeProc.running = true;
@@ -45,6 +50,11 @@ Singleton {
 
     Process {
         id: copyProc
+        onExited: root.refresh()
+    }
+
+    Process {
+        id: writeProc
         onExited: root.refresh()
     }
 

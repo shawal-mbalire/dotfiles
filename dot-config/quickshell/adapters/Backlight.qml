@@ -57,11 +57,5 @@ Singleton {
         onExited: root.refresh()
     }
 
-    Timer {
-        interval: 5000
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: root.refresh()
-    }
+    Component.onCompleted: refresh()
 }

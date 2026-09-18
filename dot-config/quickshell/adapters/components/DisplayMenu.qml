@@ -16,7 +16,7 @@ BaseMenu {
 
     Timer {
         interval: 3000
-        running: true
+        running: UiState.activeMenu === "display"
         repeat: true
         onTriggered: Compositor.refreshMonitors()
     }

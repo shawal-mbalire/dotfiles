@@ -17,12 +17,7 @@ end
 function M.format_line(prefix, level, message, fields)
   local parts = { string.format("%s %-5s %s", prefix, level:upper(), message) }
   if fields then
-    local keys = {}
-    for key in pairs(fields) do
-      keys[#keys + 1] = key
-    end
-    table.sort(keys)
-    for _, key in ipairs(keys) do
+    for key, _ in pairs(fields) do
       local value = tostring(fields[key])
       if value:find("%s") then
         value = string.format("%q", value)
