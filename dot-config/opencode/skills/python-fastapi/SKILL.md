@@ -13,7 +13,7 @@ Production-grade REST APIs with FastAPI as the driving adapter, clean domain log
 |---------|-------------|
 | [Core](#core-principles) | Domain, ports, adapters, composition root |
 | [Auth](#authentication--authorization-jwt--oauth2) | JWT/OAuth2 with minimal deps |
-| [Database](#async-adapters-for-io-bound-driven-adapters) | PostgreSQL + asyncpg |
+| [Database](#database-adapters-postgresql--asyncpg) | Connection pool, transactions, query builder, read replicas, migrations |
 | [Logging](#stdlib-logging-adapter) | Structured JSON via stdlib |
 | [Pagination](#pagination-lightweight) | Offset/cursor patterns |
 | [Rate Limiting](#rate-limiting-lightweight-in-memory) | Sliding window + token bucket |
@@ -161,6 +161,7 @@ dev-dependencies = [
     "httpx>=0.27",
     "ruff>=0.5",
     "pyright>=1.1",
+    "testcontainers[postgres]>=4.0",  # Integration tests
     # gRPC testing (uncomment as needed)
     # "grpcio-testing>=1.60",
 ]
@@ -550,42 +551,694 @@ async def create_with_background(
     return {"status": "processing", "user_id": user.id}
 ```
 
-### Async Adapters (for I/O-bound Driven Adapters)
+### Database Adapters (PostgreSQL + asyncpg)
+
+#### Connection Pool Configuration
 
 ```python
-# adapters/persistence/async_user_repository.py
-from typing import AsyncProtocol
-from domain.models.user import User
-
-class AsyncUserRepository(AsyncProtocol):
-    async def save(self, user: User) -> None: ...
-    async def find_by_id(self, user_id: str) -> User | None: ...
-    async def find_all(self) -> list[User]: ...
-
-# adapters/persistence/postgres_user_repository.py
+# adapters/persistence/pool.py
 import asyncpg
-from domain.models.user import User
+from dataclasses import dataclass
+from infra.config import settings
+
+@dataclass(frozen=True)
+class PoolConfig:
+    min_size: int = 5
+    max_size: int = 20
+    max_inactive_connection_lifetime: float = 300.0
+    command_timeout: float = 60.0
+    statement_cache_size: int = 100
+
+async def create_pool(config: PoolConfig | None = None) -> asyncpg.Pool:
+    cfg = config or PoolConfig()
+    return await asyncpg.create_pool(
+        dsn=settings.database_url,
+        min_size=cfg.min_size,
+        max_size=cfg.max_size,
+        max_inactive_connection_lifetime=cfg.max_inactive_connection_lifetime,
+        command_timeout=cfg.command_timeout,
+        statement_cache_size=cfg.statement_cache_size,
+    )
+
+# Health check
+async def check_pool_health(pool: asyncpg.Pool) -> dict:
+    try:
+        conn = await pool.acquire()
+        try:
+            await conn.fetchval("SELECT 1")
+            return {"status": "healthy", "size": pool.get_size(), "free": pool.get_idle_size()}
+        finally:
+            await pool.release(conn)
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}
+```
+
+#### Transaction Manager
+
+```python
+# adapters/persistence/transactions.py
+import asyncpg
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+class TransactionManager:
+    def __init__(self, pool: asyncpg.Pool) -> None:
+        self._pool = pool
+
+    @asynccontextmanager
+    async def transaction(self) -> AsyncGenerator[asyncpg.Connection, None]:
+        """Explicit transaction with automatic commit/rollback."""
+        conn = await self._pool.acquire()
+        try:
+            async with conn.transaction():
+                yield conn
+        finally:
+            await self._pool.release(conn)
+
+    @asynccontextmanager
+    async def serializable(self) -> AsyncGenerator[asyncpg.Connection, None]:
+        """Serializable isolation for critical sections."""
+        conn = await self._pool.acquire()
+        try:
+            await conn.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            async with conn.transaction():
+                yield conn
+        finally:
+            await self._pool.release(conn)
+
+# Usage in repository
+async def transfer_funds(
+    tx_manager: TransactionManager,
+    from_id: str,
+    to_id: str,
+    amount: int,
+) -> None:
+    async with tx_manager.serializable() as conn:
+        balance = await conn.fetchval(
+            "SELECT balance FROM accounts WHERE id = $1 FOR UPDATE",
+            from_id,
+        )
+        if balance < amount:
+            raise InsufficientFundsError(from_id, balance, amount)
+        
+        await conn.execute(
+            "UPDATE accounts SET balance = balance - $1 WHERE id = $2",
+            amount, from_id,
+        )
+        await conn.execute(
+            "UPDATE accounts SET balance = balance + $1 WHERE id = $2",
+            amount, to_id,
+        )
+```
+
+#### Query Builder (Lightweight)
+
+```python
+# adapters/persistence/query_builder.py
+from dataclasses import dataclass, field
+from typing import Any, Generic, TypeVar
+
+T = TypeVar("T")
+
+@dataclass
+class Query:
+    table: str
+    columns: list[str] = field(default_factory=lambda: ["*"])
+    where_clauses: list[str] = field(default_factory=list)
+    params: list[Any] = field(default_factory=list)
+    order_by: list[str] = field(default_factory=list)
+    limit: int | None = None
+    offset: int | None = None
+    _param_counter: int = 0
+
+    def select(self, *columns: str) -> "Query":
+        self.columns = list(columns)
+        return self
+
+    def where(self, clause: str, *values: Any) -> "Query":
+        self._param_counter += len(values)
+        placeholders = ", ".join(f"${self._param_counter - len(values) + i + 1}" for i in range(len(values)))
+        self.where_clauses.append(clause.replace("?", placeholders))
+        self.params.extend(values)
+        return self
+
+    def where_in(self, column: str, values: list[Any]) -> "Query":
+        if not values:
+            self.where_clauses.append("FALSE")
+            return self
+        self._param_counter += len(values)
+        placeholders = ", ".join(f"${self._param_counter - len(values) + i + 1}" for i in range(len(values)))
+        self.where_clauses.append(f"{column} IN ({placeholders})")
+        self.params.extend(values)
+        return self
+
+    def where_jsonb(self, column: str, path: str, operator: str, value: Any) -> "Query":
+        self._param_counter += 1
+        self.where_clauses.append(f"{column} @> ${self._param_counter}::jsonb")
+        self.params.append(f'{{"{path}": {value}}}')
+        return self
+
+    def order(self, *columns: str) -> "Query":
+        self.order_by.extend(columns)
+        return self
+
+    def paginate(self, limit: int, offset: int = 0) -> "Query":
+        self.limit = limit
+        self.offset = offset
+        return self
+
+    def build(self) -> tuple[str, list[Any]]:
+        parts = [f"SELECT {', '.join(self.columns)} FROM {self.table}"]
+        
+        if self.where_clauses:
+            parts.append(f"WHERE {' AND '.join(self.where_clauses)}")
+        if self.order_by:
+            parts.append(f"ORDER BY {', '.join(self.order_by)}")
+        if self.limit is not None:
+            parts.append(f"LIMIT {self.limit}")
+        if self.offset is not None:
+            parts.append(f"OFFSET {self.offset}")
+        
+        return " ".join(parts), self.params
+
+# Usage
+query = (
+    Query("users")
+    .select("id", "email", "name")
+    .where("role = ?", "admin")
+    .where("created_at > ?", "2024-01-01")
+    .where_in("department_id", ["eng", "product"])
+    .order("created_at DESC")
+    .paginate(20, 0)
+)
+sql, params = query.build()
+# sql: SELECT id, email, name FROM users WHERE role = $1 AND created_at > $2 AND department_id IN ($3, $4) ORDER BY created_at DESC LIMIT 20 OFFSET 0
+# params: ['admin', '2024-01-01', 'eng', 'product']
+```
+
+#### Repository with Filtering & Sorting
+
+```python
+# adapters/persistence/postgres_user_repository.py
+from dataclasses import dataclass
+from typing import Any
+import asyncpg
+from domain.models.user import User, UserRole
+from domain.models.pagination import PageParams, PaginatedResult
+from adapters.persistence.query_builder import Query
+
+@dataclass(frozen=True)
+class UserFilters:
+    role: UserRole | None = None
+    search: str | None = None  # matches email or name
+    created_after: str | None = None
+    department_ids: list[str] | None = None
 
 class PostgresUserRepository:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
 
-    async def save(self, user: User) -> None:
-        await self._pool.execute(
-            "INSERT INTO users (id, email, name, role) VALUES ($1, $2, $3, $4) "
-            "ON CONFLICT (id) DO UPDATE SET email=$2, name=$3, role=$4",
-            user.id, user.email, user.name, user.role.value,
+    async def find_paginated(
+        self,
+        page: PageParams,
+        filters: UserFilters | None = None,
+        sort: str = "created_at DESC",
+    ) -> PaginatedResult[User]:
+        # Build base query
+        base_query = Query("users").select("COUNT(*) OVER", "id", "email", "name", "role", "created_at")
+        
+        # Apply filters
+        if filters:
+            if filters.role:
+                base_query = base_query.where("role = ?", filters.role.value)
+            if filters.search:
+                base_query = base_query.where(
+                    "(email ILIKE $% OR name ILIKE $%)", 
+                    f"%{filters.search}%", f"%{filters.search}%"
+                )
+            if filters.created_after:
+                base_query = base_query.where("created_at > ?", filters.created_after)
+            if filters.department_ids:
+                base_query = base_query.where_in("department_id", filters.department_ids)
+        
+        # Count query
+        count_sql = f"SELECT COUNT(*) FROM ({base_query.build()[0]}) AS sub"
+        total = await self._pool.fetchval(count_sql, *base_query.params)
+        
+        # Data query with pagination
+        data_query = Query("users").select("id", "email", "name", "role", "created_at")
+        if filters:
+            if filters.role:
+                data_query = data_query.where("role = ?", filters.role.value)
+            if filters.search:
+                data_query = data_query.where(
+                    "(email ILIKE $% OR name ILIKE $%)",
+                    f"%{filters.search}%", f"%{filters.search}%"
+                )
+            if filters.created_after:
+                data_query = data_query.where("created_at > ?", filters.created_after)
+            if filters.department_ids:
+                data_query = data_query.where_in("department_id", filters.department_ids)
+        
+        data_query = data_query.order(sort).paginate(page.limit, page.offset)
+        sql, params = data_query.build()
+        
+        rows = await self._pool.fetch(sql, *params)
+        items = [self._row_to_user(r) for r in rows]
+        
+        return PaginatedResult(
+            items=items,
+            total=total,
+            offset=page.offset,
+            limit=page.limit,
+            has_more=(page.offset + page.limit) < total,
         )
 
     async def find_by_id(self, user_id: str) -> User | None:
-        row = await self._pool.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
-        return User(id=row["id"], email=row["email"], name=row["name"],
-                     role=row["role"]) if row else None
+        row = await self._pool.fetchrow(
+            "SELECT * FROM users WHERE id = $1", user_id
+        )
+        return self._row_to_user(row) if row else None
 
-    async def find_all(self) -> list[User]:
-        rows = await self._pool.fetch("SELECT * FROM users")
-        return [User(id=r["id"], email=r["email"], name=r["name"],
-                      role=r["role"]) for r in rows]
+    async def find_by_email(self, email: str) -> User | None:
+        row = await self._pool.fetchrow(
+            "SELECT * FROM users WHERE email = $1", email
+        )
+        return self._row_to_user(row) if row else None
+
+    async def save(self, user: User) -> None:
+        await self._pool.execute(
+            """INSERT INTO users (id, email, name, role, created_at)
+               VALUES ($1, $2, $3, $4, NOW())
+               ON CONFLICT (id) DO UPDATE SET
+                   email = EXCLUDED.email,
+                   name = EXCLUDED.name,
+                   role = EXCLUDED.role,
+                   updated_at = NOW()""",
+            user.id, user.email, user.name, user.role.value,
+        )
+
+    async def delete(self, user_id: str) -> None:
+        await self._pool.execute("DELETE FROM users WHERE id = $1", user_id)
+
+    async def exists(self, user_id: str) -> bool:
+        return await self._pool.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", user_id
+        )
+
+    async def count(self, filters: UserFilters | None = None) -> int:
+        sql = "SELECT COUNT(*) FROM users"
+        params: list[Any] = []
+        if filters and filters.role:
+            sql += " WHERE role = $1"
+            params.append(filters.role.value)
+        return await self._pool.fetchval(sql, *params)
+
+    def _row_to_user(self, row: asyncpg.Record) -> User:
+        return User(
+            id=row["id"],
+            email=row["email"],
+            name=row["name"],
+            role=UserRole(row["role"]),
+        )
+```
+
+#### Batch Operations
+
+```python
+# adapters/persistence/batch.py
+import asyncpg
+from typing import Any
+
+class BatchExecutor:
+    def __init__(self, pool: asyncpg.Pool) -> None:
+        self._pool = pool
+
+    async def insert_many(self, table: str, columns: list[str], rows: list[tuple]) -> int:
+        """Insert multiple rows efficiently."""
+        if not rows:
+            return 0
+        
+        placeholders = ", ".join(f"${i+1}" for i in range(len(columns)))
+        sql = f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"
+        
+        async with self._pool.acquire() as conn:
+            await conn.executemany(sql, rows)
+        return len(rows)
+
+    async def upsert_many(
+        self,
+        table: str,
+        columns: list[str],
+        rows: list[tuple],
+        conflict_columns: list[str],
+        update_columns: list[str],
+    ) -> int:
+        """Insert or update multiple rows."""
+        if not rows:
+            return 0
+        
+        placeholders = ", ".join(f"${i+1}" for i in range(len(columns)))
+        update_set = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_columns)
+        conflict_cols = ", ".join(conflict_columns)
+        
+        sql = (
+            f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders}) "
+            f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_set}"
+        )
+        
+        async with self._pool.acquire() as conn:
+            await conn.executemany(sql, rows)
+        return len(rows)
+
+    async def bulk_update(
+        self,
+        table: str,
+        updates: list[dict[str, Any]],
+        id_column: str = "id",
+    ) -> int:
+        """Update multiple rows with different values."""
+        if not updates:
+            return 0
+        
+        # Group by column set for efficient batching
+        count = 0
+        async with self._pool.acquire() as conn:
+            for row in updates:
+                row_id = row.pop(id_column)
+                set_clause = ", ".join(f"{k} = ${i+2}" for i, (k, _) in enumerate(row.items()))
+                sql = f"UPDATE {table} SET {set_clause} WHERE {id_column} = $1"
+                result = await conn.execute(sql, row_id, *row.values())
+                if result.endswith("1"):
+                    count += 1
+        return count
+```
+
+#### Soft Deletes & Auditing
+
+```python
+# adapters/persistence/soft_delete.py
+import asyncpg
+from datetime import datetime, timezone
+
+class SoftDeleteMixin:
+    """Mixin for soft delete support."""
+    
+    async def soft_delete(self, pool: asyncpg.Pool, table: str, entity_id: str, deleted_by: str) -> None:
+        await pool.execute(
+            f"""UPDATE {table} 
+                SET deleted_at = NOW(), deleted_by = $1 
+                WHERE id = $2 AND deleted_at IS NULL""",
+            deleted_by, entity_id,
+        )
+
+    async def restore(self, pool: asyncpg.Pool, table: str, entity_id: str) -> None:
+        await pool.execute(
+            f"""UPDATE {table} 
+                SET deleted_at = NULL, deleted_by = NULL 
+                WHERE id = $1""",
+            entity_id,
+        )
+
+    async def find_active(self, pool: asyncpg.Pool, table: str, entity_id: str) -> asyncpg.Record | None:
+        return await pool.fetchrow(
+            f"SELECT * FROM {table} WHERE id = $1 AND deleted_at IS NULL",
+            entity_id,
+        )
+
+# Domain model with soft delete
+@dataclass(frozen=True)
+class User:
+    id: str
+    email: str
+    name: str
+    role: UserRole = UserRole.MEMBER
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    deleted_at: datetime | None = None
+    deleted_by: str | None = None
+
+# Repository with soft delete
+class SoftDeleteUserRepository:
+    def __init__(self, pool: asyncpg.Pool) -> None:
+        self._pool = pool
+        self._soft_delete = SoftDeleteMixin()
+
+    async def find_by_id(self, user_id: str) -> User | None:
+        row = await self._soft_delete.find_active(self._pool, "users", user_id)
+        return self._row_to_user(row) if row else None
+
+    async def delete(self, user_id: str, deleted_by: str) -> None:
+        await self._soft_delete.soft_delete(self._pool, "users", user_id, deleted_by)
+
+    async def find_all(self, include_deleted: bool = False) -> list[User]:
+        if include_deleted:
+            rows = await self._pool.fetch("SELECT * FROM users ORDER BY created_at DESC")
+        else:
+            rows = await self._pool.fetch(
+                "SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC"
+            )
+        return [self._row_to_user(r) for r in rows]
+```
+
+#### Read Replicas
+
+```python
+# adapters/persistence/read_write_split.py
+import asyncpg
+import random
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+class ReadWritePool:
+    def __init__(self, write_pool: asyncpg.Pool, read_pools: list[asyncpg.Pool]) -> None:
+        self._write_pool = write_pool
+        self._read_pools = read_pools
+
+    @asynccontextmanager
+    async def read_connection(self) -> AsyncGenerator[asyncpg.Connection, None]:
+        """Get a read connection (round-robin across replicas)."""
+        pool = random.choice(self._read_pools) if self._read_pools else self._write_pool
+        async with pool.acquire() as conn:
+            yield conn
+
+    @asynccontextmanager
+    async def write_connection(self) -> AsyncGenerator[asyncpg.Connection, None]:
+        """Get a write connection (primary only)."""
+        async with self._write_pool.acquire() as conn:
+            yield conn
+
+    @asynccontextmanager
+    async def transaction(self) -> AsyncGenerator[asyncpg.Connection, None]:
+        """Transaction on primary."""
+        async with self._write_pool.acquire() as conn:
+            async with conn.transaction():
+                yield conn
+
+# Usage in repository
+class UserRepository:
+    def __init__(self, rw_pool: ReadWritePool) -> None:
+        self._pool = rw_pool
+
+    async def find_by_id(self, user_id: str) -> User | None:
+        async with self._pool.read_connection() as conn:
+            row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+            return self._row_to_user(row) if row else None
+
+    async def save(self, user: User) -> None:
+        async with self._pool.transaction() as conn:
+            await conn.execute(
+                "INSERT INTO users (id, email, name) VALUES ($1, $2, $3) "
+                "ON CONFLICT (id) DO UPDATE SET email = $2, name = $3",
+                user.id, user.email, user.name,
+            )
+```
+
+#### Alembic Migrations
+
+```
+# alembic/env.py (minimal)
+from alembic import context
+from sqlalchemy import engine_from_config, pool
+
+config = context.config
+connectable = engine_from_config(
+    config.get_section(config.config_ini_section),
+    prefix="sqlalchemy.",
+    poolclass=pool.NullPool,
+)
+
+with connectable.connect() as connection:
+    context.configure(connection=connection, target_metadata=None)
+    with context.begin_transaction():
+        context.run_migrations()
+```
+
+```just
+# Justfile commands
+db-migrate:
+    uv run alembic upgrade head
+
+db-migration msg="auto":
+    uv run alembic revision --autogenerate -m "$(msg)"
+
+db-rollback:
+    uv run alembic downgrade -1
+
+db-history:
+    uv run alembic history
+```
+
+```toml
+# alembic.ini
+[alembic]
+script_location = alembic
+sqlalchemy.url = postgresql://user:pass@localhost:5432/mydb
+```
+
+#### Database Health Check
+
+```python
+# adapters/persistence/health.py
+import asyncpg
+from dataclasses import dataclass
+
+@dataclass
+class DBHealth:
+    status: str
+    latency_ms: float
+    pool_size: int
+    pool_free: int
+    version: str | None = None
+
+async def check_database_health(pool: asyncpg.Pool) -> DBHealth:
+    import time
+    start = time.perf_counter()
+    try:
+        async with pool.acquire() as conn:
+            version = await conn.fetchval("SELECT version()")
+            latency = (time.perf_counter() - start) * 1000
+            return DBHealth(
+                status="healthy",
+                latency_ms=round(latency, 2),
+                pool_size=pool.get_size(),
+                pool_free=pool.get_idle_size(),
+                version=version,
+            )
+    except Exception as e:
+        latency = (time.perf_counter() - start) * 1000
+        return DBHealth(
+            status="unhealthy",
+            latency_ms=round(latency, 2),
+            pool_size=0,
+            pool_free=0,
+            version=None,
+        )
+
+# Health endpoint
+@app.get("/health/db", tags=["health"])
+async def database_health(pool: asyncpg.Pool = Depends(get_pool)):
+    health = await check_database_health(pool)
+    status_code = 200 if health.status == "healthy" else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": health.status,
+            "database": {
+                "latency_ms": health.latency_ms,
+                "pool_size": health.pool_size,
+                "pool_free": health.pool_free,
+                "version": health.version,
+            },
+        },
+    )
+```
+
+#### Testing with Test Containers
+
+```python
+# tests/integration/conftest.py
+import asyncpg
+import pytest_asyncio
+from testcontainers.postgres import PostgresContainer
+
+@pytest_asyncio.fixture(scope="session")
+async def postgres():
+    """Spin up real PostgreSQL for integration tests."""
+    async with PostgresContainer("postgres:16-alpine") as pg:
+        pool = await asyncpg.create_pool(pg.get_connection_url())
+        yield pool
+        await pool.close()
+
+@pytest_asyncio.fixture
+async def user_repo(postgres):
+    """Fresh repository for each test."""
+    # Run migrations or create tables
+    await postgres.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            role TEXT DEFAULT 'member',
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    yield PostgresUserRepository(postgres)
+    # Cleanup
+    await postgres.execute("DELETE FROM users")
+```
+
+#### SQL Patterns Cheatsheet
+
+```sql
+-- Pagination with cursor (keyset)
+SELECT * FROM users
+WHERE id > $last_id  -- or created_at > $last_cursor
+ORDER BY id ASC
+LIMIT 20;
+
+-- Filtering with COALESCE (optional params)
+SELECT * FROM users
+WHERE role = COALESCE($1, role)  -- NULL = no filter
+  AND name ILIKE '%' || COALESCE($2, name) || '%';
+
+-- Aggregation with GROUP BY
+SELECT role, COUNT(*), AVG(age)
+FROM users
+GROUP BY role
+HAVING COUNT(*) > 10;
+
+-- JSONB queries
+SELECT * FROM users
+WHERE metadata @> '{"active": true}';
+
+-- Full-text search
+SELECT * FROM users
+WHERE to_tsvector('english', name || ' ' || email) @@ plainto_tsquery($1);
+
+-- Upsert (PostgreSQL)
+INSERT INTO users (id, email, name) VALUES ($1, $2, $3)
+ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    name = EXCLUDED.name,
+    updated_at = NOW();
+
+-- CTE (Common Table Expression)
+WITH active_users AS (
+    SELECT * FROM users WHERE deleted_at IS NULL
+)
+SELECT * FROM active_users WHERE role = 'admin';
+
+-- Window functions
+SELECT *, ROW_NUMBER() OVER (PARTITION BY role ORDER BY created_at DESC)
+FROM users;
+
+-- Lateral join
+SELECT u.*, latest.login_at
+FROM users u
+LEFT JOIN LATERAL (
+    SELECT login_at FROM logins WHERE user_id = u.id ORDER BY login_at DESC LIMIT 1
+) latest ON true;
 ```
 
 ## Composition Root (main.py)
