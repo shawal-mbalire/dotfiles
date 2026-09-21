@@ -27,6 +27,7 @@ Production-grade REST APIs with FastAPI as the driving adapter, clean domain log
 | [Message Queues](#message-queues-async-processing) | RabbitMQ, Kafka, Redis, ZeroMQ |
 | [IoT](#mqtt-iot--lightweight-pubsub) | MQTT, CoAP for constrained devices |
 | [IPC](#unix-domain-sockets-ipc) | Unix sockets, named pipes |
+| [Angular/SPA](#serving-an-angular-frontend-spa) | Serve Angular/React/Vue static build, security headers, safe data sharing |
 | [Event Sourcing](#event-sourcing--cqrs-pattern) | CQRS + event store |
 | [Decision Matrix](#when-to-use-decision-matrix) | Protocol comparison + flowchart |
 
@@ -1268,6 +1269,523 @@ class Settings(BaseSettings):
 
 settings = Settings()
 ```
+
+## Serving an Angular Frontend (SPA)
+
+Serve an Angular (or React/Vue) static build from FastAPI so the app is a single deployable unit. This section covers production-grade SPA handling and safe data sharing between API and frontend.
+
+### Project Structure
+
+```
+my-api/
+├── main.py
+├── frontend/                  # Angular project (ng new frontend)
+│   ├── angular.json
+│   ├── src/
+│   │   ├── environments/
+│   │   │   ├── environment.ts
+│   │   │   └── environment.prod.ts
+│   │   └── app/
+│   └── dist/frontend/         # ng build output → served by FastAPI
+│       └── browser/
+│           ├── index.html
+│           ├── 3rdparty.*.js
+│           ├── main.*.js
+│           ├── polyfills.*.js
+│           ├── styles.*.css
+│           └── assets/
+├── adapters/
+│   └── http/
+│       ├── routes/
+│       │   ├── static.py      # SPA serving + catch-all
+│       │   └── env_config.py  # Public config endpoint for SPA
+│       ├── middleware.py
+│       └── schemas/
+│           └── frontend.py    # Config schemas shared with SPA
+├── domain/
+├── infra/
+│   └── config.py
+└── justfile
+```
+
+### Strong SPA Serving
+
+```python
+# adapters/http/routes/static.py
+import logging
+from pathlib import Path
+
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
+
+logger = logging.getLogger(__name__)
+router = APIRouter(tags=["frontend"])
+
+_frontend_dist = Path(__file__).resolve().parents[4] / "frontend" / "dist" / "frontend" / "browser"
+
+# Files that must always be served (never caught by SPA fallback)
+_APP_SHELL_FILES = {"favicon.ico", "robots.txt", "sitemap.xml", "manifest.json"}
+
+# Extensions treated as real files (not SPA routes)
+_STATIC_EXTENSIONS = {
+    ".js", ".mjs", ".css", ".json", ".png", ".jpg", ".jpeg", ".gif",
+    ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".map",
+    ".webp", ".avif", ".mp4", ".webm", ".txt", ".xml",
+}
+
+
+def _resolve_frontend_dist() -> Path:
+    """Resolve the frontend dist directory, fail loudly if missing."""
+    if not _frontend_dist.exists():
+        raise RuntimeError(
+            f"Frontend dist not found at {_frontend_dist}. "
+            "Run 'just frontend-build' before starting the server."
+        )
+    return _frontend_dist
+
+
+def _safe_resolve(rel_path: str) -> Path | None:
+    """Resolve a path within _frontend_dist with traversal protection.
+    Returns None if the resolved path escapes the dist directory."""
+    dist = _frontend_dist
+    target = (dist / rel_path).resolve()
+    if not str(target).startswith(str(dist)):
+        return None
+    return target
+
+
+def mount_frontend(app) -> None:
+    """Mount static assets and add SPA catch-all. Call AFTER all API routes.
+
+    Route priority (highest → lowest):
+    1. /assets/*  — hashed static files (JS, CSS, images) with immutable cache
+    2. /<file>    — exact files at root (favicon, robots.txt, etc.)
+    3. /<path>    — SPA catch-all → index.html for client-side routing
+    """
+    dist = _resolve_frontend_dist()
+
+    # 1. Serve /assets/* with long-lived immutable cache (hashed filenames)
+    assets_dir = dist / "assets"
+    if assets_dir.exists():
+        app.mount(
+            "/assets",
+            StaticFiles(directory=assets_dir),
+            name="static-assets",
+        )
+
+    # 2. App shell files — served at root with moderate cache
+    @router.get("/{filename:path}")
+    async def serve_frontend(filename: str, request: Request):
+        # --- API paths: never touch ---
+        if filename.startswith("api/") or filename.startswith("api"):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        # --- Real static file at root ---
+        if filename and "." in filename.split("/")[-1]:
+            resolved = _safe_resolve(filename)
+            if resolved and resolved.is_file():
+                return FileResponse(
+                    resolved,
+                    headers={"Cache-Control": "public, max-age=3600"},
+                )
+
+        # --- App shell files without extension ---
+        if filename in _APP_SHELL_FILES:
+            resolved = _safe_resolve(filename)
+            if resolved and resolved.is_file():
+                return FileResponse(resolved, headers={"Cache-Control": "public, max-age=3600"})
+
+        # --- Unknown real file: try to serve, fallback to SPA ---
+        resolved = _safe_resolve(filename)
+        if resolved and resolved.is_file():
+            return FileResponse(resolved)
+
+        # --- SPA fallback: index.html for all other routes ---
+        index = dist / "index.html"
+        if not index.exists():
+            raise HTTPException(status_code=503, detail="Frontend not built")
+        return HTMLResponse(
+            content=index.read_text(),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
+```
+
+### Security Headers Middleware
+
+```python
+# adapters/http/middleware.py (add to existing middleware file)
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Security headers for the SPA. Apply to all responses."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+
+        # Prevent MIME sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+
+        # Clickjacking protection
+        response.headers["X-Frame-Options"] = "DENY"
+
+        # XSS filter (legacy browsers)
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        # Referrer policy — don't leak API URLs to third parties
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+        # Permissions policy — disable unused browser features
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=()"
+        )
+
+        # Content Security Policy — adjust to your asset sources
+        # 'self' = same origin, inline scripts only from index.html injection
+        csp_directives = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline'",     # Angular inline bootstrap
+            "style-src 'self' 'unsafe-inline'",      # Angular component styles
+            "img-src 'self' data: blob:",
+            "font-src 'self' data:",
+            "connect-src 'self'",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ]
+        response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
+
+        # HSTS — only in production over HTTPS
+        if request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains; preload"
+            )
+
+        return response
+```
+
+### Safe Data Sharing: Public Config Endpoint
+
+Never embed secrets in the SPA. Expose a public config endpoint that the SPA fetches on bootstrap to get non-sensitive runtime configuration.
+
+```python
+# adapters/http/schemas/frontend.py
+from pydantic import BaseModel
+
+
+class FrontendConfig(BaseModel):
+    """Public configuration the SPA needs at runtime.
+    NEVER include secrets, internal URLs, or service credentials here."""
+
+    api_base_url: str               # Where the API lives (relative "/api/v1" or absolute)
+    app_name: str
+    version: str
+    environment: str                # "development" | "staging" | "production"
+    features: dict[str, bool]       # Feature flags the SPA can read
+    auth: AuthConfig | None = None  # Public auth settings (token URL, scopes)
+
+
+class AuthConfig(BaseModel):
+    token_url: str                  # e.g. "/api/v1/auth/token"
+    provider: str                   # e.g. "auth0", "keycloak", "local"
+    logout_url: str | None = None
+```
+
+```python
+# adapters/http/routes/env_config.py
+from fastapi import APIRouter
+from adapters.http.schemas.frontend import FrontendConfig, AuthConfig
+from infra.config import settings
+
+router = APIRouter(prefix="/api/v1", tags=["config"])
+
+
+@router.get("/config", response_model=FrontendConfig)
+async def get_frontend_config() -> FrontendConfig:
+    """Public config the SPA fetches on bootstrap.
+
+    This endpoint MUST:
+    - Require NO authentication (SPA calls it before login)
+    - Return ONLY non-sensitive data
+    - Be cached aggressively (config changes on deploy, not per-request)
+    """
+    return FrontendConfig(
+        api_base_url="/api/v1",
+        app_name=settings.app_name,
+        version=settings.version,
+        environment=settings.environment,
+        features=settings.feature_flags,
+        auth=AuthConfig(
+            token_url="/api/v1/auth/token",
+            provider=settings.auth_provider,
+            logout_url=settings.auth_logout_url,
+        ) if settings.auth_enabled else None,
+    )
+```
+
+```python
+# infra/config.py — add to Settings
+class Settings(BaseSettings):
+    # ... existing fields ...
+
+    # Frontend config (non-sensitive, safe to expose)
+    app_name: str = "My App"
+    version: str = "0.1.0"
+    feature_flags: dict[str, bool] = {"new_dashboard": False, "beta_features": False}
+    auth_provider: str = "local"
+    auth_logout_url: str | None = None
+    auth_enabled: bool = True
+```
+
+### SPA Bootstrap: Fetch Config Before Init
+
+```typescript
+// frontend/src/app/app.config.ts
+export interface AppConfig {
+  apiBaseUrl: string;
+  appName: string;
+  version: string;
+  environment: string;
+  features: Record<string, boolean>;
+  auth?: {
+    tokenUrl: string;
+    provider: string;
+    logoutUrl?: string;
+  };
+}
+
+// frontend/src/app/app.initializer.ts
+import { APP_INITIALIZER, Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { AppConfig } from './app.config';
+
+@Injectable({ providedIn: 'root' })
+export class AppConfigService {
+  private config: AppConfig | null = null;
+
+  get current(): AppConfig {
+    if (!this.config) throw new Error('Config not loaded');
+    return this.config;
+  }
+
+  async load(): Promise<void> {
+    this.config = await firstValueFrom(
+      this.http.get<AppConfig>('/api/v1/config')
+    );
+  }
+}
+
+// frontend/src/app/app.config.ts (provider setup)
+import { APP_INITIALIZER } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { AppConfigService } from './app.initializer';
+
+export const appConfig = {
+  providers: [
+    provideHttpClient(),
+    {
+      provide: APP_INITIALIZER,
+      useFactory: (svc: AppConfigService) => () => svc.load(),
+      deps: [AppConfigService],
+      multi: true,
+    },
+  ],
+};
+```
+
+### CSRF Protection for State-Changing API Calls
+
+If your SPA uses cookies for auth (not Bearer tokens), protect against CSRF:
+
+```python
+# adapters/http/middleware.py
+import secrets
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """CSRF protection for cookie-based auth.
+
+    Strategy: Double Submit Cookie
+    - Server sets a random CSRF token in a cookie (httponly=False so JS can read it)
+    - SPA reads the cookie and sends it back as X-CSRF-Token header
+    - Server compares cookie value == header value
+
+    Skip for:
+    - GET, HEAD, OPTIONS (safe methods)
+    - Bearer token auth (JWT in header is not vulnerable to CSRF)
+    """
+
+    def __init__(self, app, secret: str | None = None):
+        super().__init__(app)
+        self._cookie_name = "csrf_token"
+        self._header_name = "x-csrf-token"
+
+    async def dispatch(self, request: Request, call_next):
+        # Safe methods — no CSRF risk
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            response = await call_next(request)
+            # Set CSRF cookie on safe methods so SPA can read it
+            if not request.cookies.get(self._cookie_name):
+                token = secrets.token_hex(32)
+                response.set_cookie(
+                    self._cookie_name,
+                    token,
+                    httponly=False,   # JS must read it
+                    secure=True,
+                    samesite="strict",
+                    max_age=3600,
+                )
+            return response
+
+        # Mutation methods — verify CSRF
+        cookie_token = request.cookies.get(self._cookie_name, "")
+        header_token = request.headers.get(self._header_name, "")
+
+        if not cookie_token or not header_token or cookie_token != header_token:
+            return Response(
+                status_code=403,
+                content='{"code":"CSRF-001","message":"Invalid CSRF token"}',
+                media_type="application/json",
+            )
+
+        return await call_next(request)
+```
+
+```typescript
+// frontend/src/app/services/csrf.interceptor.ts
+import { HttpInterceptorFn } from '@angular/common/http';
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? match[2] : null;
+}
+
+export const csrfInterceptor: HttpInterceptorFn = (req, next) => {
+  // Only attach CSRF for state-changing methods
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    const token = getCookie('csrf_token');
+    if (token) {
+      req = req.clone({
+        setHeaders: { 'X-CSRF-Token': token },
+      });
+    }
+  }
+  return next(req);
+};
+
+// Register in app.config.ts
+export const appConfig = {
+  providers: [
+    provideHttpClient(
+      withInterceptors([csrfInterceptor]),
+    ),
+    // ... other providers
+  ],
+};
+```
+
+### Safe Data Sharing Rules
+
+| What | Safe to share? | How |
+|------|---------------|-----|
+| API base URL | Yes | Config endpoint |
+| App name, version | Yes | Config endpoint |
+| Feature flags | Yes | Config endpoint |
+| Public auth settings (token URL, provider) | Yes | Config endpoint |
+| CDN URLs, public asset paths | Yes | Config endpoint |
+| Database URLs | **No** | Never expose infrastructure |
+| API keys, secrets | **No** | Never in SPA or config endpoint |
+| Internal service URLs | **No** | Use relative URLs or config endpoint |
+| User session data | Via API only | Fetch after auth, don't inject into HTML |
+| JWT tokens | HttpOnly cookie or memory | Never in `localStorage` if avoidable |
+
+### Composition Root Wiring
+
+```python
+# main.py
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from adapters.http.middleware import (
+    SecurityHeadersMiddleware,
+    CSRFMiddleware,
+)
+from adapters.http.routes.static import mount_frontend
+from adapters.http.routes import users
+from adapters.http.routes.env_config import router as config_router
+from infra.config import settings
+
+app = FastAPI(title="My API", version="0.1.0")
+
+# --- Middleware (order matters: outermost runs first) ---
+app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
+                   allow_credentials=True, allow_methods=["*"],
+                   allow_headers=["*"])
+app.add_middleware(SecurityHeadersMiddleware)
+# Only enable CSRF if using cookie-based auth:
+# app.add_middleware(CSRFMiddleware)
+
+# --- API routes ---
+app.include_router(users.router, prefix="/api/v1")
+app.include_router(config_router)           # /api/v1/config
+
+# --- Frontend (MUST be last — catch-all) ---
+mount_frontend(app)
+```
+
+### CORS for Local Development
+
+```python
+# infra/config.py
+cors_origins: list[str] = [
+    "http://localhost:4200",   # ng serve
+    "http://localhost:8000",   # FastAPI
+]
+```
+
+### Justfile Additions
+
+```just
+# Build Angular for production
+frontend-build:
+    cd frontend && npm run build -- --configuration production
+
+# Run everything (API + frontend)
+run: frontend-build
+    uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Dev mode: API on 8000, Angular dev server on 4200 with proxy
+frontend-dev:
+    cd frontend && ng serve --proxy-config proxy.conf.json
+
+# proxy.conf.json — route /api/* to FastAPI during dev
+# {
+#   "/api": {
+#     "target": "http://localhost:8000",
+#     "secure": false
+#   }
+# }
+```
+
+### Key Notes
+
+| Concern | Approach |
+|---------|----------|
+| **Asset caching** | Hashed files get `Cache-Control: max-age=31536000` (immutable). Root files: 1 hour. `index.html`: no-cache |
+| **SPA routing** | Catch-all returns `index.html` for non-file, non-API paths. Deep links and refresh work |
+| **API prefix** | Always `/api/v1` so the catch-all never shadows API routes |
+| **Path traversal** | `_safe_resolve()` ensures paths can't escape the dist directory |
+| **Missing build** | Returns 503 with clear message if `dist/` doesn't exist |
+| **Security headers** | CSP, X-Frame-Options, HSTS, Referrer-Policy applied to all responses |
+| **Config endpoint** | SPA fetches `/api/v1/config` at bootstrap — no secrets, cached, public |
+| **CSRF** | Double-submit cookie pattern for cookie-based auth. Skipped for Bearer tokens |
+| **Secrets** | Never embed in SPA, HTML, or config endpoint. Use env vars, vaults, or API-only access |
 
 ## Justfile
 
