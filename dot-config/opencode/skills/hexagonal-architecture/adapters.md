@@ -91,3 +91,163 @@ class BadRepository:
 ```
 
 **Before adding an adapter from your collection, verify:** it imports no app code, reads no env vars, names no domain model, and passes the port's contract test (below). If any check fails, fix the adapter — not the target project.
+
+#### Decorator / Middleware Pattern for Cross-Cutting Concerns
+
+When multiple adapters need the same behavior (retry, caching, circuit breaking, metrics, logging), use the **Decorator pattern** — wrap a port implementation with another that implements the same port. Each decorator adds one concern and delegates to the wrapped adapter.
+
+**When to use:**
+- Retry with backoff on transient failures
+- Caching reads (with TTL invalidation)
+- Circuit breaker (stop calling a failing service)
+- Metrics/timing around adapter calls
+- Authorization checks before persistence
+- Rate limiting
+
+**Rules:**
+- The decorator implements the **same port** as the wrapped adapter
+- The decorator is injected with the inner adapter via constructor
+- Decorators compose — stack them in the composition root
+- Keep each decorator focused on one concern
+
+```python
+# adapters/decorators/retry_repository.py
+from typing import TypeVar, Generic
+from domain.ports.repository import Repository
+from domain.errors import StorageUnavailableError
+
+T = TypeVar("T")
+IdT = TypeVar("IdT")
+
+class RetryRepository(Generic[T, IdT], Repository[T, IdT]):
+    """Decorator: retries transient failures with exponential backoff."""
+
+    def __init__(
+        self,
+        inner: Repository[T, IdT],
+        max_retries: int = 3,
+        retryable_checker=lambda e: isinstance(e, StorageUnavailableError) and e.retryable,
+    ):
+        self._inner = inner
+        self._max_retries = max_retries
+        self._is_retryable = retryable_checker
+
+    def save(self, entity: T) -> None:
+        last_error = None
+        for attempt in range(self._max_retries):
+            try:
+                self._inner.save(entity)
+                return
+            except Exception as e:
+                last_error = e
+                if not self._is_retryable(e) or attempt == self._max_retries - 1:
+                    raise
+                time.sleep(2 ** attempt * 0.1)  # exponential backoff
+        raise last_error  # unreachable, but satisfies type checker
+
+    def find_by_id(self, entity_id: IdT) -> T | None:
+        return self._inner.find_by_id(entity_id)
+
+    def find_all(self) -> list[T]:
+        return self._inner.find_all()
+
+    def delete(self, entity_id: IdT) -> None:
+        self._inner.delete(entity_id)
+```
+
+```python
+# adapters/decorators/cached_repository.py
+from typing import TypeVar, Generic
+from domain.ports.repository import Repository
+
+T = TypeVar("T")
+IdT = TypeVar("IdT")
+
+class CachedRepository(Generic[T, IdT], Repository[T, IdT]):
+    """Decorator: caches reads, invalidates on write."""
+
+    def __init__(self, inner: Repository[T, IdT], ttl_ms: int = 60_000):
+        self._inner = inner
+        self._cache: dict[str, tuple[T, float]] = {}
+        self._ttl_ms = ttl_ms
+
+    def save(self, entity: T) -> None:
+        self._inner.save(entity)
+        # Invalidate cache for this entity
+        self._cache.pop(str(getattr(entity, 'id', '')), None)
+
+    def find_by_id(self, entity_id: IdT) -> T | None:
+        key = str(entity_id)
+        if key in self._cache:
+            value, ts = self._cache[key]
+            if (time.time() * 1000 - ts) < self._ttl_ms:
+                return value
+        result = self._inner.find_by_id(entity_id)
+        if result is not None:
+            self._cache[key] = (result, time.time() * 1000)
+        return result
+
+    def find_all(self) -> list[T]:
+        return self._inner.find_all()
+
+    def delete(self, entity_id: IdT) -> None:
+        self._inner.delete(entity_id)
+        self._cache.pop(str(entity_id), None)
+```
+
+```python
+# adapters/decorators/metrics_repository.py
+from typing import TypeVar, Generic
+from domain.ports.repository import Repository
+from domain.ports.metrics import MetricsPort
+
+T = TypeVar("T")
+IdT = TypeVar("IdT")
+
+class MetricsRepository(Generic[T, IdT], Repository[T, IdT]):
+    """Decorator: records timing and error metrics for every operation."""
+
+    def __init__(self, inner: Repository[T, IdT], metrics: MetricsPort, time):
+        self._inner = inner
+        self._metrics = metrics
+        self._time = time
+
+    def save(self, entity: T) -> None:
+        start = self._time.now_ms()
+        try:
+            self._inner.save(entity)
+            self._metrics.timing("repository.save", self._time.elapsed_ms(start))
+        except Exception as e:
+            self._metrics.counter("repository.save.error", 1)
+            raise
+
+    def find_by_id(self, entity_id: IdT) -> T | None:
+        start = self._time.now_ms()
+        try:
+            result = self._inner.find_by_id(entity_id)
+            self._metrics.timing("repository.find_by_id", self._time.elapsed_ms(start))
+            return result
+        except Exception as e:
+            self._metrics.counter("repository.find_by_id.error", 1)
+            raise
+
+    # ... delegate remaining methods
+```
+
+**Composition root — stack decorators:**
+
+```python
+# wire_adapters.py
+def make_document_repository(connection, config, time, metrics) -> Repository[Document, str]:
+    base = SqlRepository(connection, config,
+                         to_params=lambda d: (d.id, d.content, d.status.value),
+                         from_row=lambda r: Document(id=r[0], content=r[1],
+                                                     status=DocumentStatus(r[2])))
+    # Stack: base → metrics → retry → cached
+    with_metrics = MetricsRepository(base, metrics, time)
+    with_retry = RetryRepository(with_metrics, max_retries=3)
+    with_cache = CachedRepository(with_retry, ttl_ms=30_000)
+    return with_cache
+```
+
+**Anti-patterns:** Putting retry/caching logic inside the base adapter (violates single responsibility), using decorators for concerns that belong in the domain (business rules), stacking too many decorators (performance overhead).

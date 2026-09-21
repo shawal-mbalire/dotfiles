@@ -101,3 +101,106 @@ class FirestoreAdapter:
 2. **Pure helpers** — mapping, validation, transformation functions (easy to unit test)
 
 Extract pure helpers into standalone functions or a separate `mapping.py` / `transforms.ts` file. Test them without mocks.
+
+## Workflow Style: Functions vs Classes
+
+Domain workflows can be implemented as free functions or classes. Both are valid; the choice depends on language conventions and workflow complexity.
+
+**Use free functions when:**
+- The workflow is a single operation (create, update, delete)
+- No internal state between invocations
+- Simpler to test (call function, check result)
+- Idiomatic in Python and Rust
+
+```python
+# Python: free function (preferred for simple workflows)
+def create_document(
+    content: str,
+    repo: DocumentRepository,
+    logger: LoggerPort,
+    time: TimePort,
+) -> Document:
+    start = time.now_ms()
+    if not content.strip():
+        raise EmptyContentError()
+    document = Document.create(content=content)
+    repo.save(document)
+    logger.info(f"Created {document.id} in {time.elapsed_ms(start)}ms")
+    return document
+```
+
+```rust
+// Rust: free function (idiomatic)
+pub fn save_document(
+    content: &str,
+    repo: &dyn FileRepository,
+    logger: &dyn Logger,
+    time: &dyn TimePort,
+) -> Result<Document, DomainError> {
+    let start = time.now_ms();
+    if content.trim().is_empty() {
+        return Err(DomainError::empty_content());
+    }
+    let doc = Document { id: uuid::Uuid::new_v4().to_string(), content: content.to_string() };
+    repo.save(&doc)?;
+    logger.info(&format!("Created {} in {}ms", doc.id, time.elapsed_ms(start)));
+    Ok(doc)
+}
+```
+
+**Use classes when:**
+- The workflow has multiple related operations (CRUD lifecycle)
+- Shared state or configuration between operations
+- Language convention favors classes (TypeScript, C++)
+- Need to register lifecycle hooks (e.g., `LifetimePort`)
+
+```typescript
+// TypeScript: class (when multiple operations share state)
+export class AddToCartWorkflow {
+  constructor(
+    private cartRepo: CartRepository,
+    private stockChecker: StockChecker,
+    private logger: Logger,
+    private time: TimePort,
+  ) {}
+
+  async execute(productId: string, quantity: number, price: number): Promise<Cart> {
+    // ... business logic
+  }
+
+  async removeItem(productId: string): Promise<Cart> {
+    // ... uses same injected dependencies
+  }
+}
+```
+
+```python
+# Python: class (when lifecycle hooks are needed)
+class DataCollector:
+    def __init__(self, sensor: SensorPort, storage: StoragePort,
+                 lifetime: LifetimePort, time: TimePort):
+        self.sensor = sensor
+        self.storage = storage
+        self.time = time
+        lifetime.register_cleanup(self._flush)
+
+    def collect(self):
+        reading = self.sensor.read()
+        self.storage.save(reading)
+
+    def _flush(self):
+        # cleanup logic
+        pass
+```
+
+**Tradeoffs:**
+
+| Aspect | Free Functions | Classes |
+|--------|---------------|---------|
+| Testing | Trivial — call function, check result | Create instance, call methods |
+| State | Stateless (pure) | Can hold state between calls |
+| Complexity | Simple workflows | Complex workflows with shared deps |
+| Python idiom | Preferred for single operations | Used for lifecycle-bound workflows |
+| TypeScript idiom | Less common | Preferred — constructor injection |
+| Rust idiom | Preferred (traits for abstraction) | Used for stateful services |
+| C++ idiom | Free functions with reference params | Classes for RAII/lifecycle |

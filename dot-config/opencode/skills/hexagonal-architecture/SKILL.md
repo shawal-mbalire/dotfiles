@@ -316,6 +316,68 @@ This architecture satisfies the 12-Factor App methodology:
 - Multi-platform apps sharing domain logic across backend/frontend/mobile/embedded
 - **Nested hexagon** — when 3+ bounded contexts exist with independent data models, teams, or evolution rates
 
+## When NOT to Use
+
+- **Simple CRUD applications** — a traditional layered architecture (controller → service → repository) is simpler and faster to build. Hexagonal adds ceremony that doesn't pay off when there's one database and no external services.
+- **Prototypes and MVPs** — when you're validating an idea, skip the architecture. Add it later when the domain logic stabilizes.
+- **Single-developer projects with no external dependencies** — if you're the only developer and your app talks to one database, the port/adapter abstraction adds complexity without benefit.
+- **Scripts and CLI tools** — one-off scripts, build tools, and data pipelines rarely need swappable adapters or complex test harnesses.
+- **Applications with trivial domain logic** — if your app is mostly UI + database with no business rules, hexagonal architecture is over-engineering.
+- **Tight deadline prototypes** — when shipping in days matters more than long-term maintainability, use a simpler architecture. Refactor to hexagonal when the deadline passes and the codebase survives.
+- **Libraries and frameworks** — hexagonal is for applications, not reusable libraries. Libraries expose APIs, not adapters.
+
+**Rule of thumb:** Start with the simplest architecture that works. Adopt hexagonal when you feel the pain of tight coupling (hard to test, hard to swap databases, hard to add a second data source).
+
+## Performance Considerations
+
+Hexagonal architecture adds indirection layers. Here's what to know about performance:
+
+### Overhead Sources
+
+| Source | Impact | Mitigation |
+|--------|--------|------------|
+| **Dynamic dispatch** (virtual functions, trait objects) | ~1-5 ns per call (inlining barrier) | Acceptable for I/O-bound apps; use generics/static dispatch for hot paths |
+| **Decorator stacking** (retry, cache, metrics) | Each decorator adds a function call | Stack only necessary decorators; profile before adding |
+| **Marshaling** (row ↔ domain model mapping) | O(n) per entity, involves allocations | Keep mappings simple; reuse buffers where possible |
+| **Buffer flushing** (DuckDB hub, event bus) | Latency spike on flush | Tune batch_size; flush on `LifetimePort` cleanup, not per request |
+
+### Language-Specific Notes
+
+**Python:**
+- `Protocol` has zero runtime cost — it's a type-checking hint only
+- Avoid `ABC` for hot paths — `@abstractmethod` adds overhead
+- Use `__slots__` on domain models for memory-constrained environments
+
+**TypeScript:**
+- Interfaces are erased at runtime — zero overhead
+- `async/await` adds microtask queue overhead; prefer synchronous ports where possible
+- Consider `Map` over `Object` for frequent key lookups
+
+**Rust:**
+- `dyn Trait` (trait objects) uses vtable dispatch — ~1 ns overhead per call
+- Monomorphization (generics) gives zero-cost abstraction — prefer over `dyn` for performance-critical paths
+- `Send + Sync` bounds add no runtime cost — they're compile-time checks only
+
+**C++:**
+- Virtual functions add vtable indirection (~1-2 ns)
+- Templates are monomorphized — zero overhead, but increase binary size
+- RAII destructors are free when inlined; register `LifetimePort` cleanup only when needed
+
+### When to Optimize
+
+1. **Profile first** — hexagonal indirection is rarely the bottleneck; I/O is
+2. **Hot paths** — use generics/static dispatch for code called millions of times
+3. **Cold paths** — configuration, startup, shutdown — indirection is fine
+4. **Decorator overhead** — stack only what you need; each decorator adds a function call
+5. **Batching** — buffer writes and flush periodically, not per request
+
+### What NOT to Worry About
+
+- Port method call overhead (nanoseconds) vs database/network latency (milliseconds)
+- Domain model field access vs I/O time
+- Composition root startup time (runs once)
+- Decorator dispatch in non-hot paths
+
 ## Decision Checklist
 
 ```

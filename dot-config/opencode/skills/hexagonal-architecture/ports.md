@@ -181,6 +181,60 @@ The domain, port, and workflow are identical in every column — only `Transport
 
 These are the concrete ports and methods per archetype. **Tier** is the default posture, not a mandate: **Baseline** ports earn their place in almost every non-trivial process; **Conditional** ports are added only when their trigger fires (apply the [Port Taxonomy](#port-taxonomy-when-to-add-a-port) test). Embedded and other minimal targets may omit any of them.
 
+#### Python: Protocol vs ABC for Ports
+
+Python offers two mechanisms for defining port contracts: `typing.Protocol` (structural subtyping) and `abc.ABC` (nominal subtyping). Use `Protocol` unless you need runtime type checking.
+
+| Mechanism | When to Use | Tradeoffs |
+|-----------|-------------|-----------|
+| `Protocol` (preferred) | Most ports — enables duck typing with type safety | No `__init_subclass__` hooks, no runtime enforcement |
+| `ABC` | Ports requiring `__init_subclass__`, `__subclasshook__`, or explicit `register()` | Forces inheritance, breaks duck typing |
+
+**Protocol (recommended for most ports):**
+
+```python
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable  # optional: enables isinstance() checks
+class LoggerPort(Protocol):
+    def info(self, message: str) -> None: ...
+    def error(self, message: str) -> None: ...
+
+# Any class with matching methods satisfies LoggerPort — no inheritance required
+class ConsoleLogger:  # no "implements LoggerPort" needed
+    def info(self, message: str) -> None:
+        print(f"[INFO] {message}")
+    def error(self, message: str) -> None:
+        print(f"[ERROR] {message}")
+
+def log_something(logger: LoggerPort) -> None:
+    logger.info("hello")
+
+log_something(ConsoleLogger())  # works — structural subtyping
+```
+
+**ABC (use when you need runtime features):**
+
+```python
+from abc import ABC, abstractmethod
+
+class LoggerPort(ABC):
+    @abstractmethod
+    def info(self, message: str) -> None: ...
+
+    @abstractmethod
+    def error(self, message: str) -> None: ...
+
+# Must explicitly inherit
+class ConsoleLogger(LoggerPort):  # required: "implements LoggerPort"
+    def info(self, message: str) -> None:
+        print(f"[INFO] {message}")
+    def error(self, message: str) -> None:
+        print(f"[ERROR] {message}")
+```
+
+**MicroPython note:** MicroPython may lack `typing.Protocol`. Use ABC or plain classes with duck typing. The embedded guide in this skill uses ABC for this reason.
+
 | Port | Tier | Add when | Required methods |
 |------|------|----------|-----------------|
 | `TimePort` | Baseline | measuring duration or driving poll loops | `nowMs()`, `elapsedMs(start)`, `sleepMs(ms)` |

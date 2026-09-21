@@ -307,6 +307,8 @@ private:
 
 class SignalLifetimeAdapter : public LifetimePort {
 public:
+    SignalLifetimeAdapter() = default;
+
     void register_cleanup(std::function<void()> handler) override {
         cleanup_handlers_.push_back(std::move(handler));
     }
@@ -319,24 +321,23 @@ public:
     bool is_shutting_down() override { return shutting_down_; }
 
     void install() {
+        // Store this pointer for the C-style signal handler
+        instance_ = this;
         std::signal(SIGTERM, signal_handler);
         std::signal(SIGINT, signal_handler);
     }
 
-    static void signal_handler(int signum) {
-        auto& self = instance();
-        self.shutting_down_ = true;
-        self.exit_reason_ = (signum == SIGTERM) ? ExitReason::Shutdown : ExitReason::UserExit;
-        for (auto& h : self.exit_handlers_) h(self.exit_reason_);
-        for (auto& h : self.cleanup_handlers_) h();
-    }
-
-    static SignalLifetimeAdapter& instance() {
-        static SignalLifetimeAdapter inst;
-        return inst;
-    }
-
 private:
+    static void signal_handler(int signum) {
+        if (!instance_) return;
+        instance_->shutting_down_ = true;
+        instance_->exit_reason_ = (signum == SIGTERM) ? ExitReason::Shutdown : ExitReason::UserExit;
+        for (auto& h : instance_->exit_handlers_) h(instance_->exit_reason_);
+        for (auto& h : instance_->cleanup_handlers_) h();
+    }
+
+    static inline SignalLifetimeAdapter* instance_ = nullptr;
+
     std::vector<std::function<void()>> cleanup_handlers_;
     std::vector<std::function<void(ExitReason)>> exit_handlers_;
     ExitReason exit_reason_ = ExitReason::Normal;

@@ -152,14 +152,18 @@ pub mod errors {
 
     #[derive(Error, Debug)]
     pub enum DomainError {
-        #[error("Document content cannot be empty")]
-        EmptyContent,
-
-        #[error("Document not found: {id}")]
-        DocumentNotFound { id: String },
-
-        #[error("Storage error: {0}")]
-        Storage(String),
+        #[error("[{code}] {message}")]
+        Diagnostic {
+            code: &'static str,
+            message: String,
+            context: BTreeMap<String, String>,
+            #[source]
+            cause: Option<Box<dyn std::error::Error + Send + Sync>>,
+            origin: String,
+            correlation_id: String,
+            retryable: bool,
+            remediation: String,
+        },
     }
 }
 
@@ -224,10 +228,21 @@ pub mod workflows {
     ) -> Result<Document, DomainError> {
         let start = time.now_ms();
         if content.trim().is_empty() {
-            return Err(DomainError::EmptyContent);
+            return Err(DomainError::empty_content());
         }
         if content.len() > MAX_CONTENT_LENGTH {
-            return Err(DomainError::Storage("Content too long".into()));
+            return Err(DomainError::Diagnostic {
+                code: "DOC-003",
+                message: "Content exceeds maximum length".into(),
+                context: [("max_length".to_string(), MAX_CONTENT_LENGTH.to_string())]
+                    .into_iter()
+                    .collect(),
+                cause: None,
+                origin: String::new(),
+                correlation_id: String::new(),
+                retryable: false,
+                remediation: "Reduce content length".into(),
+            });
         }
 
         let doc = Document {
@@ -455,7 +470,9 @@ impl<T: Send + Sync> Repository<T> for SqliteRepository<T> {
             .execute(&self.pool)
             .await
             .map(|_| ()) // parameterized only
-            .map_err(|e| DomainError::Storage(e.to_string())) // translate errors
+            .map_err(|e| DomainError::storage_unavailable(
+                e, "adapter.sqlite_repository.save", ""  // correlation_id set by caller
+            ))?
     }
 
     async fn find_by_id(&self, id: &str) -> Result<Option<T>, DomainError> {
@@ -463,22 +480,30 @@ impl<T: Send + Sync> Repository<T> for SqliteRepository<T> {
             .bind(id)
             .fetch_optional(&self.pool)
             .await
-            .map_err(|e| DomainError::Storage(e.to_string()))?;
+            .map_err(|e| DomainError::storage_unavailable(
+                e, "adapter.sqlite_repository.find_by_id", ""
+            ))?;
         row.as_ref()
             .map(|r| self.mapper.from_row(r))
             .transpose()
-            .map_err(|e| DomainError::Storage(e.to_string()))
+            .map_err(|e| DomainError::storage_unavailable(
+                e, "adapter.sqlite_repository.from_row", ""
+            ))
     }
 
     async fn find_all(&self) -> Result<Vec<T>, DomainError> {
         let rows = sqlx::query(self.mapper.select_all_sql())
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| DomainError::Storage(e.to_string()))?;
+            .map_err(|e| DomainError::storage_unavailable(
+                e, "adapter.sqlite_repository.find_all", ""
+            ))?;
         rows.iter()
             .map(|r| self.mapper.from_row(r))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| DomainError::Storage(e.to_string()))
+            .map_err(|e| DomainError::storage_unavailable(
+                e, "adapter.sqlite_repository.from_row", ""
+            ))
     }
 
     async fn delete(&self, id: &str) -> Result<(), DomainError> {
@@ -487,7 +512,9 @@ impl<T: Send + Sync> Repository<T> for SqliteRepository<T> {
             .execute(&self.pool)
             .await
             .map(|_| ())
-            .map_err(|e| DomainError::Storage(e.to_string()))
+            .map_err(|e| DomainError::storage_unavailable(
+                e, "adapter.sqlite_repository.delete", ""
+            ))
     }
 }
 ```
@@ -1128,11 +1155,11 @@ pub enum DomainError {
         retryable: bool,
         remediation: String,
     },
-    #[error("storage error: {0}")]
-    Storage(String),
 }
 
 impl DomainError {
+    /// Construct a diagnostic error for storage failures.
+    /// Use this instead of DomainError::Storage(String).
     pub fn storage_unavailable(
         cause: impl std::error::Error + Send + Sync + 'static,
         origin: impl Into<String>,
@@ -1152,17 +1179,45 @@ impl DomainError {
         }
     }
 
+    /// Construct a diagnostic error for content validation failures.
+    pub fn empty_content() -> Self {
+        DomainError::Diagnostic {
+            code: "DOC-001",
+            message: "Document content cannot be empty".into(),
+            context: BTreeMap::new(),
+            cause: None,
+            origin: String::new(),
+            correlation_id: String::new(),
+            retryable: false,
+            remediation: "Provide non-empty content".into(),
+        }
+    }
+
+    /// Construct a diagnostic error for not-found failures.
+    pub fn not_found(entity: &str, id: &str) -> Self {
+        DomainError::Diagnostic {
+            code: "DOC-002",
+            message: format!("{} not found: {}", entity, id),
+            context: [("id".to_string(), id.to_string())]
+                .into_iter()
+                .collect(),
+            cause: None,
+            origin: String::new(),
+            correlation_id: String::new(),
+            retryable: false,
+            remediation: format!("Verify the {} id and try again", entity),
+        }
+    }
+
     pub fn code(&self) -> &'static str {
         match self {
             DomainError::Diagnostic { code, .. } => code,
-            DomainError::Storage(_) => "STO-000",
         }
     }
 
     pub fn retryable(&self) -> bool {
         match self {
             DomainError::Diagnostic { retryable, .. } => *retryable,
-            DomainError::Storage(_) => true,
         }
     }
 }
@@ -1485,10 +1540,9 @@ fn test_save_document_empty_content_fails() {
     let result = save_document("", &repo, &logger, &time);
 
     assert!(result.is_err());
-    match result.unwrap_err() {
-        DomainError::EmptyContent => {}
-        other => panic!("Expected EmptyContent, got {:?}", other),
-    }
+    let err = result.unwrap_err();
+    assert_eq!(err.code(), "DOC-001");
+    assert!(!err.retryable());
     assert_eq!(*repo.save_count.borrow(), 0);
 }
 
@@ -1499,6 +1553,7 @@ fn test_save_document_whitespace_only_fails() {
     let result = save_document("   ", &repo, &logger);
 
     assert!(result.is_err());
+    assert_eq!(result.unwrap_err().code(), "DOC-001");
 }
 ```
 
