@@ -161,39 +161,95 @@ Spinner or infinite progress bar. Use for unknown durations.
 }
 ```
 
-## Optimistic UI
+## Optimistic UI (Angular)
 
-- Update UI immediately before server confirms
-- Rollback on failure
-- Show success toast on confirmation
+Use Angular signals and services for optimistic updates:
 
-```javascript
-class OptimisticUI {
-  constructor(element) {
-    this.element = element;
-    this.originalState = null;
-  }
-  
-  update(updateFn, rollbackFn, asyncFn) {
-    // Save original state
-    this.originalState = this.element.innerHTML;
-    
-    // Apply optimistic update
-    updateFn();
-    
-    // Try async operation
-    return asyncFn()
+```typescript
+import { Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+
+export interface OptimisticState<T> {
+  data: T;
+  pending: boolean;
+  error: string | null;
+}
+
+@Injectable({ providedIn: 'root' })
+export class OptimisticUIService {
+  update<T>(
+    http: HttpClient,
+    url: string,
+    currentData: T,
+    updatePayload: Partial<T>,
+    successCallback?: (result: T) => void,
+    errorCallback?: (error: any) => void
+  ): OptimisticState<T> {
+    const state = signal<OptimisticState<T>>({
+      data: { ...currentData, ...updatePayload },
+      pending: true,
+      error: null
+    });
+
+    firstValueFrom(http.put<T>(url, updatePayload))
       .then((result) => {
-        // Apply server response
-        this.element.innerHTML = result;
-        return result;
+        state.set({ data: result, pending: false, error: null });
+        successCallback?.(result);
       })
       .catch((error) => {
-        // Rollback on failure
-        this.element.innerHTML = this.originalState;
-        rollbackFn(error);
-        throw error;
+        // Rollback to original state
+        state.set({ data: currentData, pending: false, error: error.message });
+        errorCallback?.(error);
       });
+
+    return state();
+  }
+}
+```
+
+### Usage in Component
+
+```typescript
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { OptimisticUIService } from './optimistic-ui.service';
+
+@Component({
+  selector: 'app-todo-item',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div [class.pending]="state.pending">
+      <input
+        [value]="state.data.title"
+        (blur)="updateTitle($any($event.target).value)"
+        [disabled]="state.pending">
+      @if (state.error) {
+        <span class="error">{{ state.error }}</span>
+      }
+    </div>
+  `
+})
+export class TodoItemComponent {
+  private http = inject(HttpClient);
+  private optimisticUI = inject(OptimisticUIService);
+
+  todo = signal({ id: 1, title: 'Buy milk' });
+  state = signal({ data: this.todo(), pending: false, error: null });
+
+  updateTitle(newTitle: string) {
+    if (newTitle === this.todo().title) return;
+
+    this.state.set(
+      this.optimisticUI.update(
+        this.http,
+        `/api/todos/${this.todo().id}`,
+        this.todo(),
+        { title: newTitle },
+        (result) => this.todo.set(result)
+      )
+    );
   }
 }
 ```
@@ -370,117 +426,118 @@ class OptimisticUI {
 - Allow retry for failed operations
 - Clear errors when user starts correcting
 
-```javascript
-class FormValidator {
-  constructor(form) {
-    this.form = form;
-    this.errors = new Map();
-  }
-  
-  validateField(field) {
-    const error = this.getFieldError(field);
-    
-    if (error) {
-      this.errors.set(field.name, error);
-      this.showFieldError(field, error);
-      return false;
-    } else {
-      this.errors.delete(field.name);
-      this.clearFieldError(field);
-      return true;
-    }
-  }
-  
-  getFieldError(field) {
-    if (field.required && !field.value.trim()) {
-      return `${field.label} is required.`;
-    }
-    
-    if (field.type === 'email' && !this.isValidEmail(field.value)) {
-      return `${field.label} must be a valid email.`;
-    }
-    
-    if (field.minLength && field.value.length < field.minLength) {
-      return `${field.label} must be at least ${field.minLength} characters.`;
-    }
-    
-    return null;
-  }
-  
-  showFieldError(field, error) {
-    field.setAttribute('aria-invalid', 'true');
-    field.setAttribute('aria-describedby', `${field.name}-error`);
-    
-    let errorEl = document.getElementById(`${field.name}-error`);
-    if (!errorEl) {
-      errorEl = document.createElement('div');
-      errorEl.id = `${field.name}-error`;
-      errorEl.className = 'input-error-message';
-      errorEl.setAttribute('role', 'alert');
-      field.parentNode.appendChild(errorEl);
-    }
-    
-    errorEl.textContent = error;
-  }
-  
-  clearFieldError(field) {
-    field.removeAttribute('aria-invalid');
-    field.removeAttribute('aria-describedby');
-    
-    const errorEl = document.getElementById(`${field.name}-error`);
-    if (errorEl) {
-      errorEl.remove();
-    }
-  }
-  
-  validateForm() {
-    let isValid = true;
-    this.errors.clear();
-    
-    const fields = this.form.querySelectorAll('input, textarea, select');
-    fields.forEach((field) => {
-      if (!this.validateField(field)) {
-        isValid = false;
+### Angular Reactive Forms Validation
+
+Use Angular's `FormGroup`, `FormControl`, and `Validators` for form validation:
+
+```typescript
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
+import { CommonModule } from '@angular/common';
+
+@Component({
+  selector: 'app-validated-form',
+  standalone: true,
+  imports: [ReactiveFormsModule, CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <form [formGroup]="form" (ngSubmit)="onSubmit()">
+      @if (formErrors().length > 0) {
+        <div class="form-error-summary" role="alert">
+          <h3>Please correct the following errors:</h3>
+          <ul>
+            @for (error of formErrors(); track error.field) {
+              <li><a [href]="'#' + error.field">{{ error.message }}</a></li>
+            }
+          </ul>
+        </div>
       }
-    });
-    
-    if (!isValid) {
-      this.showErrorSummary();
-      this.focusFirstError();
-    }
-    
-    return isValid;
+
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input
+          id="name"
+          formControlName="name"
+          [class.input--error]="isFieldInvalid('name')">
+        @if (isFieldInvalid('name')) {
+          <div class="input-error-message" id="name-error" role="alert">
+            {{ getFieldError('name') }}
+          </div>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          formControlName="email"
+          [class.input--error]="isFieldInvalid('email')">
+        @if (isFieldInvalid('email')) {
+          <div class="input-error-message" id="email-error" role="alert">
+            {{ getFieldError('email') }}
+          </div>
+        }
+      </div>
+
+      <button type="submit" [disabled]="form.invalid">Submit</button>
+    </form>
+  `
+})
+export class ValidatedFormComponent {
+  private fb = inject(FormBuilder);
+
+  form = this.fb.group({
+    name: ['', [Validators.required, Validators.minLength(2)]],
+    email: ['', [Validators.required, Validators.email]]
+  });
+
+  formErrors = signal<{ field: string; message: string }[]>([]);
+
+  isFieldInvalid(field: string): boolean {
+    const control = this.form.get(field);
+    return !!(control && control.invalid && (control.dirty || control.touched));
   }
-  
-  showErrorSummary() {
-    let summaryEl = this.form.querySelector('.form-error-summary');
-    
-    if (!summaryEl) {
-      summaryEl = document.createElement('div');
-      summaryEl.className = 'form-error-summary';
-      summaryEl.setAttribute('role', 'alert');
-      this.form.insertBefore(summaryEl, this.form.firstChild);
-    }
-    
-    const errorList = Array.from(this.errors.entries())
-      .map(([name, error]) => `<li><a href="#${name}">${error}</a></li>`)
-      .join('');
-    
-    summaryEl.innerHTML = `
-      <h3>Please correct the following errors:</h3>
-      <ul>${errorList}</ul>
-    `;
+
+  getFieldError(field: string): string {
+    const control = this.form.get(field);
+    if (!control || !control.errors) return '';
+
+    const errorMessages: Record<string, string> = {
+      required: `${this.getFieldLabel(field)} is required.`,
+      email: `${this.getFieldLabel(field)} must be a valid email.`,
+      minlength: `${this.getFieldLabel(field)} must be at least ${control.errors['minlength'].requiredLength} characters.`
+    };
+
+    const firstError = Object.keys(control.errors)[0];
+    return errorMessages[firstError] || `${this.getFieldLabel(field)} is invalid.`;
   }
-  
-  focusFirstError() {
-    const firstErrorField = this.form.querySelector('[aria-invalid="true"]');
-    if (firstErrorField) {
-      firstErrorField.focus();
-    }
+
+  private getFieldLabel(field: string): string {
+    const labels: Record<string, string> = { name: 'Name', email: 'Email' };
+    return labels[field] || field;
   }
-  
-  isValidEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  onSubmit() {
+    if (this.form.valid) {
+      // Submit form
+    } else {
+      // Mark all fields as touched to show errors
+      this.form.markAllAsTouched();
+
+      // Build error summary
+      const errors: { field: string; message: string }[] = [];
+      Object.keys(this.form.controls).forEach(field => {
+        if (this.isFieldInvalid(field)) {
+          errors.push({ field, message: this.getFieldError(field) });
+        }
+      });
+      this.formErrors.set(errors);
+
+      // Focus first error field
+      const firstErrorField = document.querySelector('[class.input--error]') as HTMLElement;
+      firstErrorField?.focus();
+    }
   }
 }
 ```

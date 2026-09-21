@@ -20,6 +20,111 @@ Start with desktop layout and adapt downward:
 }
 ```
 
+## Angular CDK BreakpointObserver
+
+In Angular, use `@angular/cdk/layout` for responsive logic instead of `window.matchMedia`:
+
+```typescript
+import { Component, inject, signal, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs/operators';
+
+@Component({
+  selector: 'app-responsive-layout',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (isMobile()) {
+      <app-mobile-nav />
+    } @else {
+      <app-desktop-sidebar />
+    }
+  `
+})
+export class ResponsiveLayoutComponent {
+  private breakpointObserver = inject(BreakpointObserver);
+
+  // Convert observable to signal
+  isMobile = toSignal(
+    this.breakpointObserver.observe(Breakpoints.Handset).pipe(
+      map(result => result.matches)
+    ),
+    { initialValue: false }
+  );
+
+  // Or use a custom breakpoint matching service
+  screenSize = toSignal(
+    this.breakpointObserver.observe([
+      '(max-width: 768px)',
+      '(min-width: 769px) and (max-width: 1024px)',
+      '(min-width: 1025px)'
+    ]).pipe(
+      map(result => {
+        if (result.breakpoints['(max-width: 768px)']) return 'mobile';
+        if (result.breakpoints['(min-width: 769px) and (max-width: 1024px)']) return 'tablet';
+        return 'desktop';
+      })
+    ),
+    { initialValue: 'desktop' }
+  );
+}
+```
+
+### Breakpoint Service (Reusable)
+
+```typescript
+import { Injectable, inject } from '@angular/core';
+import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs/operators';
+
+@Injectable({ providedIn: 'root' })
+export class ResponsiveService {
+  private bp = inject(BreakpointObserver);
+
+  readonly isMobile = toSignal(
+    this.bp.observe(Breakpoints.Handset).pipe(map(r => r.matches)),
+    { initialValue: false }
+  );
+
+  readonly isTablet = toSignal(
+    this.bp.observe(Breakpoints.Tablet).pipe(map(r => r.matches)),
+    { initialValue: false }
+  );
+
+  readonly isDesktop = toSignal(
+    this.bp.observe(Breakpoints.Web).pipe(map(r => r.matches)),
+    { initialValue: true }
+  );
+
+  readonly isHandsetOrTablet = toSignal(
+    this.bp.observe([...Breakpoints.Handset, ...Breakpoints.Tablet]).pipe(map(r => r.matches)),
+    { initialValue: false }
+  );
+}
+```
+
+### Usage in Component
+
+```typescript
+@Component({
+  selector: 'app-navigation',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (responsive.isMobile()) {
+      <app-bottom-nav />
+    } @else {
+      <app-sidebar-nav />
+    }
+  `
+})
+export class NavigationComponent {
+  responsive = inject(ResponsiveService);
+}
+```
+
 ## Container Queries for Components
 
 Use container queries for component-level responsiveness:

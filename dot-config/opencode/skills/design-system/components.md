@@ -1,6 +1,97 @@
 # Component Contracts
 
-Components are documented as contracts specifying required elements, tokens, variants, and interactions.
+Components are documented as contracts specifying required elements, tokens, variants, and interactions. **Angular** is the preferred implementation framework.
+
+## Angular Component Pattern
+
+Every component follows this structure:
+
+```typescript
+import { Component, ChangeDetectionStrategy, input, output, signal, computed, inject } from '@angular/core';
+
+@Component({
+  selector: 'app-[component-name]',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './[component-name].component.html',
+  styleUrl: './[component-name].component.scss'
+})
+export class [ComponentName]Component {
+  // Signal-based inputs
+  // Signal-based outputs
+  // Local state via signals
+  // Derived state via computed
+}
+```
+
+## Icon System — Lucide
+
+All icons in the design system use [Lucide](https://lucide.dev/). No emoji, no Font Awesome, no custom SVG icons.
+
+### Installation
+
+```bash
+npm install lucide-angular
+```
+
+### Icon Component
+
+```typescript
+import { Component, ChangeDetectionStrategy, input, computed } from '@angular/core';
+import { LucideAngularModule } from 'lucide-angular';
+import { CommonModule } from '@angular/common';
+
+@Component({
+  selector: 'ds-icon',
+  standalone: true,
+  imports: [CommonModule, LucideAngularModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <lucide-icon
+      [name]="iconName()"
+      [size]="sizePx()"
+      [strokeWidth]="strokeWidth()"
+      [class]="iconClasses()">
+    </lucide-icon>
+  `,
+  styles: [`:host { display: inline-flex; align-items: center; justify-content: center; }`]
+})
+export class IconComponent {
+  iconName = input.required<string>();
+  size = input<'xs' | 'sm' | 'md' | 'lg' | 'xl'>('md');
+  strokeWidth = input<number>(2);
+
+  sizePx = computed(() => {
+    const sizes = { xs: 14, sm: 16, md: 24, lg: 32, xl: 48 };
+    return sizes[this.size()];
+  });
+
+  iconClasses = computed(() => ({
+    'icon': true,
+    [`icon--${this.size()}`]: true
+  }));
+}
+```
+
+### Icon Usage Rules
+
+| Rule | Example |
+|------|---------|
+| Decorative icons must have `aria-hidden` | `<ds-icon name="home" [attr.aria-hidden]="true" />` |
+| Interactive icons must have `aria-label` on parent | `<button aria-label="Close"><ds-icon name="x" /></button>` |
+| Icon + text uses `gap` for spacing | `<ds-icon name="check" /><span>Done</span>` with `display: flex; gap: var(--space-sm)` |
+| Never use emoji as icons | No `✓` or `🎉`, always `<ds-icon name="check" />` or `<ds-icon name="party-popper" />` |
+
+### Common Icon Names
+
+| Category | Lucide Names |
+|----------|--------------|
+| Navigation | `home`, `menu`, `chevron-left`, `chevron-right`, `arrow-left`, `arrow-right` |
+| Actions | `check`, `x`, `plus`, `minus`, `edit`, `trash-2`, `copy`, `download` |
+| Status | `check-circle`, `alert-circle`, `alert-triangle`, `info`, `loader` |
+| Media | `play`, `pause`, `volume-2`, `volume-x` |
+| Layout | `search`, `filter`, `grid`, `list`, `sliders-horizontal` |
+| Communication | `mail`, `message-circle`, `bell`, `send` |
 
 ## Visual Hierarchy Guidelines
 
@@ -63,6 +154,61 @@ All components must establish visual hierarchy through:
 - Use `<article>` with optional `aria-label` for context
 - Ensure focus indicator is visible (2px minimum)
 
+### Angular Implementation
+
+```typescript
+import { Component, ChangeDetectionStrategy, input, output, signal, computed } from '@angular/core';
+
+@Component({
+  selector: 'app-card',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <article
+      [class]="cssClasses()"
+      [attr.aria-label]="ariaLabel()"
+      (mouseenter)="isHovered.set(true)"
+      (mouseleave)="isHovered.set(false)"
+      (focus)="isHovered.set(true)"
+      (blur)="isHovered.set(false)"
+      [tabindex]="clickable() ? 0 : null"
+      (click)="clickable() && cardClick.emit()"
+      (keydown.enter)="clickable() && cardClick.emit()">
+      @if (title()) {
+        <header class="card__header">
+          <h3 class="card__title">{{ title() }}</h3>
+          @if (subtitle()) {
+            <p class="card__subtitle">{{ subtitle() }}</p>
+          }
+        </header>
+      }
+      <section class="card__body">
+        <ng-content></ng-content>
+      </section>
+    </article>
+  `
+})
+export class CardComponent {
+  title = input<string>();
+  subtitle = input<string>();
+  variant = input<'elevated' | 'bordered' | 'flat'>('elevated');
+  clickable = input(false);
+  ariaLabel = input<string>();
+  cardClick = output<void>();
+
+  isHovered = signal(false);
+
+  cssClasses = computed(() => ({
+    'card': true,
+    'card--elevated': this.variant() === 'elevated',
+    'card--bordered': this.variant() === 'bordered',
+    'card--flat': this.variant() === 'flat',
+    'card--hovered': this.isHovered(),
+    'card--clickable': this.clickable()
+  }));
+}
+```
+
 ---
 
 ## Button Component
@@ -99,6 +245,50 @@ All components must establish visual hierarchy through:
 - Must have visible focus indicator
 - Minimum touch target: 44x44px (recommended), 24x24px absolute minimum (WCAG 2.5.8)
 - Disabled state must be announced to screen readers
+
+### Angular Implementation
+
+```typescript
+import { Component, ChangeDetectionStrategy, input, output, HostBinding, HostListener } from '@angular/core';
+
+@Component({
+  selector: 'app-button',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (loading()) {
+      <span class="spinner spinner--sm" aria-hidden="true"></span>
+    }
+    <ng-content></ng-content>
+  `
+})
+export class ButtonComponent {
+  variant = input<'primary' | 'secondary' | 'ghost' | 'danger'>('primary');
+  size = input<'sm' | 'md' | 'lg'>('md');
+  disabled = input(false);
+  loading = input(false);
+  buttonClick = output<MouseEvent>();
+
+  @HostBinding('class') get hostClasses() {
+    return `btn btn--${this.variant()} btn--${this.size()}`;
+  }
+
+  @HostBinding('attr.aria-disabled') get ariaDisabled() {
+    return this.disabled() || this.loading();
+  }
+
+  @HostBinding('attr.aria-busy') get ariaBusy() {
+    return this.loading();
+  }
+
+  @HostListener('click', ['$event'])
+  onClick(event: MouseEvent) {
+    if (!this.disabled() && !this.loading()) {
+      this.buttonClick.emit(event);
+    }
+  }
+}
+```
 
 ---
 
@@ -206,6 +396,64 @@ All components must establish visual hierarchy through:
 - Error messages must be associated via `aria-describedby`
 - Required fields must have `aria-required="true"`
 
+### Angular Implementation
+
+```typescript
+import { Component, ChangeDetectionStrategy, input, signal, computed, inject, Self } from '@angular/core';
+import { ReactiveFormsModule, FormControl } from '@angular/forms';
+import { NgControl } from '@angular/forms';
+
+@Component({
+  selector: 'app-input',
+  standalone: true,
+  imports: [ReactiveFormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <label [for]="id()" class="input-label">{{ label() }}</label>
+    <input
+      [id]="id()"
+      [type]="type()"
+      [formControl]="control"
+      [placeholder]="placeholder()"
+      [attr.aria-required]="required()"
+      [attr.aria-describedby]="errorMessage() ? id() + '-error' : null"
+      [attr.aria-invalid]="hasError()"
+      [class.input--error]="hasError()"
+      [class.input--disabled]="disabled()">
+    @if (helperText() && !hasError()) {
+      <div class="input-helper">{{ helperText() }}</div>
+    }
+    @if (hasError()) {
+      <div class="input-error-message" [id]="id() + '-error'" role="alert">
+        {{ errorMessage() }}
+      </div>
+    }
+  `
+})
+export class InputComponent {
+  id = input.required<string>();
+  label = input.required<string>();
+  type = input('text');
+  placeholder = input('');
+  required = input(false);
+  disabled = input(false);
+  helperText = input<string>();
+
+  control = new FormControl('');
+
+  hasError = computed(() => this.control.invalid && (this.control.dirty || this.control.touched));
+
+  errorMessage = computed(() => {
+    if (!this.control.errors) return '';
+    const errors = this.control.errors;
+    if (errors['required']) return `${this.label()} is required.`;
+    if (errors['email']) return `${this.label()} must be a valid email.`;
+    if (errors['minlength']) return `${this.label()} must be at least ${errors['minlength'].requiredLength} characters.`;
+    return `${this.label()} is invalid.`;
+  });
+}
+```
+
 ---
 
 ## Link Component
@@ -272,6 +520,78 @@ All components must establish visual hierarchy through:
 - Focus trapped within modal when open
 - Return focus to trigger element on close
 - Background scroll locked when open
+
+### Angular Implementation
+
+```typescript
+import { Component, ChangeDetectionStrategy, input, output, signal, effect, ElementRef, inject, viewChild, AfterViewInit } from '@angular/core';
+
+@Component({
+  selector: 'app-modal',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (isOpen()) {
+      <div class="modal" role="dialog" aria-modal="true" [attr.aria-labelledby]="titleId">
+        <div class="modal__backdrop" (click)="close()"></div>
+        <div class="modal__content" #content>
+          <header class="modal__header">
+            <h2 [id]="titleId">{{ title() }}</h2>
+            <button class="modal__close" (click)="close()" aria-label="Close dialog">×</button>
+          </header>
+          <section class="modal__body">
+            <ng-content></ng-content>
+          </section>
+          @if (showFooter()) {
+            <footer class="modal__footer">
+              <ng-content select="[footer]"></ng-content>
+            </footer>
+          }
+        </div>
+      </div>
+    }
+  `
+})
+export class ModalComponent implements AfterViewInit {
+  private elementRef = inject(ElementRef);
+
+  title = input.required<string>();
+  isOpen = input(false);
+  showFooter = input(true);
+  closed = output<void>();
+
+  private titleId = `modal-title-${Math.random().toString(36).slice(2, 9)}`;
+  private previousActiveElement: HTMLElement | null = null;
+
+  content = viewChild<ElementRef>('content');
+
+  constructor() {
+    effect(() => {
+      if (this.isOpen()) {
+        this.previousActiveElement = document.activeElement as HTMLElement;
+        document.body.style.overflow = 'hidden';
+        // Focus trap logic
+        setTimeout(() => this.content()?.nativeElement?.focus(), 0);
+      } else {
+        document.body.style.overflow = '';
+        this.previousActiveElement?.focus();
+      }
+    });
+  }
+
+  ngAfterViewInit() {
+    this.elementRef.nativeElement.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && this.isOpen()) {
+        this.close();
+      }
+    });
+  }
+
+  close() {
+    this.closed.emit();
+  }
+}
+```
 
 ```css
 .modal {
@@ -344,6 +664,75 @@ All components must establish visual hierarchy through:
 - Announce content to screen readers via `aria-live`
 - Provide close button with `aria-label="Dismiss"`
 - Do not auto-dismiss error toasts
+
+### Angular Implementation
+
+```typescript
+import { Component, ChangeDetectionStrategy, input, output, signal, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+
+export interface Toast {
+  id: string;
+  type: 'success' | 'warning' | 'error' | 'info';
+  title?: string;
+  message: string;
+  autoDismiss?: boolean;
+  duration?: number;
+}
+
+@Component({
+  selector: 'app-toast-container',
+  standalone: true,
+  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="toast-container" aria-live="polite">
+      @for (toast of toasts(); track toast.id) {
+        <div
+          class="toast"
+          [class]="'toast toast--' + toast.type"
+          [attr.role]="toast.type === 'error' ? 'alert' : 'status'"
+          [attr.aria-labelledby]="toast.title ? 'toast-title-' + toast.id : null"
+          [attr.aria-describedby]="'toast-msg-' + toast.id">
+          @if (toast.title) {
+            <strong [id]="'toast-title-' + toast.id">{{ toast.title }}</strong>
+          }
+          <span [id]="'toast-msg-' + toast.id">{{ toast.message }}</span>
+          <button
+            class="toast__close"
+            (click)="dismiss(toast.id)"
+            aria-label="Dismiss notification">×</button>
+        </div>
+      }
+    </div>
+  `
+})
+export class ToastContainerComponent {
+  toasts = signal<Toast[]>([]);
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  show(toast: Omit<Toast, 'id'>) {
+    const id = crypto.randomUUID();
+    const newToast = { ...toast, id };
+    this.toasts.update(t => [...t, newToast]);
+
+    if (toast.autoDismiss !== false && toast.type !== 'error') {
+      const duration = toast.duration || 5000;
+      const timer = setTimeout(() => this.dismiss(id), duration);
+      this.timers.set(id, timer);
+    }
+  }
+
+  dismiss(id: string) {
+    this.toasts.update(t => t.filter(toast => toast.id !== id));
+    const timer = this.timers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.timers.delete(id);
+    }
+  }
+}
+```
 
 ```css
 .toast-container {

@@ -26,6 +26,83 @@ Keep selectors flat and maintainable:
 - Maximum 3 levels of nesting
 - Use classes, not tags, for styling
 
+## Angular Component Architecture
+
+### Standalone Components (Default)
+
+All components should be standalone (Angular 15+). No NgModules required.
+
+```typescript
+import { Component, ChangeDetectionStrategy, input, output, signal, computed } from '@angular/core';
+
+@Component({
+  selector: 'app-card',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './card.component.html',
+  styleUrl: './card.component.scss'
+})
+export class CardComponent {
+  // Signal-based inputs (Angular 17+)
+  title = input.required<string>();
+  variant = input<'elevated' | 'bordered' | 'flat'>('elevated');
+  disabled = input(false);
+
+  // Signal-based outputs (Angular 17+)
+  cardClick = output<void>();
+
+  // Local state via signals
+  isHovered = signal(false);
+
+  // Derived state via computed
+  cssClasses = computed(() => ({
+    'card--elevated': this.variant() === 'elevated',
+    'card--bordered': this.variant() === 'bordered',
+    'card--flat': this.variant() === 'flat',
+    'card--disabled': this.disabled(),
+    'card--hovered': this.isHovered()
+  }));
+}
+```
+
+### OnPush Change Detection
+
+Always use `ChangeDetectionStrategy.OnPush`. Mutate state via signals, not direct property assignment.
+
+```typescript
+@Component({
+  selector: 'app-counter',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <span>{{ count() }}</span>
+    <button (click)="increment()">+1</button>
+  `
+})
+export class CounterComponent {
+  count = signal(0);
+
+  increment() {
+    // Correct: signal mutation triggers change detection
+    this.count.update(n => n + 1);
+
+    // Wrong: direct mutation won't trigger update with OnPush
+    // this.count++;
+  }
+}
+```
+
+### Signals vs Observables
+
+| Use Case | Approach |
+|----------|----------|
+| Local component state | `signal()` |
+| Derived/computed values | `computed()` |
+| Async data (HTTP) | `toSignal(http.get(...))` |
+| Complex async flows | `Observable` + `async` pipe |
+| Cross-component state | `signal()` in shared service |
+| Event streams | `Observable` / `Subject` |
+
 ## OOCSS Naming Convention
 
 Follow Object-Oriented CSS naming:
@@ -85,7 +162,179 @@ Use logical properties for internationalization:
 
 ## File Organization
 
-### Component-Based Structure
+### Angular Project Structure
+
+```
+src/
+├── app/
+│   ├── core/                    # Singleton services, guards, interceptors
+│   │   ├── services/
+│   │   │   ├── theme.service.ts
+│   │   │   └── animation.service.ts
+│   │   ├── guards/
+│   │   └── interceptors/
+│   ├── shared/                  # Reusable components, directives, pipes
+│   │   ├── components/
+│   │   │   ├── button/
+│   │   │   │   ├── button.component.ts
+│   │   │   │   ├── button.component.html
+│   │   │   │   ├── button.component.scss
+│   │   │   │   └── button.component.spec.ts
+│   │   │   ├── card/
+│   │   │   └── input/
+│   │   ├── directives/
+│   │   └── pipes/
+│   ├── features/                # Feature modules (lazy-loaded)
+│   │   ├── dashboard/
+│   │   │   ├── dashboard.component.ts
+│   │   │   ├── dashboard.component.html
+│   │   │   ├── dashboard.component.scss
+│   │   │   └── dashboard.routes.ts
+│   │   └── settings/
+│   ├── layouts/                 # Layout components
+│   │   ├── app-layout/
+│   │   └── auth-layout/
+│   ├── app.component.ts
+│   ├── app.component.html
+│   ├── app.component.scss
+│   ├── app.config.ts
+│   └── app.routes.ts
+├── styles/
+│   ├── _tokens.scss             # Design tokens (CSS variables)
+│   ├── _reset.scss              # CSS reset/normalize
+│   ├── _typography.scss         # Typography base styles
+│   ├── _utilities.scss          # Utility classes
+│   ├── _animations.scss         # Keyframes and animation utilities
+│   └── styles.scss              # Main stylesheet (imports all partials)
+├── assets/
+└── environments/
+```
+
+### Component File Structure
+
+Each component lives in its own directory with co-located files:
+
+```
+components/button/
+├── button.component.ts          # Component class + decorator
+├── button.component.html        # Template
+├── button.component.scss        # Styles
+└── button.component.spec.ts     # Unit tests
+```
+
+### Component TypeScript Pattern
+
+```typescript
+import {
+  Component,
+  ChangeDetectionStrategy,
+  input,
+  output,
+  inject,
+  signal,
+  computed,
+  HostBinding,
+  HostListener
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ThemeService } from '../../core/services/theme.service';
+
+@Component({
+  selector: 'app-button',
+  standalone: true,
+  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './button.component.html',
+  styleUrl: './button.component.scss'
+})
+export class ButtonComponent {
+  private themeService = inject(ThemeService);
+
+  // Inputs
+  variant = input<'primary' | 'secondary' | 'ghost' | 'danger'>('primary');
+  size = input<'sm' | 'md' | 'lg'>('md');
+  disabled = input(false);
+  loading = input(false);
+
+  // Outputs
+  buttonClick = output<MouseEvent>();
+
+  // Host binding for dynamic classes
+  @HostBinding('class') get hostClasses() {
+    return `btn btn--${this.variant()} btn--${this.size()} ${
+      this.disabled() ? 'btn--disabled' : ''
+    } ${this.loading() ? 'btn--loading' : ''}`;
+  }
+
+  @HostListener('click', ['$event'])
+  onClick(event: MouseEvent) {
+    if (!this.disabled() && !this.loading()) {
+      this.buttonClick.emit(event);
+    }
+  }
+}
+```
+
+### Component HTML Pattern
+
+```html
+<!-- Use Angular template syntax, semantic HTML, design tokens via classes -->
+<button
+  [attr.aria-disabled]="disabled() || loading()"
+  [attr.aria-busy]="loading()">
+  @if (loading()) {
+    <span class="spinner spinner--sm" aria-hidden="true"></span>
+  }
+  <ng-content></ng-content>
+</button>
+```
+
+### Component SCSS Pattern
+
+```scss
+// Use :host for component scoping
+// Access CSS variables via var()
+:host {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--duration-normal) var(--easing-default),
+              transform var(--duration-fast) var(--easing-default);
+  contain: layout style;
+}
+
+// BEM-like naming within component scope
+:host(.btn--primary) {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+
+  &:hover {
+    background: var(--accent-hover);
+  }
+}
+
+:host(.btn--disabled),
+:host(.btn--loading) {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+:host(.btn--loading) {
+  position: relative;
+  color: transparent;
+}
+```
+
+### CSS Modules Pattern (Alternative)
 ```
 styles/
 ├── base/           # Reset, typography, global styles
@@ -156,6 +405,139 @@ styles/
 ## Responsive Patterns
 
 **This skill uses Desktop-First by default** (see tokens.md and responsive.md). Use `max-width` media queries to adapt downward from desktop layouts.
+
+## Pluggable Design Patterns
+
+Components should be configurable through injection tokens, not inheritance. Swap visual strategies by providing different adapters.
+
+### Strategy Pattern via DI
+
+```typescript
+// domain/ports/CardVariantStrategy.ts
+export interface CardVariantStrategy {
+  getClasses(): Record<string, boolean>;
+  getStyles(): Record<string, string>;
+}
+
+// adapters/patterns/Pattern1CardStrategy.ts
+import { Injectable } from '@angular/core';
+import { CardVariantStrategy } from '../../domain/ports/CardVariantStrategy';
+
+@Injectable()
+export class Pattern1CardStrategy implements CardVariantStrategy {
+  getClasses() {
+    return {
+      'card--bordered': true,
+      'card--radius-sm': true
+    };
+  }
+
+  getStyles() {
+    return {
+      '--card-radius': 'var(--border-radius)',
+      '--card-border': '1px solid var(--border-primary)'
+    };
+  }
+}
+
+// adapters/patterns/Pattern3CardStrategy.ts
+import { Injectable } from '@angular/core';
+import { CardVariantStrategy } from '../../domain/ports/CardVariantStrategy';
+
+@Injectable()
+export class Pattern3CardStrategy implements CardVariantStrategy {
+  getClasses() {
+    return {
+      'card--elevated': true,
+      'card--radius-lg': true
+    };
+  }
+
+  getStyles() {
+    return {
+      '--card-radius': 'var(--border-radius-xl)',
+      '--card-shadow': 'var(--shadow-md)'
+    };
+  }
+}
+```
+
+### Component Using Strategy
+
+```typescript
+import { Component, ChangeDetectionStrategy, inject, computed } from '@angular/core';
+import { CardVariantStrategy } from '../../domain/ports/CardVariantStrategy';
+
+@Component({
+  selector: 'app-card',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <article
+      [class]="cssClasses()"
+      [ngStyle]="styles()">
+      <ng-content></ng-content>
+    </article>
+  `
+})
+export class CardComponent {
+  private strategy = inject(CardVariantStrategy);
+
+  cssClasses = computed(() => ({
+    'card': true,
+    ...this.strategy.getClasses()
+  }));
+
+  styles = computed(() => this.strategy.getStyles());
+}
+```
+
+### Composition Root Wiring
+
+```typescript
+// app.config.ts
+import { CardVariantStrategy } from './domain/ports/CardVariantStrategy';
+import { Pattern1CardStrategy } from './adapters/patterns/Pattern1CardStrategy';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    { provide: CardVariantStrategy, useClass: Pattern1CardStrategy },
+    // Swap to Pattern3CardStrategy for different visual pattern
+  ]
+};
+```
+
+### Injection Token Pattern
+
+```typescript
+// domain/tokens/design-tokens.ts
+import { InjectionToken } from '@angular/core';
+
+export interface DesignConfig {
+  patternId: 1 | 2 | 3;
+  enableAnimations: boolean;
+  iconSet: 'lucide';
+}
+
+export const DESIGN_CONFIG = new InjectionToken<DesignConfig>('DESIGN_CONFIG', {
+  providedIn: 'root',
+  factory: () => ({
+    patternId: 1,
+    enableAnimations: true,
+    iconSet: 'lucide'
+  })
+});
+
+// Usage in component
+@Component({...})
+export class AppComponent {
+  config = inject(DESIGN_CONFIG);
+
+  constructor() {
+    console.log(`Using pattern ${this.config.patternId}`);
+  }
+}
+```
 
 ### Desktop-First (Default)
 ```css

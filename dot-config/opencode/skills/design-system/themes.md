@@ -16,6 +16,7 @@ ThemePort:
 - Provide an interactive control (e.g., `<select>` or radio group) that updates this DOM attribute.
 - Save theme preference to localStorage for persistence across sessions.
 - Apply theme transitions smoothly: `transition: background-color 0.25s ease, color 0.25s ease;`
+- In Angular, use an `@Injectable` ThemeService with signals for reactive theme state.
 
 ## High Contrast Mode
 
@@ -245,83 +246,144 @@ See [Accessibility Requirements](./accessibility.md#reduced-motion) for implemen
 }
 ```
 
-## Theme JavaScript Implementation
+## Theme Service (Angular)
 
-```javascript
-class ThemeManager {
-  constructor() {
-    this.currentTheme = this.getStoredTheme() || 'light';
-    this.applyTheme(this.currentTheme);
-  }
-  
-  getStoredTheme() {
-    return localStorage.getItem('theme');
-  }
-  
-  setStoredTheme(theme) {
-    localStorage.setItem('theme', theme);
-  }
-  
-  applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    this.currentTheme = theme;
-    this.setStoredTheme(theme);
-  }
-  
-  toggleTheme() {
-    const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
-    this.applyTheme(newTheme);
-  }
-  
-  getAvailableThemes() {
-    return ['light', 'dark'];
-  }
-  
-  onThemeChange(callback) {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
-          callback(this.currentTheme);
-        }
-      });
+```typescript
+import { Injectable, signal, effect, PLATFORM_ID, Inject } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+
+export type Theme = 'light' | 'dark';
+
+@Injectable({ providedIn: 'root' })
+export class ThemeService {
+  private readonly STORAGE_KEY = 'theme';
+  private readonly THEME_ATTRIBUTE = 'data-theme';
+
+  readonly currentTheme = signal<Theme>(this.getInitialTheme());
+  readonly availableThemes: Theme[] = ['light', 'dark'];
+
+  constructor(@Inject(PLATFORM_ID) private platformId: Object) {
+    // Apply theme on signal change
+    effect(() => {
+      const theme = this.currentTheme();
+      if (isPlatformBrowser(this.platformId)) {
+        document.documentElement.setAttribute(this.THEME_ATTRIBUTE, theme);
+        localStorage.setItem(this.STORAGE_KEY, theme);
+      }
     });
-    
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme']
-    });
-    
-    return () => observer.disconnect();
+
+    // Apply initial theme
+    if (isPlatformBrowser(this.platformId)) {
+      document.documentElement.setAttribute(this.THEME_ATTRIBUTE, this.currentTheme());
+    }
+  }
+
+  private getInitialTheme(): Theme {
+    if (isPlatformBrowser(this.platformId)) {
+      const stored = localStorage.getItem(this.STORAGE_KEY) as Theme | null;
+      if (stored && this.availableThemes.includes(stored)) {
+        return stored;
+      }
+      // Respect system preference
+      if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
+    }
+    return 'light';
+  }
+
+  setTheme(theme: Theme): void {
+    this.currentTheme.set(theme);
+  }
+
+  toggleTheme(): void {
+    this.currentTheme.update(current => current === 'light' ? 'dark' : 'light');
   }
 }
 ```
 
-## Theme Control HTML
+### Usage in Component
+
+```typescript
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
+import { ThemeService } from './theme.service';
+
+@Component({
+  selector: 'app-theme-toggle',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <button
+      (click)="themeService.toggleTheme()"
+      [attr.aria-label]="'Switch to ' + (themeService.currentTheme() === 'light' ? 'dark' : 'light') + ' theme'">
+      @if (themeService.currentTheme() === 'light') {
+        <span class="icon-sun">☀️</span>
+      } @else {
+        <span class="icon-moon">🌙</span>
+      }
+    </button>
+  `
+})
+export class ThemeToggleComponent {
+  themeService = inject(ThemeService);
+}
+```
+
+### System Preference Listener
+
+```typescript
+// Add to ThemeService constructor or a separate initializer
+private listenForSystemPreference(): void {
+  if (!isPlatformBrowser(this.platformId)) return;
+
+  window.matchMedia('(prefers-color-scheme: dark)')
+    .addEventListener('change', (e) => {
+      // Only auto-switch if user hasn't manually set a preference
+      if (!localStorage.getItem(this.STORAGE_KEY)) {
+        this.currentTheme.set(e.matches ? 'dark' : 'light');
+      }
+    });
+}
+```
+
+## Theme Control (Angular Template)
 
 ```html
-<!-- Simple select control -->
-<select id="theme-select" aria-label="Select theme">
-  <option value="light">Light</option>
-  <option value="dark">Dark</option>
+<!-- Select control -->
+<select
+  [value]="themeService.currentTheme()"
+  (change)="themeService.setTheme($any($event.target).value)"
+  aria-label="Select theme">
+  @for (theme of themeService.availableThemes; track theme) {
+    <option [value]="theme">{{ theme | titlecase }}</option>
+  }
 </select>
 
 <!-- Radio group control -->
 <fieldset>
   <legend>Theme</legend>
-  <label>
-    <input type="radio" name="theme" value="light" checked>
-    Light
-  </label>
-  <label>
-    <input type="radio" name="theme" value="dark">
-    Dark
-  </label>
+  @for (theme of themeService.availableThemes; track theme) {
+    <label>
+      <input
+        type="radio"
+        name="theme"
+        [value]="theme"
+        [checked]="themeService.currentTheme() === theme"
+        (change)="themeService.setTheme(theme)">
+      {{ theme | titlecase }}
+    </label>
+  }
 </fieldset>
 
 <!-- Toggle button -->
-<button id="theme-toggle" aria-label="Toggle theme">
-  <span class="icon-sun">☀️</span>
-  <span class="icon-moon">🌙</span>
+<button
+  (click)="themeService.toggleTheme()"
+  [attr.aria-label]="'Switch to ' + (themeService.currentTheme() === 'light' ? 'dark' : 'light') + ' theme'">
+  @if (themeService.currentTheme() === 'light') {
+    <span class="icon-sun">☀️</span>
+  } @else {
+    <span class="icon-moon">🌙</span>
+  }
 </button>
 ```
 
@@ -332,18 +394,10 @@ class ThemeManager {
 - Maintain focus visibility in both themes
 - Test color contrast in both light and dark modes
 - Respect `prefers-color-scheme` media query for initial theme selection
+- In Angular, use `@angular/cdk/a11y` for focus management and ARIA utilities
 
-```javascript
-// Respect user preference
-if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-  // User prefers dark theme
-  themeManager.applyTheme('dark');
-}
-
-// Listen for preference changes
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-  if (!themeManager.getStoredTheme()) {
-    themeManager.applyTheme(e.matches ? 'dark' : 'light');
-  }
-});
+```typescript
+// Respect user preference (handled in ThemeService constructor)
+// The ThemeService automatically detects system preference on first load
+// and listens for changes via matchMedia listener
 ```

@@ -1,5 +1,32 @@
 # Motion Design
 
+## Angular Animation Module
+
+For complex enter/leave transitions, use `@angular/animations`. For simple hover/focus state changes, use CSS transitions.
+
+```typescript
+// app.config.ts
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideAnimationsAsync(),
+    // ... other providers
+  ]
+};
+```
+
+### When to Use Which
+
+| Use Case | Approach |
+|----------|----------|
+| Hover/focus/active states | CSS transitions |
+| Element enter/leave (`*ngIf`, `@if`) | `@angular/animations` |
+| List animations (`*ngFor`, `@for`) | `animateChild()` + `query()` |
+| Route transitions | `@routeAnimation` trigger |
+| Complex choreographed sequences | `@angular/animations` stagger |
+| Simple show/hide | CSS transitions with `[class.hidden]` |
+
 ## Transition Principles
 
 1. **Purposeful**: Every animation should have a purpose (feedback, orientation, focus)
@@ -293,45 +320,153 @@ transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 
 See [Accessibility Requirements](./accessibility.md#reduced-motion) for the full implementation. Always include this media query in production CSS.
 
-## JavaScript Animation Control
+## Angular Animation Service
 
-```javascript
-class AnimationController {
-  constructor() {
-    this.prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+```typescript
+import { Injectable, inject } from '@angular/core';
+import { AnimationBuilder, style, animate, AnimationPlayer } from '@angular/animations';
+import { DOCUMENT } from '@angular/common';
+
+@Injectable({ providedIn: 'root' })
+export class AnimationService {
+  private builder = inject(AnimationBuilder);
+  private doc = inject(DOCUMENT);
+
+  get prefersReducedMotion(): boolean {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
-  
-  shouldAnimate() {
-    return !this.prefersReducedMotion;
-  }
-  
-  animate(element, animation, duration = 300) {
-    if (!this.shouldAnimate()) {
+
+  fadeIn(element: HTMLElement, duration = 300): AnimationPlayer {
+    if (this.prefersReducedMotion) {
       element.style.opacity = '1';
-      return Promise.resolve();
+      return this.createNoopPlayer();
     }
-    
-    return new Promise((resolve) => {
-      element.style.animation = `${animation} ${duration}ms ease-out`;
-      element.addEventListener('animationend', () => {
-        element.style.animation = '';
-        resolve();
-      }, { once: true });
-    });
+
+    const factory = this.builder.build([
+      style({ opacity: 0 }),
+      animate(`${duration}ms ease-out`, style({ opacity: 1 }))
+    ]);
+    const player = factory.create(element);
+    player.play();
+    return player;
   }
-  
-  fadeIn(element, duration = 300) {
-    return this.animate(element, 'fadeIn', duration);
+
+  fadeOut(element: HTMLElement, duration = 300): AnimationPlayer {
+    if (this.prefersReducedMotion) {
+      element.style.opacity = '0';
+      return this.createNoopPlayer();
+    }
+
+    const factory = this.builder.build([
+      style({ opacity: 1 }),
+      animate(`${duration}ms ease-in`, style({ opacity: 0 }))
+    ]);
+    const player = factory.create(element);
+    player.play();
+    return player;
   }
-  
-  fadeOut(element, duration = 300) {
-    return this.animate(element, 'fadeOut', duration);
+
+  slideIn(element: HTMLElement, direction: 'left' | 'right' | 'up' | 'down' = 'left', duration = 300): AnimationPlayer {
+    if (this.prefersReducedMotion) {
+      return this.createNoopPlayer();
+    }
+
+    const transforms: Record<string, string> = {
+      left: 'translateX(-100%)',
+      right: 'translateX(100%)',
+      up: 'translateY(-100%)',
+      down: 'translateY(100%)'
+    };
+
+    const factory = this.builder.build([
+      style({ transform: transforms[direction], opacity: 0 }),
+      animate(`${duration}ms ease-out`, style({ transform: 'translate(0)', opacity: 1 }))
+    ]);
+    const player = factory.create(element);
+    player.play();
+    return player;
   }
-  
-  slideIn(element, direction = 'left', duration = 300) {
-    const animation = `slideIn${direction.charAt(0).toUpperCase() + direction.slice(1)}`;
-    return this.animate(element, animation, duration);
+
+  private createNoopPlayer(): AnimationPlayer {
+    return { play: () => {}, pause: () => {}, cancel: () => {}, finish: () => {}, destroy: () => {}, onStart: new EventEmitter(), onDone: new EventEmitter(), onReset: new EventEmitter(), onDestroy: new EventEmitter() } as any;
   }
+}
+```
+
+### Usage in Component
+
+```typescript
+import { Component, inject, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
+import { AnimationService } from './animation.service';
+
+@Component({
+  selector: 'app-animated-panel',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<div #panel class="panel">Content</div>`
+})
+export class AnimatedPanelComponent {
+  private anim = inject(AnimationService);
+  panel = viewChild.required<ElementRef>('panel');
+
+  show() {
+    this.anim.fadeIn(this.panel().nativeElement);
+  }
+
+  hide() {
+    this.anim.fadeOut(this.panel().nativeElement);
+  }
+}
+```
+
+## Angular Declarative Animations
+
+For enter/leave animations on structural directives, use `@angular/animations` triggers:
+
+```typescript
+import { trigger, transition, style, animate, state } from '@angular/animations';
+
+// Fade in/out
+export const fadeInOut = trigger('fadeInOut', [
+  transition(':enter', [
+    style({ opacity: 0 }),
+    animate('300ms ease-out', style({ opacity: 1 }))
+  ]),
+  transition(':leave', [
+    animate('300ms ease-in', style({ opacity: 0 }))
+  ])
+]);
+
+// Slide in from right
+export const slideInRight = trigger('slideInRight', [
+  transition(':enter', [
+    style({ transform: 'translateX(100%)', opacity: 0 }),
+    animate('300ms ease-out', style({ transform: 'translateX(0)', opacity: 1 }))
+  ]),
+  transition(':leave', [
+    animate('300ms ease-in', style({ transform: 'translateX(100%)', opacity: 0 }))
+  ])
+]);
+
+// Height animation with state
+export const expandCollapse = trigger('expandCollapse', [
+  state('void', style({ height: '0', opacity: 0, overflow: 'hidden' })),
+  state('*', style({ height: '*', opacity: 1, overflow: 'hidden' })),
+  transition('void <=> *', animate('300ms ease-in-out'))
+]);
+```
+
+### Template Usage
+
+```html
+<!-- Simple fade -->
+@if (isVisible) {
+  <div @fadeInOut class="panel">Content</div>
+}
+
+<!-- List animation -->
+@for (item of items; track item.id) {
+  <div @slideInRight>{{ item.name }}</div>
 }
 ```
 

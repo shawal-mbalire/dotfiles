@@ -259,6 +259,81 @@ Use these restricted palettes (3-5 colors maximum). Place values in your root th
 | **Theme Switching** | Yes (multi-theme) | Single theme | Dual (light/dark) |
 | **Gradients** | Prohibited | Prohibited | Prohibited |
 
+## Angular Pattern Implementation
+
+### Pattern Switching Service
+
+```typescript
+import { Injectable, signal } from '@angular/core';
+
+export type PatternId = 1 | 2 | 3;
+
+@Injectable({ providedIn: 'root' })
+export class PatternService {
+  readonly activePattern = signal<PatternId>(1);
+
+  setPattern(id: PatternId): void {
+    this.activePattern.set(id);
+  }
+}
+```
+
+### Pattern-Aware Component
+
+```typescript
+import { Component, ChangeDetectionStrategy, inject, computed } from '@angular/core';
+import { PatternService } from './pattern.service';
+
+@Component({
+  selector: 'app-pattern-card',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <article [class]="cardClasses()">
+      <ng-content></ng-content>
+    </article>
+  `
+})
+export class PatternCardComponent {
+  private patternService = inject(PatternService);
+
+  cardClasses = computed(() => {
+    const pattern = this.patternService.activePattern();
+    return {
+      'card': true,
+      'card--pattern-1': pattern === 1,
+      'card--pattern-2': pattern === 2,
+      'card--pattern-3': pattern === 3
+    };
+  });
+}
+```
+
+### Pattern-Specific SCSS
+
+```scss
+// Pattern 1: Strict geometric, 5px radius, visible borders
+:host(.card--pattern-1) {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--border-radius); // 5px
+  box-shadow: none;
+}
+
+// Pattern 2: Sharp edges, mono tone, bottom separators
+:host(.card--pattern-2) {
+  border-radius: 0;
+  border-bottom: 1px solid var(--border-secondary);
+  background: var(--surface-primary);
+}
+
+// Pattern 3: Soft radius, subtle shadows, no borders
+:host(.card--pattern-3) {
+  border: none;
+  border-radius: var(--border-radius-xl); // 12px
+  box-shadow: var(--shadow-sm);
+}
+```
+
 ## Token Reference by Category
 
 | Category | Pattern 1 Tokens | Pattern 2 Tokens | Pattern 3 Tokens |

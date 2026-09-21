@@ -66,3 +66,7 @@ if status is-interactive
     set -q PURE_COLOR_DANGER; or set -g pure_color_danger red
     set -q PURE_COLOR_WARNING; or set -g pure_color_warning yellow
 end
+
+
+# Added by Antigravity CLI installer
+set -gx PATH "/Users/shawal/.local/bin" $PATH
