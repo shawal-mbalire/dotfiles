@@ -14,8 +14,8 @@ Production-grade REST APIs with FastAPI as the driving adapter, clean domain log
 | [Repository vs Gateway](#repository-vs-gateway--pattern-guide) | Pattern decision matrix |
 | [Core](#core-principles) | Domain, ports, adapters, composition root |
 | [Auth](#authentication--authorization-jwt--oauth2) | JWT/OAuth2 with minimal deps |
-| [Database](#database-adapters-postgresql--asyncpg) | Connection pool, transactions, query builder, read replicas |
-| [Gateways](#gateway-adapters-external-services) | Stripe, SendGrid, Twilio, S3 adapters |
+| [Database](#repository-adapters-specific-implementations) | PostgreSQL, SQLite, in-memory repositories |
+| [Gateways](#gateway-adapters-specific-implementations) | Stripe, SendGrid, S3 adapters |
 | [Logging](#stdlib-logging-adapter) | Structured JSON via stdlib |
 | [Pagination](#pagination-lightweight) | Offset/cursor patterns |
 | [Rate Limiting](#rate-limiting-lightweight-in-memory) | Sliding window + token bucket |
@@ -57,23 +57,23 @@ my-api/
 │   ├── events/                 # Domain events
 │   │   └── events.py
 │   ├── ports/
-│   │   ├── repositories/       # YOUR data stores
-│   │   │   ├── user_repository.py
-│   │   │   ├── order_repository.py
-│   │   │   └── product_repository.py
-│   │   ├── gateways/           # External services
-│   │   │   ├── payment_gateway.py
-│   │   │   ├── notification_gateway.py
-│   │   │   └── storage_gateway.py
-│   │   ├── services/           # Domain services
-│   │   │   ├── auth_service.py
-│   │   │   ├── event_publisher.py
-│   │   │   └── password_hasher.py
+│   │   ├── repositories/       # GENERIC interfaces for YOUR data stores
+│   │   │   ├── user_repository.py    # Protocol: UserRepository
+│   │   │   ├── order_repository.py   # Protocol: OrderRepository
+│   │   │   └── product_repository.py # Protocol: ProductRepository
+│   │   ├── gateways/           # GENERIC interfaces for external services
+│   │   │   ├── payment_gateway.py    # Protocol: PaymentGateway
+│   │   │   ├── notification_gateway.py # Protocol: NotificationGateway
+│   │   │   ├── storage_gateway.py    # Protocol: StorageGateway
+│   │   │   └── identity_gateway.py   # Protocol: IdentityGateway
+│   │   ├── services/           # Domain services (cross-aggregate)
+│   │   │   ├── auth_service.py       # Protocol: AuthService
+│   │   │   ├── event_publisher.py    # Protocol: EventPublisher
+│   │   │   └── password_hasher.py    # Protocol: PasswordHasher
 │   │   └── infrastructure/     # Cross-cutting concerns
-│   │       ├── logger.py
-│   │       ├── cache.py
-│   │       ├── time_port.py
-│   │       └── lifetime_port.py
+│   │       ├── logger.py             # Protocol: LoggerPort
+│   │       ├── cache.py              # Protocol: CachePort
+│   │       └── time_port.py          # Protocol: TimePort
 │   └── workflows/              # Pure orchestrations (functions or classes)
 │       ├── create_user.py
 │       ├── create_order.py
@@ -89,54 +89,52 @@ my-api/
 │   │   │   ├── orders.py
 │   │   │   ├── auth.py
 │   │   │   ├── files.py
-│   │   │   └── websocket.py
+│   │   │   └── webhooks.py
 │   │   ├── schemas/
 │   │   │   ├── user.py
 │   │   │   ├── order.py
 │   │   │   ├── auth.py
-│   │   │   ├── file.py
 │   │   │   └── pagination.py
 │   │   ├── middleware.py
 │   │   ├── dependencies.py
-│   │   ├── dependencies_auth.py
 │   │   ├── error_handlers.py
-│   │   ├── rate_limit.py
-│   │   └── websocket.py
-│   ├── persistence/            # Repository adapters (YOUR data)
-│   │   ├── postgres/
-│   │   │   ├── user_repository.py
-│   │   │   ├── order_repository.py
-│   │   │   └── pool.py
-│   │   ├── in_memory/
-│   │   │   ├── user_repository.py
-│   │   │   └── order_repository.py
-│   │   ├── sqlite/
-│   │   │   └── user_repository.py
-│   │   └── query_builder.py
-│   ├── external/               # Gateway adapters (external services)
-│   │   ├── stripe_gateway.py
-│   │   ├── sendgrid_gateway.py
-│   │   ├── twilio_gateway.py
-│   │   ├── s3_gateway.py
-│   │   └── auth0_gateway.py
+│   │   └── health.py
+│   ├── persistence/            # SPECIFIC repository implementations
+│   │   ├── postgres/           # PostgreSQL adapters
+│   │   │   ├── user_repository.py    # implements UserRepository
+│   │   │   ├── order_repository.py   # implements OrderRepository
+│   │   │   └── pool.py               # Connection pool
+│   │   ├── sqlite/             # SQLite adapters
+│   │   │   └── user_repository.py    # implements UserRepository
+│   │   ├── in_memory/          # In-memory adapters (testing)
+│   │   │   ├── user_repository.py    # implements UserRepository
+│   │   │   └── order_repository.py   # implements OrderRepository
+│   │   └── query_builder.py    # SQL query builder utility
+│   ├── external/               # SPECIFIC gateway implementations
+│   │   ├── stripe_gateway.py           # implements PaymentGateway
+│   │   ├── adyen_gateway.py            # implements PaymentGateway (alt)
+│   │   ├── sendgrid_gateway.py         # implements NotificationGateway (email)
+│   │   ├── twilio_gateway.py           # implements NotificationGateway (SMS)
+│   │   ├── fcm_gateway.py              # implements NotificationGateway (push)
+│   │   ├── s3_gateway.py               # implements StorageGateway
+│   │   ├── gcs_gateway.py              # implements StorageGateway (alt)
+│   │   └── auth0_gateway.py            # implements IdentityGateway
 │   ├── auth/                   # Auth adapters
 │   │   ├── jwt_service.py
 │   │   └── password_hasher.py
 │   ├── cache/                  # Cache adapters
-│   │   └── memory_cache.py
+│   │   ├── memory_cache.py            # implements CachePort (in-memory)
+│   │   └── redis_cache.py             # implements CachePort (Redis)
 │   ├── logging/                # Logging adapters
-│   │   └── logger_adapter.py
-│   ├── messaging/              # Message queue adapters
-│   │   ├── rabbitmq.py
-│   │   ├── kafka.py
-│   │   └── redis_streams.py
-│   └── grpc/                   # gRPC adapters
-│       ├── user_service.py
-│       ├── server.py
-│       └── client.py
-│
-├── proto/                      # gRPC protobuf definitions
-│   └── user.proto
+│   │   └── logger_adapter.py          # implements LoggerPort
+│   ├── resilience/             # Resilience patterns
+│   │   ├── circuit_breaker.py
+│   │   ├── retry.py
+│   │   └── bulkhead.py
+│   └── messaging/              # Message queue adapters
+│       ├── rabbitmq.py
+│       ├── kafka.py
+│       └── redis_streams.py
 │
 ├── tests/
 │   ├── unit/                   # Pure domain + pure adapter helpers
@@ -223,66 +221,51 @@ pythonVersion = "3.12"
 │                                                                                 │
 │  REPOSITORY (Domain-Driven)                                                     │
 │  ───────────────────────────                                                    │
-│  • Wraps YOUR data store (PostgreSQL, Redis, filesystem)                        │
+│  • Domain port defines GENERIC interface (UserRepository)                       │
+│  • Adapters implement SPECIFIC backends (PostgresUserRepo, SqliteUserRepo)      │
 │  • Works with DOMAIN models (User, Order, Product)                              │
 │  • Hides SQL/NoSQL details behind domain-friendly interface                     │
-│  • Lives in adapters/persistence/                                               │
-│  • Domain port: domain/ports/repositories/                                      │
 │                                                                                 │
 │  ┌──────────────────────────────────────────────────────────────────────────┐  │
-│  │  Domain Model          Repository Port        Repository Adapter         │  │
-│  │  ───────────          ────────────────        ─────────────────         │  │
-│  │  User                UserRepository          PostgresUserRepo           │  │
-│  │  Order               OrderRepository         InMemoryOrderRepo          │  │
-│  │  Product             ProductRepository       SqliteProductRepo          │  │
+│  │  GENERIC PORT (domain)          SPECIFIC ADAPTER (adapters/)            │  │
+│  │  ─────────────────────          ────────────────────────────            │  │
+│  │  UserRepository                 PostgresUserRepository                  │  │
+│  │                                 SqliteUserRepository                    │  │
+│  │                                 InMemoryUserRepository                  │  │
+│  │  OrderRepository                PostgresOrderRepository                 │  │
+│  │                                 MongoOrderRepository                    │  │
 │  └──────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                 │
 │  GATEWAY (Anti-Corruption Layer)                                                │
 │  ───────────────────────────────                                                │
-│  • Wraps EXTERNAL services (Stripe, Twilio, SendGrid, GitHub API)              │
+│  • Domain port defines GENERIC interface (PaymentGateway)                       │
+│  • Adapters implement SPECIFIC services (StripeGateway, AdyenGateway)           │
 │  • Translates between domain models and external API shapes                     │
 │  • Protects domain from vendor lock-in                                          │
-│  • Lives in adapters/external/                                                  │
-│  • Domain port: domain/ports/gateways/                                          │
 │                                                                                 │
 │  ┌──────────────────────────────────────────────────────────────────────────┐  │
-│  │  Domain Port             External Service       Gateway Adapter          │  │
-│  │  ───────────             ────────────────       ───────────────          │  │
-│  │  PaymentGateway          Stripe API            StripeGateway            │  │
-│  │  NotificationGateway     SendGrid API          SendGridGateway          │  │
-│  │  StorageGateway          S3 API                S3Gateway                │  │
-│  │  IdentityGateway         Auth0 API             Auth0Gateway             │  │
+│  │  GENERIC PORT (domain)          SPECIFIC ADAPTER (adapters/)            │  │
+│  │  ─────────────────────          ────────────────────────────            │  │
+│  │  PaymentGateway                 StripeGateway                           │  │
+│  │                                 AdyenGateway                            │  │
+│  │                                 PayPalGateway                           │  │
+│  │  NotificationGateway            SendGridGateway (email)                 │  │
+│  │                                 TwilioGateway (SMS)                     │  │
+│  │                                 FCMGateway (push)                       │  │
+│  │  StorageGateway                 S3Gateway                               │  │
+│  │                                 GCSGateway                              │  │
+│  │                                 AzureBlobGateway                        │  │
+│  │  IdentityGateway                Auth0Gateway                            │  │
+│  │                                 FirebaseGateway                         │  │
 │  └──────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                 │
-│  WHEN TO USE WHAT:                                                              │
+│  SWAP ADAPTERS WITHOUT CHANGING DOMAIN:                                         │
 │                                                                                 │
-│  ┌────────────────────┬──────────────────┬─────────────────────────────────┐  │
-│  │ Scenario           │ Use              │ Example                         │  │
-│  ├────────────────────┼──────────────────┼─────────────────────────────────┤  │
-│  │ Your own DB        │ Repository       │ PostgreSQL, MongoDB, SQLite     │  │
-│  │ External API       │ Gateway          │ Stripe, Twilio, GitHub          │  │
-│  │ Third-party auth   │ Gateway          │ Auth0, Firebase Auth            │  │
-│  │ Cloud storage      │ Gateway          │ S3, GCS, Azure Blob             │  │
-│  │ Message broker     │ Gateway          │ RabbitMQ, Kafka, SQS            │  │
-│  │ Cache (external)   │ Gateway          │ Redis, Memcached                │  │
-│  │ Cache (in-memory)  │ Repository       │ dict-based cache                │  │
-│  │ File system        │ Repository       │ Local disk, NFS                 │  │
-│  └────────────────────┴──────────────────┴─────────────────────────────────┘  │
+│  # Composition root — swap Stripe for Adyen with one line change:              │
+│  payment_gateway = AdyenGateway(api_key=settings.adyen_key)  # was Stripe      │
 │                                                                                 │
-│  DOMAIN PORTS STRUCTURE:                                                        │
-│                                                                                 │
-│  domain/ports/                                                                  │
-│  ├── repositories/              # Your data stores                              │
-│  │   ├── user_repository.py     # Protocol for User aggregate                  │
-│  │   ├── order_repository.py    # Protocol for Order aggregate                 │
-│  │   └── product_repository.py  # Protocol for Product aggregate               │
-│  ├── gateways/                  # External services                            │
-│  │   ├── payment_gateway.py     # Protocol for payment processing              │
-│  │   ├── notification_gateway.py# Protocol for sending notifications           │
-│  │   └── storage_gateway.py     # Protocol for file storage                    │
-│  └── services/                  # Domain services (cross-aggregate)            │
-│      ├── auth_service.py        # Protocol for authentication                  │
-│      └── event_publisher.py     # Protocol for domain events                   │
+│  # Composition root — swap PostgreSQL for SQLite in tests:                     │
+│  user_repo = SqliteUserRepository(db_path=":memory:")  # was Postgres         │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -503,15 +486,15 @@ class DuplicateEmailError(AppError):
         )
 ```
 
-### Ports (Protocol Interfaces)
+### Ports (Generic Protocol Interfaces)
 
 ```python
 # domain/ports/repositories/user_repository.py
-from typing import Protocol, TypeVar
+from typing import Protocol
 from domain.models.user import User
 
 class UserRepository(Protocol):
-    """Repository for User aggregate — YOUR data store."""
+    """GENERIC interface — any backend can implement this."""
     async def find_by_id(self, user_id: str) -> User | None: ...
     async def find_by_email(self, email: str) -> User | None: ...
     async def find_all(self) -> list[User]: ...
@@ -526,7 +509,7 @@ from domain.models.order import Order
 from domain.models.pagination import PageParams, PaginatedResult
 
 class OrderRepository(Protocol):
-    """Repository for Order aggregate."""
+    """GENERIC interface — any backend can implement this."""
     async def find_by_id(self, order_id: str) -> Order | None: ...
     async def find_by_user(self, user_id: str) -> list[Order]: ...
     async def find_paginated(self, page: PageParams) -> PaginatedResult[Order]: ...
@@ -538,17 +521,16 @@ from typing import Protocol
 from domain.models.payment import PaymentRequest, PaymentResult
 
 class PaymentGateway(Protocol):
-    """Gateway for external payment service (Stripe, etc.)."""
+    """GENERIC interface — Stripe, Adyen, PayPal can implement this."""
     async def charge(self, request: PaymentRequest) -> PaymentResult: ...
     async def refund(self, payment_id: str, amount: int) -> PaymentResult: ...
     async def get_status(self, payment_id: str) -> str: ...
 
 # domain/ports/gateways/notification_gateway.py
 from typing import Protocol
-from domain.models.notification import Notification
 
 class NotificationGateway(Protocol):
-    """Gateway for sending notifications (email, SMS, push)."""
+    """GENERIC interface — SendGrid, Twilio, FCM can implement this."""
     async def send_email(self, to: str, subject: str, body: str) -> bool: ...
     async def send_sms(self, phone: str, message: str) -> bool: ...
     async def send_push(self, user_id: str, title: str, body: str) -> bool: ...
@@ -557,18 +539,29 @@ class NotificationGateway(Protocol):
 from typing import Protocol
 
 class StorageGateway(Protocol):
-    """Gateway for file storage (S3, GCS, etc.)."""
+    """GENERIC interface — S3, GCS, Azure Blob can implement this."""
     async def upload(self, key: str, data: bytes, content_type: str) -> str: ...
     async def download(self, key: str) -> bytes: ...
     async def delete(self, key: str) -> bool: ...
     async def get_url(self, key: str, expires_in: int = 3600) -> str: ...
+
+# domain/ports/gateways/identity_gateway.py
+from typing import Protocol
+from domain.models.auth import TokenPayload
+
+class IdentityGateway(Protocol):
+    """GENERIC interface — Auth0, Firebase, Keycloak can implement this."""
+    async def verify_token(self, token: str) -> TokenPayload: ...
+    async def create_user(self, email: str, password: str) -> str: ...
+    async def get_user(self, user_id: str) -> dict: ...
+    async def delete_user(self, user_id: str) -> bool: ...
 
 # domain/ports/services/auth_service.py
 from typing import Protocol
 from domain.models.auth import TokenPayload
 
 class AuthService(Protocol):
-    """Domain service for authentication."""
+    """GENERIC interface for authentication logic."""
     def create_token(self, user_id: str, scopes: list[str] | None = None) -> str: ...
     def verify_token(self, token: str) -> TokenPayload: ...
     def hash_password(self, password: str) -> str: ...
@@ -579,11 +572,11 @@ from typing import Protocol
 from domain.events import DomainEvent
 
 class EventPublisher(Protocol):
-    """Domain service for publishing events."""
+    """GENERIC interface — Kafka, Redis, NATS can implement this."""
     async def publish(self, event: DomainEvent) -> None: ...
     async def publish_batch(self, events: list[DomainEvent]) -> None: ...
 
-# domain/ports/logger.py
+# domain/ports/infrastructure/logger.py
 from typing import Protocol
 
 class LoggerPort(Protocol):
@@ -592,30 +585,16 @@ class LoggerPort(Protocol):
     def warning(self, message: str, **fields) -> None: ...
     def debug(self, message: str, **fields) -> None: ...
 
-# domain/ports/time_port.py
-from typing import Protocol
-
-class TimePort(Protocol):
-    def now_ms(self) -> int: ...
-    def now_iso(self) -> str: ...
-    def elapsed_ms(self, start_ms: int) -> int: ...
-
-# domain/ports/cache.py
+# domain/ports/infrastructure/cache.py
 from typing import Protocol, TypeVar
 
 T = TypeVar("T")
 
 class CachePort(Protocol[T]):
+    """GENERIC interface — memory, Redis, Memcached can implement this."""
     def get(self, key: str) -> T | None: ...
     def set(self, key: str, value: T, ttl_seconds: int = 300) -> None: ...
     def delete(self, key: str) -> None: ...
-
-# domain/ports/lifetime_port.py
-from typing import Protocol, Callable
-
-class LifetimePort(Protocol):
-    def register_cleanup(self, handler: Callable[[], None]) -> None: ...
-    def is_shutting_down(self) -> bool: ...
 ```
 
 ### Workflows (Pure Functions)
@@ -923,290 +902,40 @@ async def create_with_background(
     return {"status": "processing", "user_id": user.id}
 ```
 
-### Database Adapters (PostgreSQL + asyncpg)
+### Repository Adapters (Specific Implementations)
 
-#### Connection Pool Configuration
-
-```python
-# adapters/persistence/pool.py
-import asyncpg
-from dataclasses import dataclass
-from infra.config import settings
-
-@dataclass(frozen=True)
-class PoolConfig:
-    min_size: int = 5
-    max_size: int = 20
-    max_inactive_connection_lifetime: float = 300.0
-    command_timeout: float = 60.0
-    statement_cache_size: int = 100
-
-async def create_pool(config: PoolConfig | None = None) -> asyncpg.Pool:
-    cfg = config or PoolConfig()
-    return await asyncpg.create_pool(
-        dsn=settings.database_url,
-        min_size=cfg.min_size,
-        max_size=cfg.max_size,
-        max_inactive_connection_lifetime=cfg.max_inactive_connection_lifetime,
-        command_timeout=cfg.command_timeout,
-        statement_cache_size=cfg.statement_cache_size,
-    )
-
-# Health check
-async def check_pool_health(pool: asyncpg.Pool) -> dict:
-    try:
-        conn = await pool.acquire()
-        try:
-            await conn.fetchval("SELECT 1")
-            return {"status": "healthy", "size": pool.get_size(), "free": pool.get_idle_size()}
-        finally:
-            await pool.release(conn)
-    except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}
-```
-
-#### Transaction Manager
+#### PostgreSQL (Production)
 
 ```python
-# adapters/persistence/transactions.py
-import asyncpg
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
-class TransactionManager:
-    def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool = pool
-
-    @asynccontextmanager
-    async def transaction(self) -> AsyncGenerator[asyncpg.Connection, None]:
-        """Explicit transaction with automatic commit/rollback."""
-        conn = await self._pool.acquire()
-        try:
-            async with conn.transaction():
-                yield conn
-        finally:
-            await self._pool.release(conn)
-
-    @asynccontextmanager
-    async def serializable(self) -> AsyncGenerator[asyncpg.Connection, None]:
-        """Serializable isolation for critical sections."""
-        conn = await self._pool.acquire()
-        try:
-            await conn.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
-            async with conn.transaction():
-                yield conn
-        finally:
-            await self._pool.release(conn)
-
-# Usage in repository
-async def transfer_funds(
-    tx_manager: TransactionManager,
-    from_id: str,
-    to_id: str,
-    amount: int,
-) -> None:
-    async with tx_manager.serializable() as conn:
-        balance = await conn.fetchval(
-            "SELECT balance FROM accounts WHERE id = $1 FOR UPDATE",
-            from_id,
-        )
-        if balance < amount:
-            raise InsufficientFundsError(from_id, balance, amount)
-        
-        await conn.execute(
-            "UPDATE accounts SET balance = balance - $1 WHERE id = $2",
-            amount, from_id,
-        )
-        await conn.execute(
-            "UPDATE accounts SET balance = balance + $1 WHERE id = $2",
-            amount, to_id,
-        )
-```
-
-#### Query Builder (Lightweight)
-
-```python
-# adapters/persistence/query_builder.py
-from dataclasses import dataclass, field
-from typing import Any, Generic, TypeVar
-
-T = TypeVar("T")
-
-@dataclass
-class Query:
-    table: str
-    columns: list[str] = field(default_factory=lambda: ["*"])
-    where_clauses: list[str] = field(default_factory=list)
-    params: list[Any] = field(default_factory=list)
-    order_by: list[str] = field(default_factory=list)
-    limit: int | None = None
-    offset: int | None = None
-    _param_counter: int = 0
-
-    def select(self, *columns: str) -> "Query":
-        self.columns = list(columns)
-        return self
-
-    def where(self, clause: str, *values: Any) -> "Query":
-        self._param_counter += len(values)
-        placeholders = ", ".join(f"${self._param_counter - len(values) + i + 1}" for i in range(len(values)))
-        self.where_clauses.append(clause.replace("?", placeholders))
-        self.params.extend(values)
-        return self
-
-    def where_in(self, column: str, values: list[Any]) -> "Query":
-        if not values:
-            self.where_clauses.append("FALSE")
-            return self
-        self._param_counter += len(values)
-        placeholders = ", ".join(f"${self._param_counter - len(values) + i + 1}" for i in range(len(values)))
-        self.where_clauses.append(f"{column} IN ({placeholders})")
-        self.params.extend(values)
-        return self
-
-    def where_jsonb(self, column: str, path: str, operator: str, value: Any) -> "Query":
-        self._param_counter += 1
-        self.where_clauses.append(f"{column} @> ${self._param_counter}::jsonb")
-        self.params.append(f'{{"{path}": {value}}}')
-        return self
-
-    def order(self, *columns: str) -> "Query":
-        self.order_by.extend(columns)
-        return self
-
-    def paginate(self, limit: int, offset: int = 0) -> "Query":
-        self.limit = limit
-        self.offset = offset
-        return self
-
-    def build(self) -> tuple[str, list[Any]]:
-        parts = [f"SELECT {', '.join(self.columns)} FROM {self.table}"]
-        
-        if self.where_clauses:
-            parts.append(f"WHERE {' AND '.join(self.where_clauses)}")
-        if self.order_by:
-            parts.append(f"ORDER BY {', '.join(self.order_by)}")
-        if self.limit is not None:
-            parts.append(f"LIMIT {self.limit}")
-        if self.offset is not None:
-            parts.append(f"OFFSET {self.offset}")
-        
-        return " ".join(parts), self.params
-
-# Usage
-query = (
-    Query("users")
-    .select("id", "email", "name")
-    .where("role = ?", "admin")
-    .where("created_at > ?", "2024-01-01")
-    .where_in("department_id", ["eng", "product"])
-    .order("created_at DESC")
-    .paginate(20, 0)
-)
-sql, params = query.build()
-# sql: SELECT id, email, name FROM users WHERE role = $1 AND created_at > $2 AND department_id IN ($3, $4) ORDER BY created_at DESC LIMIT 20 OFFSET 0
-# params: ['admin', '2024-01-01', 'eng', 'product']
-```
-
-#### Repository with Filtering & Sorting
-
-```python
-# adapters/persistence/postgres_user_repository.py
-from dataclasses import dataclass
-from typing import Any
+# adapters/persistence/postgres/user_repository.py
 import asyncpg
 from domain.models.user import User, UserRole
-from domain.models.pagination import PageParams, PaginatedResult
-from adapters.persistence.query_builder import Query
-
-@dataclass(frozen=True)
-class UserFilters:
-    role: UserRole | None = None
-    search: str | None = None  # matches email or name
-    created_after: str | None = None
-    department_ids: list[str] | None = None
+from domain.ports.repositories.user_repository import UserRepository
 
 class PostgresUserRepository:
+    """SPECIFIC adapter — implements generic UserRepository for PostgreSQL."""
+    
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
 
-    async def find_paginated(
-        self,
-        page: PageParams,
-        filters: UserFilters | None = None,
-        sort: str = "created_at DESC",
-    ) -> PaginatedResult[User]:
-        # Build base query
-        base_query = Query("users").select("COUNT(*) OVER", "id", "email", "name", "role", "created_at")
-        
-        # Apply filters
-        if filters:
-            if filters.role:
-                base_query = base_query.where("role = ?", filters.role.value)
-            if filters.search:
-                base_query = base_query.where(
-                    "(email ILIKE $% OR name ILIKE $%)", 
-                    f"%{filters.search}%", f"%{filters.search}%"
-                )
-            if filters.created_after:
-                base_query = base_query.where("created_at > ?", filters.created_after)
-            if filters.department_ids:
-                base_query = base_query.where_in("department_id", filters.department_ids)
-        
-        # Count query
-        count_sql = f"SELECT COUNT(*) FROM ({base_query.build()[0]}) AS sub"
-        total = await self._pool.fetchval(count_sql, *base_query.params)
-        
-        # Data query with pagination
-        data_query = Query("users").select("id", "email", "name", "role", "created_at")
-        if filters:
-            if filters.role:
-                data_query = data_query.where("role = ?", filters.role.value)
-            if filters.search:
-                data_query = data_query.where(
-                    "(email ILIKE $% OR name ILIKE $%)",
-                    f"%{filters.search}%", f"%{filters.search}%"
-                )
-            if filters.created_after:
-                data_query = data_query.where("created_at > ?", filters.created_after)
-            if filters.department_ids:
-                data_query = data_query.where_in("department_id", filters.department_ids)
-        
-        data_query = data_query.order(sort).paginate(page.limit, page.offset)
-        sql, params = data_query.build()
-        
-        rows = await self._pool.fetch(sql, *params)
-        items = [self._row_to_user(r) for r in rows]
-        
-        return PaginatedResult(
-            items=items,
-            total=total,
-            offset=page.offset,
-            limit=page.limit,
-            has_more=(page.offset + page.limit) < total,
-        )
-
     async def find_by_id(self, user_id: str) -> User | None:
-        row = await self._pool.fetchrow(
-            "SELECT * FROM users WHERE id = $1", user_id
-        )
+        row = await self._pool.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
         return self._row_to_user(row) if row else None
 
     async def find_by_email(self, email: str) -> User | None:
-        row = await self._pool.fetchrow(
-            "SELECT * FROM users WHERE email = $1", email
-        )
+        row = await self._pool.fetchrow("SELECT * FROM users WHERE email = $1", email)
         return self._row_to_user(row) if row else None
+
+    async def find_all(self) -> list[User]:
+        rows = await self._pool.fetch("SELECT * FROM users ORDER BY created_at DESC")
+        return [self._row_to_user(r) for r in rows]
 
     async def save(self, user: User) -> None:
         await self._pool.execute(
             """INSERT INTO users (id, email, name, role, created_at)
                VALUES ($1, $2, $3, $4, NOW())
                ON CONFLICT (id) DO UPDATE SET
-                   email = EXCLUDED.email,
-                   name = EXCLUDED.name,
-                   role = EXCLUDED.role,
-                   updated_at = NOW()""",
+                   email = EXCLUDED.email, name = EXCLUDED.name, role = EXCLUDED.role""",
             user.id, user.email, user.name, user.role.value,
         )
 
@@ -1214,425 +943,130 @@ class PostgresUserRepository:
         await self._pool.execute("DELETE FROM users WHERE id = $1", user_id)
 
     async def exists(self, user_id: str) -> bool:
-        return await self._pool.fetchval(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", user_id
-        )
+        return await self._pool.fetchval("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", user_id)
 
-    async def count(self, filters: UserFilters | None = None) -> int:
-        sql = "SELECT COUNT(*) FROM users"
-        params: list[Any] = []
-        if filters and filters.role:
-            sql += " WHERE role = $1"
-            params.append(filters.role.value)
-        return await self._pool.fetchval(sql, *params)
+    async def count(self) -> int:
+        return await self._pool.fetchval("SELECT COUNT(*) FROM users")
 
     def _row_to_user(self, row: asyncpg.Record) -> User:
-        return User(
-            id=row["id"],
-            email=row["email"],
-            name=row["name"],
-            role=UserRole(row["role"]),
-        )
+        return User(id=row["id"], email=row["email"], name=row["name"], role=UserRole(row["role"]))
 ```
 
-#### Batch Operations
+#### SQLite (Lightweight/Testing)
 
 ```python
-# adapters/persistence/batch.py
-import asyncpg
-from typing import Any
+# adapters/persistence/sqlite/user_repository.py
+import aiosqlite
+from domain.models.user import User, UserRole
+from domain.ports.repositories.user_repository import UserRepository
 
-class BatchExecutor:
-    def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool = pool
-
-    async def insert_many(self, table: str, columns: list[str], rows: list[tuple]) -> int:
-        """Insert multiple rows efficiently."""
-        if not rows:
-            return 0
-        
-        placeholders = ", ".join(f"${i+1}" for i in range(len(columns)))
-        sql = f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"
-        
-        async with self._pool.acquire() as conn:
-            await conn.executemany(sql, rows)
-        return len(rows)
-
-    async def upsert_many(
-        self,
-        table: str,
-        columns: list[str],
-        rows: list[tuple],
-        conflict_columns: list[str],
-        update_columns: list[str],
-    ) -> int:
-        """Insert or update multiple rows."""
-        if not rows:
-            return 0
-        
-        placeholders = ", ".join(f"${i+1}" for i in range(len(columns)))
-        update_set = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_columns)
-        conflict_cols = ", ".join(conflict_columns)
-        
-        sql = (
-            f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders}) "
-            f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_set}"
-        )
-        
-        async with self._pool.acquire() as conn:
-            await conn.executemany(sql, rows)
-        return len(rows)
-
-    async def bulk_update(
-        self,
-        table: str,
-        updates: list[dict[str, Any]],
-        id_column: str = "id",
-    ) -> int:
-        """Update multiple rows with different values."""
-        if not updates:
-            return 0
-        
-        # Group by column set for efficient batching
-        count = 0
-        async with self._pool.acquire() as conn:
-            for row in updates:
-                row_id = row.pop(id_column)
-                set_clause = ", ".join(f"{k} = ${i+2}" for i, (k, _) in enumerate(row.items()))
-                sql = f"UPDATE {table} SET {set_clause} WHERE {id_column} = $1"
-                result = await conn.execute(sql, row_id, *row.values())
-                if result.endswith("1"):
-                    count += 1
-        return count
-```
-
-#### Soft Deletes & Auditing
-
-```python
-# adapters/persistence/soft_delete.py
-import asyncpg
-from datetime import datetime, timezone
-
-class SoftDeleteMixin:
-    """Mixin for soft delete support."""
+class SqliteUserRepository:
+    """SPECIFIC adapter — implements generic UserRepository for SQLite."""
     
-    async def soft_delete(self, pool: asyncpg.Pool, table: str, entity_id: str, deleted_by: str) -> None:
-        await pool.execute(
-            f"""UPDATE {table} 
-                SET deleted_at = NOW(), deleted_by = $1 
-                WHERE id = $2 AND deleted_at IS NULL""",
-            deleted_by, entity_id,
-        )
-
-    async def restore(self, pool: asyncpg.Pool, table: str, entity_id: str) -> None:
-        await pool.execute(
-            f"""UPDATE {table} 
-                SET deleted_at = NULL, deleted_by = NULL 
-                WHERE id = $1""",
-            entity_id,
-        )
-
-    async def find_active(self, pool: asyncpg.Pool, table: str, entity_id: str) -> asyncpg.Record | None:
-        return await pool.fetchrow(
-            f"SELECT * FROM {table} WHERE id = $1 AND deleted_at IS NULL",
-            entity_id,
-        )
-
-# Domain model with soft delete
-@dataclass(frozen=True)
-class User:
-    id: str
-    email: str
-    name: str
-    role: UserRole = UserRole.MEMBER
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    deleted_at: datetime | None = None
-    deleted_by: str | None = None
-
-# Repository with soft delete
-class SoftDeleteUserRepository:
-    def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool = pool
-        self._soft_delete = SoftDeleteMixin()
+    def __init__(self, db_path: str = "app.db") -> None:
+        self._db_path = db_path
 
     async def find_by_id(self, user_id: str) -> User | None:
-        row = await self._soft_delete.find_active(self._pool, "users", user_id)
-        return self._row_to_user(row) if row else None
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM users WHERE id = ?", (user_id,)) as cursor:
+                row = await cursor.fetchone()
+                return self._row_to_user(row) if row else None
 
-    async def delete(self, user_id: str, deleted_by: str) -> None:
-        await self._soft_delete.soft_delete(self._pool, "users", user_id, deleted_by)
+    async def find_by_email(self, email: str) -> User | None:
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM users WHERE email = ?", (email,)) as cursor:
+                row = await cursor.fetchone()
+                return self._row_to_user(row) if row else None
 
-    async def find_all(self, include_deleted: bool = False) -> list[User]:
-        if include_deleted:
-            rows = await self._pool.fetch("SELECT * FROM users ORDER BY created_at DESC")
-        else:
-            rows = await self._pool.fetch(
-                "SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC"
-            )
-        return [self._row_to_user(r) for r in rows]
-```
-
-#### Read Replicas
-
-```python
-# adapters/persistence/read_write_split.py
-import asyncpg
-import random
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
-class ReadWritePool:
-    def __init__(self, write_pool: asyncpg.Pool, read_pools: list[asyncpg.Pool]) -> None:
-        self._write_pool = write_pool
-        self._read_pools = read_pools
-
-    @asynccontextmanager
-    async def read_connection(self) -> AsyncGenerator[asyncpg.Connection, None]:
-        """Get a read connection (round-robin across replicas)."""
-        pool = random.choice(self._read_pools) if self._read_pools else self._write_pool
-        async with pool.acquire() as conn:
-            yield conn
-
-    @asynccontextmanager
-    async def write_connection(self) -> AsyncGenerator[asyncpg.Connection, None]:
-        """Get a write connection (primary only)."""
-        async with self._write_pool.acquire() as conn:
-            yield conn
-
-    @asynccontextmanager
-    async def transaction(self) -> AsyncGenerator[asyncpg.Connection, None]:
-        """Transaction on primary."""
-        async with self._write_pool.acquire() as conn:
-            async with conn.transaction():
-                yield conn
-
-# Usage in repository
-class UserRepository:
-    def __init__(self, rw_pool: ReadWritePool) -> None:
-        self._pool = rw_pool
-
-    async def find_by_id(self, user_id: str) -> User | None:
-        async with self._pool.read_connection() as conn:
-            row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
-            return self._row_to_user(row) if row else None
+    async def find_all(self) -> list[User]:
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM users") as cursor:
+                rows = await cursor.fetchall()
+                return [self._row_to_user(r) for r in rows]
 
     async def save(self, user: User) -> None:
-        async with self._pool.transaction() as conn:
-            await conn.execute(
-                "INSERT INTO users (id, email, name) VALUES ($1, $2, $3) "
-                "ON CONFLICT (id) DO UPDATE SET email = $2, name = $3",
-                user.id, user.email, user.name,
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                "INSERT OR REPLACE INTO users (id, email, name, role) VALUES (?, ?, ?, ?)",
+                (user.id, user.email, user.name, user.role.value),
             )
+            await db.commit()
+
+    async def delete(self, user_id: str) -> None:
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            await db.commit()
+
+    async def exists(self, user_id: str) -> bool:
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)) as cursor:
+                return await cursor.fetchone() is not None
+
+    async def count(self) -> int:
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute("SELECT COUNT(*) FROM users") as cursor:
+                return (await cursor.fetchone())[0]
+
+    def _row_to_user(self, row) -> User:
+        return User(id=row["id"], email=row["email"], name=row["name"], role=UserRole(row["role"]))
 ```
 
-#### Alembic Migrations
-
-```
-# alembic/env.py (minimal)
-from alembic import context
-from sqlalchemy import engine_from_config, pool
-
-config = context.config
-connectable = engine_from_config(
-    config.get_section(config.config_ini_section),
-    prefix="sqlalchemy.",
-    poolclass=pool.NullPool,
-)
-
-with connectable.connect() as connection:
-    context.configure(connection=connection, target_metadata=None)
-    with context.begin_transaction():
-        context.run_migrations()
-```
-
-```just
-# Justfile commands
-db-migrate:
-    uv run alembic upgrade head
-
-db-migration msg="auto":
-    uv run alembic revision --autogenerate -m "$(msg)"
-
-db-rollback:
-    uv run alembic downgrade -1
-
-db-history:
-    uv run alembic history
-```
-
-```toml
-# alembic.ini
-[alembic]
-script_location = alembic
-sqlalchemy.url = postgresql://user:pass@localhost:5432/mydb
-```
-
-#### Database Health Check
+#### In-Memory (Unit Testing)
 
 ```python
-# adapters/persistence/health.py
-import asyncpg
-from dataclasses import dataclass
+# adapters/persistence/in_memory/user_repository.py
+from domain.models.user import User, UserRole
+from domain.ports.repositories.user_repository import UserRepository
 
-@dataclass
-class DBHealth:
-    status: str
-    latency_ms: float
-    pool_size: int
-    pool_free: int
-    version: str | None = None
+class InMemoryUserRepository:
+    """SPECIFIC adapter — implements generic UserRepository for testing."""
+    
+    def __init__(self) -> None:
+        self._users: dict[str, User] = {}
 
-async def check_database_health(pool: asyncpg.Pool) -> DBHealth:
-    import time
-    start = time.perf_counter()
-    try:
-        async with pool.acquire() as conn:
-            version = await conn.fetchval("SELECT version()")
-            latency = (time.perf_counter() - start) * 1000
-            return DBHealth(
-                status="healthy",
-                latency_ms=round(latency, 2),
-                pool_size=pool.get_size(),
-                pool_free=pool.get_idle_size(),
-                version=version,
-            )
-    except Exception as e:
-        latency = (time.perf_counter() - start) * 1000
-        return DBHealth(
-            status="unhealthy",
-            latency_ms=round(latency, 2),
-            pool_size=0,
-            pool_free=0,
-            version=None,
-        )
+    async def find_by_id(self, user_id: str) -> User | None:
+        return self._users.get(user_id)
 
-# Health endpoint
-@app.get("/health/db", tags=["health"])
-async def database_health(pool: asyncpg.Pool = Depends(get_pool)):
-    health = await check_database_health(pool)
-    status_code = 200 if health.status == "healthy" else 503
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "status": health.status,
-            "database": {
-                "latency_ms": health.latency_ms,
-                "pool_size": health.pool_size,
-                "pool_free": health.pool_free,
-                "version": health.version,
-            },
-        },
-    )
+    async def find_by_email(self, email: str) -> User | None:
+        return next((u for u in self._users.values() if u.email == email), None)
+
+    async def find_all(self) -> list[User]:
+        return list(self._users.values())
+
+    async def save(self, user: User) -> None:
+        self._users[user.id] = user
+
+    async def delete(self, user_id: str) -> None:
+        self._users.pop(user_id, None)
+
+    async def exists(self, user_id: str) -> bool:
+        return user_id in self._users
+
+    async def count(self) -> int:
+        return len(self._users)
 ```
 
-#### Testing with Test Containers
+### Gateway Adapters (Specific Implementations)
 
-```python
-# tests/integration/conftest.py
-import asyncpg
-import pytest_asyncio
-from testcontainers.postgres import PostgresContainer
-
-@pytest_asyncio.fixture(scope="session")
-async def postgres():
-    """Spin up real PostgreSQL for integration tests."""
-    async with PostgresContainer("postgres:16-alpine") as pg:
-        pool = await asyncpg.create_pool(pg.get_connection_url())
-        yield pool
-        await pool.close()
-
-@pytest_asyncio.fixture
-async def user_repo(postgres):
-    """Fresh repository for each test."""
-    # Run migrations or create tables
-    await postgres.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            role TEXT DEFAULT 'member',
-            created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-    """)
-    yield PostgresUserRepository(postgres)
-    # Cleanup
-    await postgres.execute("DELETE FROM users")
-```
-
-#### SQL Patterns Cheatsheet
-
-```sql
--- Pagination with cursor (keyset)
-SELECT * FROM users
-WHERE id > $last_id  -- or created_at > $last_cursor
-ORDER BY id ASC
-LIMIT 20;
-
--- Filtering with COALESCE (optional params)
-SELECT * FROM users
-WHERE role = COALESCE($1, role)  -- NULL = no filter
-  AND name ILIKE '%' || COALESCE($2, name) || '%';
-
--- Aggregation with GROUP BY
-SELECT role, COUNT(*), AVG(age)
-FROM users
-GROUP BY role
-HAVING COUNT(*) > 10;
-
--- JSONB queries
-SELECT * FROM users
-WHERE metadata @> '{"active": true}';
-
--- Full-text search
-SELECT * FROM users
-WHERE to_tsvector('english', name || ' ' || email) @@ plainto_tsquery($1);
-
--- Upsert (PostgreSQL)
-INSERT INTO users (id, email, name) VALUES ($1, $2, $3)
-ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    name = EXCLUDED.name,
-    updated_at = NOW();
-
--- CTE (Common Table Expression)
-WITH active_users AS (
-    SELECT * FROM users WHERE deleted_at IS NULL
-)
-SELECT * FROM active_users WHERE role = 'admin';
-
--- Window functions
-SELECT *, ROW_NUMBER() OVER (PARTITION BY role ORDER BY created_at DESC)
-FROM users;
-
--- Lateral join
-SELECT u.*, latest.login_at
-FROM users u
-LEFT JOIN LATERAL (
-    SELECT login_at FROM logins WHERE user_id = u.id ORDER BY login_at DESC LIMIT 1
-) latest ON true;
-```
-
----
-
-## Gateway Adapters (External Services)
-
-### Payment Gateway (Stripe)
+#### Stripe (Payments)
 
 ```python
 # adapters/external/stripe_gateway.py
 import httpx
 from domain.models.payment import PaymentRequest, PaymentResult, PaymentStatus
+from domain.ports.gateways.payment_gateway import PaymentGateway
 from infra.config import settings
 
 class StripeGateway:
-    """Stripe payment gateway — translates domain models to Stripe API."""
+    """SPECIFIC adapter — implements generic PaymentGateway for Stripe."""
     
     def __init__(self, api_key: str | None = None) -> None:
         self._api_key = api_key or settings.stripe_api_key
-        self._base_url = "https://api.stripe.com/v1"
         self._client = httpx.AsyncClient(
-            base_url=self._base_url,
+            base_url="https://api.stripe.com/v1",
             headers={"Authorization": f"Bearer {self._api_key}"},
         )
 
@@ -1642,53 +1076,27 @@ class StripeGateway:
                 "amount": request.amount,
                 "currency": request.currency.lower(),
                 "metadata[user_id]": request.user_id,
-                **request.metadata,
             })
             data = response.json()
             
             if response.status_code == 200:
-                return PaymentResult(
-                    success=True,
-                    payment_id=data["id"],
-                    status=PaymentStatus.SUCCESS,
-                    metadata=data,
-                )
+                return PaymentResult(success=True, payment_id=data["id"], status=PaymentStatus.SUCCESS)
             else:
-                return PaymentResult(
-                    success=False,
-                    status=PaymentStatus.FAILED,
-                    error=data.get("error", {}).get("message", "Unknown error"),
-                )
-        except Exception as e:
-            return PaymentResult(
-                success=False,
-                status=PaymentStatus.FAILED,
-                error=str(e),
-            )
-
-    async def refund(self, payment_id: str, amount: int | None = None) -> PaymentResult:
-        try:
-            data = {"payment_intent": payment_id}
-            if amount:
-                data["amount"] = amount
-            
-            response = await self._client.post("/refunds", data=data)
-            result = response.json()
-            
-            return PaymentResult(
-                success=response.status_code == 200,
-                payment_id=result.get("id"),
-                status=PaymentStatus.SUCCESS if response.status_code == 200 else PaymentStatus.FAILED,
-                error=result.get("error", {}).get("message"),
-            )
+                return PaymentResult(success=False, status=PaymentStatus.FAILED, error=data.get("error", {}).get("message"))
         except Exception as e:
             return PaymentResult(success=False, status=PaymentStatus.FAILED, error=str(e))
+
+    async def refund(self, payment_id: str, amount: int) -> PaymentResult:
+        try:
+            response = await self._client.post("/refunds", data={"payment_intent": payment_id, "amount": amount})
+            return PaymentResult(success=response.status_code == 200, payment_id=response.json().get("id"))
+        except Exception as e:
+            return PaymentResult(success=False, error=str(e))
 
     async def get_status(self, payment_id: str) -> str:
         try:
             response = await self._client.get(f"/payment_intents/{payment_id}")
-            data = response.json()
-            return data.get("status", "unknown")
+            return response.json().get("status", "unknown")
         except Exception:
             return "unknown"
 
@@ -1696,26 +1104,22 @@ class StripeGateway:
         await self._client.aclose()
 ```
 
-### Notification Gateway (SendGrid)
+#### SendGrid (Email)
 
 ```python
 # adapters/external/sendgrid_gateway.py
 import httpx
-from domain.models.notification import Notification, NotificationChannel
 from domain.ports.gateways.notification_gateway import NotificationGateway
 from infra.config import settings
 
 class SendGridGateway:
-    """SendGrid email gateway — translates domain notification to SendGrid API."""
+    """SPECIFIC adapter — implements generic NotificationGateway for SendGrid email."""
     
     def __init__(self, api_key: str | None = None) -> None:
         self._api_key = api_key or settings.sendgrid_api_key
         self._client = httpx.AsyncClient(
             base_url="https://api.sendgrid.com/v3",
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            },
+            headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
         )
 
     async def send_email(self, to: str, subject: str, body: str) -> bool:
@@ -1731,58 +1135,25 @@ class SendGridGateway:
             return False
 
     async def send_sms(self, phone: str, message: str) -> bool:
-        # SendGrid doesn't do SMS — implement TwilioGateway instead
         raise NotImplementedError("Use TwilioGateway for SMS")
 
     async def send_push(self, user_id: str, title: str, body: str) -> bool:
-        # Implement Firebase Cloud Messaging gateway instead
-        raise NotImplementedError("Use FCMGateway for push notifications")
-
-    async def close(self) -> None:
-        await self._client.aclose()
-
-# adapters/external/twilio_gateway.py
-import httpx
-from infra.config import settings
-
-class TwilioGateway:
-    """Twilio SMS gateway."""
-    
-    def __init__(self) -> None:
-        self._account_sid = settings.twilio_account_sid
-        self._auth_token = settings.twilio_auth_token
-        self._from_number = settings.twilio_from_number
-        self._client = httpx.AsyncClient(
-            base_url=f"https://api.twilio.com/2010-04-01/Accounts/{self._account_sid}",
-            auth=(self._account_sid, self._auth_token),
-        )
-
-    async def send_sms(self, phone: str, message: str) -> bool:
-        try:
-            response = await self._client.post("/Messages.json", data={
-                "To": phone,
-                "From": self._from_number,
-                "Body": message,
-            })
-            return response.status_code == 201
-        except Exception:
-            return False
+        raise NotImplementedError("Use FCMGateway for push")
 
     async def close(self) -> None:
         await self._client.aclose()
 ```
 
-### Storage Gateway (S3)
+#### S3 (Storage)
 
 ```python
 # adapters/external/s3_gateway.py
 import boto3
-import botocore
 from domain.ports.gateways.storage_gateway import StorageGateway
 from infra.config import settings
 
 class S3Gateway:
-    """AWS S3 storage gateway."""
+    """SPECIFIC adapter — implements generic StorageGateway for AWS S3."""
     
     def __init__(self) -> None:
         self._client = boto3.client(
@@ -1794,17 +1165,11 @@ class S3Gateway:
         self._bucket = settings.s3_bucket_name
 
     async def upload(self, key: str, data: bytes, content_type: str) -> str:
-        self._client.put_object(
-            Bucket=self._bucket,
-            Key=key,
-            Body=data,
-            ContentType=content_type,
-        )
+        self._client.put_object(Bucket=self._bucket, Key=key, Body=data, ContentType=content_type)
         return f"s3://{self._bucket}/{key}"
 
     async def download(self, key: str) -> bytes:
-        response = self._client.get_object(Bucket=self._bucket, Key=key)
-        return response["Body"].read()
+        return self._client.get_object(Bucket=self._bucket, Key=key)["Body"].read()
 
     async def delete(self, key: str) -> bool:
         try:
@@ -1814,30 +1179,7 @@ class S3Gateway:
             return False
 
     async def get_url(self, key: str, expires_in: int = 3600) -> str:
-        return self._client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": self._bucket, "Key": key},
-            ExpiresIn=expires_in,
-        )
-```
-
-### Gateway Adapter Wiring
-
-```python
-# adapters/external/__init__.py
-from adapters.external.stripe_gateway import StripeGateway
-from adapters.external.sendgrid_gateway import SendGridGateway
-from adapters.external.s3_gateway import S3Gateway
-
-# Factory functions for composition root
-def create_payment_gateway() -> StripeGateway:
-    return StripeGateway()
-
-def create_notification_gateway() -> SendGridGateway:
-    return SendGridGateway()
-
-def create_storage_gateway() -> S3Gateway:
-    return S3Gateway()
+        return self._client.generate_presigned_url("get_object", Params={"Bucket": self._bucket, "Key": key}, ExpiresIn=expires_in)
 ```
 
 ## Composition Root (main.py)
@@ -4408,6 +3750,802 @@ class FileUploadResponse(BaseModel):
     filename: str
     size_bytes: int
     url: str
+```
+
+---
+
+## Production Patterns
+
+### Circuit Breaker (Fault Tolerance)
+
+```python
+# adapters/resilience/circuit_breaker.py
+import time
+from enum import StrEnum
+from dataclasses import dataclass, field
+
+class CircuitState(StrEnum):
+    CLOSED = "closed"      # Normal operation
+    OPEN = "open"          # Failing, reject calls
+    HALF_OPEN = "half_open" # Testing if service recovered
+
+@dataclass
+class CircuitBreaker:
+    failure_threshold: int = 5
+    recovery_timeout: float = 30.0
+    success_threshold: int = 2
+    
+    _state: CircuitState = field(default=CircuitState.CLOSED, init=False)
+    _failure_count: int = field(default=0, init=False)
+    _success_count: int = field(default=0, init=False)
+    _last_failure_time: float = field(default=0.0, init=False)
+
+    @property
+    def state(self) -> CircuitState:
+        if self._state == CircuitState.OPEN:
+            if time.time() - self._last_failure_time > self.recovery_timeout:
+                self._state = CircuitState.HALF_OPEN
+                self._success_count = 0
+        return self._state
+
+    def allow_request(self) -> bool:
+        state = self.state
+        if state == CircuitState.CLOSED:
+            return True
+        if state == CircuitState.HALF_OPEN:
+            return True  # Allow one test request
+        return False  # OPEN
+
+    def record_success(self) -> None:
+        if self._state == CircuitState.HALF_OPEN:
+            self._success_count += 1
+            if self._success_count >= self.success_threshold:
+                self._state = CircuitState.CLOSED
+                self._failure_count = 0
+        else:
+            self._failure_count = 0
+
+    def record_failure(self) -> None:
+        self._failure_count += 1
+        self._last_failure_time = time.time()
+        if self._failure_count >= self.failure_threshold:
+            self._state = CircuitState.OPEN
+
+# Usage in gateway
+class StripeGateway:
+    def __init__(self) -> None:
+        self._circuit = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+    
+    async def charge(self, request: PaymentRequest) -> PaymentResult:
+        if not self._circuit.allow_request():
+            return PaymentResult(
+                success=False,
+                status=PaymentStatus.FAILED,
+                error="Service temporarily unavailable (circuit open)",
+            )
+        
+        try:
+            result = await self._do_charge(request)
+            self._circuit.record_success()
+            return result
+        except Exception as e:
+            self._circuit.record_failure()
+            return PaymentResult(success=False, status=PaymentStatus.FAILED, error=str(e))
+```
+
+### Retry with Exponential Backoff
+
+```python
+# adapters/resilience/retry.py
+import asyncio
+import random
+from dataclasses import dataclass
+from typing import Callable, TypeVar, Any
+from domain.errors.app_error import AppError
+
+T = TypeVar("T")
+
+@dataclass
+class RetryConfig:
+    max_retries: int = 3
+    base_delay: float = 0.5
+    max_delay: float = 10.0
+    exponential_base: float = 2.0
+    jitter: bool = True
+    retryable_exceptions: tuple[type[Exception], ...] = (Exception,)
+
+async def retry_with_backoff(
+    func: Callable[..., Any],
+    config: RetryConfig | None = None,
+    *args,
+    **kwargs,
+) -> Any:
+    cfg = config or RetryConfig()
+    last_exception = None
+    
+    for attempt in range(cfg.max_retries + 1):
+        try:
+            return await func(*args, **kwargs)
+        except cfg.retryable_exceptions as e:
+            last_exception = e
+            if attempt == cfg.max_retries:
+                break
+            
+            delay = min(
+                cfg.base_delay * (cfg.exponential_base ** attempt),
+                cfg.max_delay,
+            )
+            if cfg.jitter:
+                delay = random.uniform(0, delay)
+            
+            await asyncio.sleep(delay)
+    
+    raise last_exception
+
+# Usage
+async def charge_with_retry(payment_gateway, request):
+    return await retry_with_backoff(
+        payment_gateway.charge,
+        RetryConfig(max_retries=3, retryable_exceptions=(ConnectionError, TimeoutError)),
+        request,
+    )
+```
+
+### Outbox Pattern (Reliable Event Publishing)
+
+```python
+# adapters/persistence/outbox.py
+import json
+import asyncpg
+from datetime import datetime, timezone
+from domain.events import DomainEvent
+
+class OutboxRepository:
+    """Stores events in DB transaction, published by background worker."""
+    
+    def __init__(self, pool: asyncpg.Pool) -> None:
+        self._pool = pool
+
+    async def save_with_event(self, entity_sql: str, entity_params: tuple, event: DomainEvent) -> None:
+        """Save entity and event in same transaction."""
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(entity_sql, *entity_params)
+                await conn.execute(
+                    """INSERT INTO outbox (event_type, aggregate_id, payload, created_at)
+                       VALUES ($1, $2, $3, $4)""",
+                    event.event_type,
+                    event.aggregate_id,
+                    json.dumps({"type": event.event_type, "payload": event.payload}),
+                    datetime.now(timezone.utc),
+                )
+
+    async def fetch_unpublished(self, limit: int = 100) -> list[dict]:
+        """Fetch events for publishing."""
+        rows = await self._pool.fetch(
+            "SELECT * FROM outbox WHERE published = FALSE ORDER BY created_at LIMIT $1",
+            limit,
+        )
+        return [dict(r) for r in rows]
+
+    async def mark_published(self, event_ids: list[str]) -> None:
+        """Mark events as published."""
+        await self._pool.execute(
+            "UPDATE outbox SET published = TRUE, published_at = NOW() WHERE id = ANY($1)",
+            event_ids,
+        )
+
+# Background worker
+# adapters/background/outbox_worker.py
+import asyncio
+from adapters.persistence.outbox import OutboxRepository
+from domain.ports.services.event_publisher import EventPublisher
+
+class OutboxWorker:
+    def __init__(self, outbox: OutboxRepository, publisher: EventPublisher, interval: float = 1.0) -> None:
+        self._outbox = outbox
+        self._publisher = publisher
+        self._interval = interval
+        self._running = False
+
+    async def start(self) -> None:
+        self._running = True
+        while self._running:
+            events = await self._outbox.fetch_unpublished()
+            if events:
+                event_ids = []
+                for event in events:
+                    try:
+                        await self._publisher.publish(event)
+                        event_ids.append(event["id"])
+                    except Exception:
+                        pass  # Will retry next cycle
+                if event_ids:
+                    await self._outbox.mark_published(event_ids)
+            await asyncio.sleep(self._interval)
+
+    def stop(self) -> None:
+        self._running = False
+```
+
+### Idempotency Keys (Safe Retries)
+
+```python
+# adapters/http/idempotency.py
+import hashlib
+import json
+from dataclasses import dataclass
+from typing import Any
+import asyncpg
+
+@dataclass
+class IdempotencyRecord:
+    key: str
+    response: dict
+    status_code: int
+
+class IdempotencyStore:
+    def __init__(self, pool: asyncpg.Pool) -> None:
+        self._pool = pool
+
+    async def get(self, idempotency_key: str, user_id: str) -> IdempotencyRecord | None:
+        composite_key = f"{user_id}:{idempotency_key}"
+        row = await self._pool.fetchrow(
+            "SELECT * FROM idempotency_keys WHERE key = $1 AND expires_at > NOW()",
+            composite_key,
+        )
+        if row:
+            return IdempotencyRecord(
+                key=row["key"],
+                response=json.loads(row["response"]),
+                status_code=row["status_code"],
+            )
+        return None
+
+    async def set(self, idempotency_key: str, user_id: str, response: dict, status_code: int, ttl: int = 86400) -> None:
+        composite_key = f"{user_id}:{idempotency_key}"
+        await self._pool.execute(
+            """INSERT INTO idempotency_keys (key, response, status_code, expires_at)
+               VALUES ($1, $2, $3, NOW() + INTERVAL '1 second' * $4)
+               ON CONFLICT (key) DO UPDATE SET
+                   response = EXCLUDED.response,
+                   status_code = EXCLUDED.status_code,
+                   expires_at = EXCLUDED.expires_at""",
+            composite_key, json.dumps(response), status_code, ttl,
+        )
+
+# FastAPI dependency
+from fastapi import Header, HTTPException
+
+def require_idempotency_key(idempotency_key: str = Header(..., alias="Idempotency-Key")) -> str:
+    if not idempotency_key or len(idempotency_key) < 16:
+        raise HTTPException(status_code=400, detail="Idempotency-Key must be at least 16 characters")
+    return idempotency_key
+
+# Usage in route
+@router.post("/orders", status_code=201)
+async def create_order(
+    body: CreateOrderRequest,
+    idempotency_key: str = Depends(require_idempotency_key),
+    user: TokenPayload = Depends(get_current_user),
+    idempotency_store: IdempotencyStore = Depends(get_idempotency_store),
+):
+    # Check for existing request
+    existing = await idempotency_store.get(idempotency_key, user.sub)
+    if existing:
+        return JSONResponse(content=existing.response, status_code=existing.status_code)
+    
+    # Process new request
+    order = await create_order_fn(user_id=user.sub, items=body.items)
+    response = {"order_id": order.id, "status": order.status}
+    
+    # Store for idempotency
+    await idempotency_store.set(idempotency_key, user.sub, response, 201)
+    
+    return JSONResponse(content=response, status_code=201)
+```
+
+### Feature Flags
+
+```python
+# adapters/feature_flags/simple_flags.py
+from dataclasses import dataclass
+from typing import Any
+import json
+
+@dataclass
+class FeatureFlag:
+    name: str
+    enabled: bool
+    rollout_percentage: int = 100  # 0-100
+    allowed_users: list[str] | None = None
+    metadata: dict = {}
+
+class FeatureFlagService:
+    """Simple in-memory feature flags — swap for LaunchDarkly/Unleash in prod."""
+    
+    def __init__(self) -> None:
+        self._flags: dict[str, FeatureFlag] = {}
+
+    def register(self, flag: FeatureFlag) -> None:
+        self._flags[flag.name] = flag
+
+    def is_enabled(self, flag_name: str, user_id: str | None = None) -> bool:
+        flag = self._flags.get(flag_name)
+        if flag is None or not flag.enabled:
+            return False
+        
+        if flag.allowed_users and user_id:
+            return user_id in flag.allowed_users
+        
+        if flag.rollout_percentage < 100 and user_id:
+            # Deterministic rollout based on user_id hash
+            hash_val = int(hashlib.md5(user_id.encode()).hexdigest(), 16) % 100
+            return hash_val < flag.rollout_percentage
+        
+        return True
+
+    def get_variant(self, flag_name: str, user_id: str | None = None, default: Any = None) -> Any:
+        flag = self._flags.get(flag_name)
+        if flag is None or not flag.enabled:
+            return default
+        return flag.metadata.get("variant", default)
+
+# FastAPI dependency
+_feature_flags = FeatureFlagService()
+
+def get_feature_flags() -> FeatureFlagService:
+    return _feature_flags
+
+def require_feature_flag(flag_name: str):
+    async def checker(
+        user: TokenPayload = Depends(get_current_user),
+        flags: FeatureFlagService = Depends(get_feature_flags),
+    ) -> bool:
+        if not flags.is_enabled(flag_name, user.sub):
+            raise HTTPException(status_code=404, detail="Feature not available")
+        return True
+    return checker
+
+# Usage
+@router.post("/experimental-feature")
+async def experimental_endpoint(
+    _: bool = Depends(require_feature_flag("experimental_feature")),
+):
+    return {"status": "experimental feature active"}
+```
+
+### Health Checks (Liveness + Readiness)
+
+```python
+# adapters/http/health.py
+from fastapi import APIRouter, Depends
+from dataclasses import dataclass
+from typing import Any
+import asyncio
+
+router = APIRouter(tags=["health"])
+
+@dataclass
+class HealthCheck:
+    name: str
+    status: str
+    latency_ms: float
+    details: dict = {}
+
+@dataclass
+class HealthReport:
+    status: str  # healthy, degraded, unhealthy
+    checks: list[HealthCheck]
+    version: str
+
+# Health check registry
+_health_checks: list = []
+
+def register_health_check(check_fn):
+    _health_checks.append(check_fn)
+    return check_fn
+
+@register_health_check
+async def check_database(pool) -> HealthCheck:
+    import time
+    start = time.perf_counter()
+    try:
+        await pool.fetchval("SELECT 1")
+        latency = (time.perf_counter() - start) * 1000
+        return HealthCheck(name="database", status="healthy", latency_ms=round(latency, 2))
+    except Exception as e:
+        latency = (time.perf_counter() - start) * 1000
+        return HealthCheck(name="database", status="unhealthy", latency_ms=round(latency, 2), details={"error": str(e)})
+
+@register_health_check
+async def check_redis(redis_client) -> HealthCheck:
+    import time
+    start = time.perf_counter()
+    try:
+        await redis_client.ping()
+        latency = (time.perf_counter() - start) * 1000
+        return HealthCheck(name="redis", status="healthy", latency_ms=round(latency, 2))
+    except Exception as e:
+        latency = (time.perf_counter() - start) * 1000
+        return HealthCheck(name="redis", status="unhealthy", latency_ms=round(latency, 2), details={"error": str(e)})
+
+@router.get("/health/live")
+async def liveness():
+    """Kubernetes liveness probe — is the app running?"""
+    return {"status": "alive"}
+
+@router.get("/health/ready")
+async def readiness():
+    """Kubernetes readiness probe — is the app ready to serve?"""
+    checks = await asyncio.gather(*[check() for check in _health_checks])
+    overall = "healthy" if all(c.status == "healthy" for c in checks) else "unhealthy"
+    status_code = 200 if overall == "healthy" else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": overall,
+            "checks": [{"name": c.name, "status": c.status, "latency_ms": c.latency_ms} for c in checks],
+        },
+    )
+
+@router.get("/health")
+async def health():
+    """Full health report with details."""
+    checks = await asyncio.gather(*[check() for check in _health_checks])
+    statuses = [c.status for c in checks]
+    if all(s == "healthy" for s in statuses):
+        overall = "healthy"
+    elif any(s == "unhealthy" for s in statuses):
+        overall = "unhealthy"
+    else:
+        overall = "degraded"
+    
+    return HealthReport(
+        status=overall,
+        checks=checks,
+        version="1.0.0",
+    )
+```
+
+### Graceful Shutdown
+
+```python
+# main.py lifespan (updated)
+from contextlib import asynccontextmanager
+import signal
+import asyncio
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup ---
+    shutdown_event = asyncio.Event()
+    
+    pool = await create_pool()
+    redis = await create_redis()
+    grpc_runner = GrpcServerRunner(port=50051)
+    
+    app.state.pool = pool
+    app.state.redis = redis
+    app.state.shutdown_event = shutdown_event
+    
+    # Start background workers
+    outbox_worker = OutboxWorker(outbox, publisher)
+    asyncio.create_task(outbox_worker.start())
+    
+    # Start gRPC server
+    await grpc_runner.start(grpc_service)
+    
+    yield
+    
+    # --- Shutdown ---
+    print("Shutting down gracefully...")
+    shutdown_event.set()
+    
+    # Stop accepting new requests
+    await grpc_runner.stop()
+    outbox_worker.stop()
+    
+    # Wait for in-flight requests (max 30s)
+    await asyncio.sleep(2)
+    
+    # Close connections
+    await pool.close()
+    await redis.close()
+    
+    print("Shutdown complete")
+```
+
+### Request/Response Logging (Audit Trail)
+
+```python
+# adapters/http/middleware.py (add audit logging)
+class AuditLogMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, logger: LoggerPort) -> None:
+        super().__init__(app)
+        self._logger = logger
+
+    async def dispatch(self, request: Request, call_next):
+        # Log request
+        request_body = None
+        if request.method in ("POST", "PUT", "PATCH"):
+            try:
+                request_body = await request.body()
+            except Exception:
+                pass
+        
+        self._logger.info(
+            "request received",
+            method=request.method,
+            path=request.url.path,
+            query=str(request.url.query),
+            client=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            body_size=len(request_body) if request_body else 0,
+            correlation_id=getattr(request.state, "correlation_id", ""),
+        )
+        
+        # Process request
+        start = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - start) * 1000
+        
+        # Log response
+        self._logger.info(
+            "request completed",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            duration_ms=round(duration_ms, 1),
+            correlation_id=getattr(request.state, "correlation_id", ""),
+        )
+        
+        return response
+```
+
+### Bulkhead (Isolation)
+
+```python
+# adapters/resilience/bulkhead.py
+import asyncio
+from dataclasses import dataclass, field
+
+@dataclass
+class Bulkhead:
+    """Isolate failures — limit concurrent calls to a resource."""
+    max_concurrent: int = 10
+    max_queue: int = 20
+    _semaphore: asyncio.Semaphore = field(init=False)
+    _queue_count: int = field(default=0, init=False)
+
+    def __post_init__(self):
+        self._semaphore = asyncio.Semaphore(self.max_concurrent)
+
+    async def acquire(self) -> bool:
+        if self._queue_count >= self.max_queue:
+            return False
+        self._queue_count += 1
+        await self._semaphore.acquire()
+        return True
+
+    def release(self) -> None:
+        self._semaphore.release()
+        self._queue_count -= 1
+
+# Usage
+_payment_bulkhead = Bulkhead(max_concurrent=5, max_queue=10)
+
+async def charge_with_bulkhead(payment_gateway, request):
+    if not await _payment_bulkhead.acquire():
+        raise Exception("Too many concurrent payment requests")
+    try:
+        return await payment_gateway.charge(request)
+    finally:
+        _payment_bulkhead.release()
+```
+
+### Saga Pattern (Distributed Transactions)
+
+```python
+# adapters/saga/order_saga.py
+from dataclasses import dataclass
+from typing import Callable, Any
+import asyncio
+
+@dataclass
+class SagaStep:
+    name: str
+    execute: Callable[..., Any]
+    compensate: Callable[..., Any]
+
+class Saga:
+    """Orchestrate distributed transaction with compensation."""
+    
+    def __init__(self, steps: list[SagaStep]) -> None:
+        self._steps = steps
+        self._executed: list[SagaStep] = []
+
+    async def execute(self, context: dict) -> dict:
+        for step in self._steps:
+            try:
+                context = await step.execute(context)
+                self._executed.append(step)
+            except Exception as e:
+                # Compensate in reverse order
+                await self.compensate()
+                raise SagaFailedError(step.name, e)
+        return context
+
+    async def compensate(self) -> None:
+        for step in reversed(self._executed):
+            try:
+                await step.compensate()
+            except Exception:
+                pass  # Log but don't fail compensation
+        self._executed.clear()
+
+class SagaFailedError(Exception):
+    def __init__(self, step: str, cause: Exception) -> None:
+        self.step = step
+        self.cause = cause
+        super().__init__(f"Saga failed at step '{step}': {cause}")
+
+# Usage
+order_saga = Saga(steps=[
+    SagaStep(
+        name="reserve_inventory",
+        execute=lambda ctx: inventory.reserve(ctx["items"]),
+        execute=lambda ctx: inventory.release(ctx["items"]),
+    ),
+    SagaStep(
+        name="process_payment",
+        execute=lambda ctx: payment.charge(ctx["user_id"], ctx["amount"]),
+        execute=lambda ctx: payment.refund(ctx["payment_id"]),
+    ),
+    SagaStep(
+        name="create_order",
+        execute=lambda ctx: orders.create(ctx),
+        execute=lambda ctx: orders.cancel(ctx["order_id"]),
+    ),
+])
+
+# In workflow
+async def create_order_with_saga(user_id, items):
+    context = {"user_id": user_id, "items": items}
+    try:
+        result = await order_saga.execute(context)
+        return result["order"]
+    except SagaFailedError as e:
+        # Saga compensated automatically
+        raise OrderCreationError(f"Failed: {e.step}")
+```
+
+### API Versioning
+
+```python
+# adapters/http/versioning.py
+from fastapi import APIRouter
+
+# Option 1: URL path versioning
+v1_router = APIRouter(prefix="/api/v1")
+v2_router = APIRouter(prefix="/api/v2")
+
+@v1_router.get("/users")
+async def list_users_v1():
+    return {"users": [], "version": "1"}
+
+@v2_router.get("/users")
+async def list_users_v2():
+    # V2 adds pagination, different response shape
+    return {"data": [], "meta": {"total": 0}, "version": "2"}
+
+# Option 2: Header versioning
+from fastapi import Request
+
+@router.get("/users")
+async def list_users(request: Request):
+    version = request.headers.get("api-version", "1")
+    if version == "2":
+        return {"data": [], "meta": {"total": 0}}
+    return {"users": []}
+
+# main.py
+app.include_router(v1_router)
+app.include_router(v2_router)
+```
+
+### Cache-Aside Pattern
+
+```python
+# adapters/cache/cache_aside.py
+from typing import TypeVar, Callable, Any
+import json
+
+T = TypeVar("T")
+
+class CacheAside:
+    """Cache-aside: check cache → miss → fetch from DB → populate cache."""
+    
+    def __init__(self, cache: MemoryCache, db_fetch: Callable) -> None:
+        self._cache = cache
+        self._db_fetch = db_fetch
+
+    async def get(self, key: str, ttl: int = 300) -> Any | None:
+        # Check cache
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        
+        # Fetch from DB
+        result = await self._db_fetch(key)
+        if result is not None:
+            self._cache.set(key, result, ttl)
+        return result
+
+    async def invalidate(self, key: str) -> None:
+        self._cache.delete(key)
+
+    async def invalidate_pattern(self, pattern: str) -> None:
+        # For Redis: use SCAN + DEL
+        # For memory: iterate and delete matching
+        pass
+
+# Usage
+user_cache = CacheAside(
+    cache=memory_cache,
+    db_fetch=lambda user_id: user_repo.find_by_id(user_id),
+)
+
+async def get_user_cached(user_id: str) -> User | None:
+    return await user_cache.get(f"user:{user_id}")
+```
+
+### Webhooks (Inbound Events)
+
+```python
+# adapters/http/routes/webhooks.py
+from fastapi import APIRouter, Request, HTTPException
+import hmac
+import hashlib
+
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+
+def verify_webhook_signature(payload: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode(), payload, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+@router.post("/stripe")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature", "")
+    
+    if not verify_webhook_signature(payload, signature, settings.webhook_secret):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    
+    event = await request.json()
+    
+    # Route to handler
+    handlers = {
+        "payment_intent.succeeded": handle_payment_success,
+        "payment_intent.payment_failed": handle_payment_failure,
+        "customer.subscription.created": handle_subscription_created,
+    }
+    
+    handler = handlers.get(event["type"])
+    if handler:
+        await handler(event["data"]["object"])
+    
+    return {"status": "ok"}
+
+async def handle_payment_success(payment_intent: dict):
+    # Update order status
+    pass
+
+async def handle_payment_failure(payment_intent: dict):
+    # Notify user, retry logic
+    pass
 ```
 
 ---
