@@ -11,9 +11,11 @@ Production-grade REST APIs with FastAPI as the driving adapter, clean domain log
 
 | Section | What's Here |
 |---------|-------------|
+| [Repository vs Gateway](#repository-vs-gateway--pattern-guide) | Pattern decision matrix |
 | [Core](#core-principles) | Domain, ports, adapters, composition root |
 | [Auth](#authentication--authorization-jwt--oauth2) | JWT/OAuth2 with minimal deps |
-| [Database](#database-adapters-postgresql--asyncpg) | Connection pool, transactions, query builder, read replicas, migrations |
+| [Database](#database-adapters-postgresql--asyncpg) | Connection pool, transactions, query builder, read replicas |
+| [Gateways](#gateway-adapters-external-services) | Stripe, SendGrid, Twilio, S3 adapters |
 | [Logging](#stdlib-logging-adapter) | Structured JSON via stdlib |
 | [Pagination](#pagination-lightweight) | Offset/cursor patterns |
 | [Rate Limiting](#rate-limiting-lightweight-in-memory) | Sliding window + token bucket |
@@ -41,76 +43,97 @@ my-api/
 ├── domain/
 │   ├── models/                 # Pure data structures (dataclasses, frozen)
 │   │   ├── user.py
+│   │   ├── order.py
+│   │   ├── payment.py
+│   │   ├── notification.py
 │   │   ├── auth.py
 │   │   ├── file.py
 │   │   └── pagination.py
 │   ├── errors/                 # Business exceptions inheriting AppError
 │   │   ├── app_error.py
 │   │   ├── user_errors.py
-│   │   └── auth_errors.py
-│   ├── ports/                  # Protocol interfaces for I/O boundaries
-│   │   ├── repository.py
-│   │   ├── logger.py
-│   │   ├── auth_service.py
-│   │   ├── password_hasher.py
-│   │   ├── file_storage.py
-│   │   ├── cache.py
-│   │   ├── event_store.py
-│   │   ├── message_queue.py
-│   │   ├── websocket.py
-│   │   └── time_port.py
+│   │   ├── order_errors.py
+│   │   └── payment_errors.py
+│   ├── events/                 # Domain events
+│   │   └── events.py
+│   ├── ports/
+│   │   ├── repositories/       # YOUR data stores
+│   │   │   ├── user_repository.py
+│   │   │   ├── order_repository.py
+│   │   │   └── product_repository.py
+│   │   ├── gateways/           # External services
+│   │   │   ├── payment_gateway.py
+│   │   │   ├── notification_gateway.py
+│   │   │   └── storage_gateway.py
+│   │   ├── services/           # Domain services
+│   │   │   ├── auth_service.py
+│   │   │   ├── event_publisher.py
+│   │   │   └── password_hasher.py
+│   │   └── infrastructure/     # Cross-cutting concerns
+│   │       ├── logger.py
+│   │       ├── cache.py
+│   │       ├── time_port.py
+│   │       └── lifetime_port.py
 │   └── workflows/              # Pure orchestrations (functions or classes)
 │       ├── create_user.py
-│       ├── get_user.py
-│       └── authenticate.py
+│       ├── create_order.py
+│       └── get_user.py
 │
 ├── infra/
 │   └── config.py               # Env loading, typed config dataclasses
 │
 ├── adapters/
 │   ├── http/                   # Driving adapter: FastAPI routes, middleware, schemas
-│   │   ├── routes/             # One file per domain resource
+│   │   ├── routes/
 │   │   │   ├── users.py
+│   │   │   ├── orders.py
 │   │   │   ├── auth.py
 │   │   │   ├── files.py
 │   │   │   └── websocket.py
-│   │   ├── schemas/            # Pydantic request/response models (DTOs)
+│   │   ├── schemas/
 │   │   │   ├── user.py
+│   │   │   ├── order.py
 │   │   │   ├── auth.py
 │   │   │   ├── file.py
 │   │   │   └── pagination.py
-│   │   ├── middleware.py        # CORS, request ID, error handling, rate limiting
-│   │   ├── dependencies.py     # FastAPI Depends() wiring
+│   │   ├── middleware.py
+│   │   ├── dependencies.py
 │   │   ├── dependencies_auth.py
 │   │   ├── error_handlers.py
 │   │   ├── rate_limit.py
 │   │   └── websocket.py
-│   ├── persistence/            # Driven adapters: repositories, DB clients
-│   │   ├── in_memory_user_repository.py
-│   │   ├── postgres_user_repository.py
-│   │   └── local_file_storage.py
-│   ├── auth/                   # JWT, password hashing
+│   ├── persistence/            # Repository adapters (YOUR data)
+│   │   ├── postgres/
+│   │   │   ├── user_repository.py
+│   │   │   ├── order_repository.py
+│   │   │   └── pool.py
+│   │   ├── in_memory/
+│   │   │   ├── user_repository.py
+│   │   │   └── order_repository.py
+│   │   ├── sqlite/
+│   │   │   └── user_repository.py
+│   │   └── query_builder.py
+│   ├── external/               # Gateway adapters (external services)
+│   │   ├── stripe_gateway.py
+│   │   ├── sendgrid_gateway.py
+│   │   ├── twilio_gateway.py
+│   │   ├── s3_gateway.py
+│   │   └── auth0_gateway.py
+│   ├── auth/                   # Auth adapters
 │   │   ├── jwt_service.py
 │   │   └── password_hasher.py
-│   ├── cache/                  # In-memory or Redis cache
+│   ├── cache/                  # Cache adapters
 │   │   └── memory_cache.py
-│   ├── logging/                # Structured JSON logging
+│   ├── logging/                # Logging adapters
 │   │   └── logger_adapter.py
-│   ├── messaging/              # Message queues (RabbitMQ, Kafka, Redis)
+│   ├── messaging/              # Message queue adapters
 │   │   ├── rabbitmq.py
 │   │   ├── kafka.py
 │   │   └── redis_streams.py
-│   ├── grpc/                   # gRPC server/client
-│   │   ├── user_service.py
-│   │   ├── server.py
-│   │   └── client.py
-│   ├── iot/                    # IoT protocols (MQTT, CoAP)
-│   │   ├── mqtt_client.py
-│   │   └── coap_server.py
-│   ├── ipc/                    # Local IPC (Unix sockets, named pipes)
-│   │   ├── unix_socket.py
-│   │   └── named_pipe.py
-│   └── external/               # Third-party API clients
+│   └── grpc/                   # gRPC adapters
+│       ├── user_service.py
+│       ├── server.py
+│       └── client.py
 │
 ├── proto/                      # gRPC protobuf definitions
 │   └── user.proto
@@ -191,6 +214,79 @@ pythonVersion = "3.12"
 5. **DTOs stay in adapters** — Pydantic schemas live in `adapters/http/schemas/`, never in domain.
 6. **Error boundary** — Every exception is an `AppError` with code, context, cause, origin, correlation_id.
 
+## Repository vs Gateway — Pattern Guide
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                     REPOSITORY vs GATEWAY                                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  REPOSITORY (Domain-Driven)                                                     │
+│  ───────────────────────────                                                    │
+│  • Wraps YOUR data store (PostgreSQL, Redis, filesystem)                        │
+│  • Works with DOMAIN models (User, Order, Product)                              │
+│  • Hides SQL/NoSQL details behind domain-friendly interface                     │
+│  • Lives in adapters/persistence/                                               │
+│  • Domain port: domain/ports/repositories/                                      │
+│                                                                                 │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  Domain Model          Repository Port        Repository Adapter         │  │
+│  │  ───────────          ────────────────        ─────────────────         │  │
+│  │  User                UserRepository          PostgresUserRepo           │  │
+│  │  Order               OrderRepository         InMemoryOrderRepo          │  │
+│  │  Product             ProductRepository       SqliteProductRepo          │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                 │
+│  GATEWAY (Anti-Corruption Layer)                                                │
+│  ───────────────────────────────                                                │
+│  • Wraps EXTERNAL services (Stripe, Twilio, SendGrid, GitHub API)              │
+│  • Translates between domain models and external API shapes                     │
+│  • Protects domain from vendor lock-in                                          │
+│  • Lives in adapters/external/                                                  │
+│  • Domain port: domain/ports/gateways/                                          │
+│                                                                                 │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  Domain Port             External Service       Gateway Adapter          │  │
+│  │  ───────────             ────────────────       ───────────────          │  │
+│  │  PaymentGateway          Stripe API            StripeGateway            │  │
+│  │  NotificationGateway     SendGrid API          SendGridGateway          │  │
+│  │  StorageGateway          S3 API                S3Gateway                │  │
+│  │  IdentityGateway         Auth0 API             Auth0Gateway             │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                 │
+│  WHEN TO USE WHAT:                                                              │
+│                                                                                 │
+│  ┌────────────────────┬──────────────────┬─────────────────────────────────┐  │
+│  │ Scenario           │ Use              │ Example                         │  │
+│  ├────────────────────┼──────────────────┼─────────────────────────────────┤  │
+│  │ Your own DB        │ Repository       │ PostgreSQL, MongoDB, SQLite     │  │
+│  │ External API       │ Gateway          │ Stripe, Twilio, GitHub          │  │
+│  │ Third-party auth   │ Gateway          │ Auth0, Firebase Auth            │  │
+│  │ Cloud storage      │ Gateway          │ S3, GCS, Azure Blob             │  │
+│  │ Message broker     │ Gateway          │ RabbitMQ, Kafka, SQS            │  │
+│  │ Cache (external)   │ Gateway          │ Redis, Memcached                │  │
+│  │ Cache (in-memory)  │ Repository       │ dict-based cache                │  │
+│  │ File system        │ Repository       │ Local disk, NFS                 │  │
+│  └────────────────────┴──────────────────┴─────────────────────────────────┘  │
+│                                                                                 │
+│  DOMAIN PORTS STRUCTURE:                                                        │
+│                                                                                 │
+│  domain/ports/                                                                  │
+│  ├── repositories/              # Your data stores                              │
+│  │   ├── user_repository.py     # Protocol for User aggregate                  │
+│  │   ├── order_repository.py    # Protocol for Order aggregate                 │
+│  │   └── product_repository.py  # Protocol for Product aggregate               │
+│  ├── gateways/                  # External services                            │
+│  │   ├── payment_gateway.py     # Protocol for payment processing              │
+│  │   ├── notification_gateway.py# Protocol for sending notifications           │
+│  │   └── storage_gateway.py     # Protocol for file storage                    │
+│  └── services/                  # Domain services (cross-aggregate)            │
+│      ├── auth_service.py        # Protocol for authentication                  │
+│      └── event_publisher.py     # Protocol for domain events                   │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ## Domain Layer
 
 ### Models (Pure — No Framework Imports)
@@ -198,6 +294,7 @@ pythonVersion = "3.12"
 ```python
 # domain/models/user.py
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 class UserRole(StrEnum):
@@ -211,11 +308,158 @@ class User:
     email: str
     name: str
     role: UserRole = UserRole.MEMBER
+    created_at: datetime | None = None
 
     @classmethod
     def create(cls, email: str, name: str) -> "User":
         import uuid
-        return cls(id=str(uuid.uuid4()), email=email, name=name)
+        from datetime import datetime, timezone
+        return cls(
+            id=str(uuid.uuid4()),
+            email=email,
+            name=name,
+            created_at=datetime.now(timezone.utc),
+        )
+
+# domain/models/order.py
+from dataclasses import dataclass
+from datetime import datetime
+from enum import StrEnum
+
+class OrderStatus(StrEnum):
+    PENDING = "pending"
+    PAID = "paid"
+    SHIPPED = "shipped"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+
+@dataclass(frozen=True)
+class OrderItem:
+    product_id: str
+    quantity: int
+    price: int  # cents
+
+@dataclass
+class Order:
+    id: str
+    user_id: str
+    items: list[OrderItem]
+    status: OrderStatus = OrderStatus.PENDING
+    payment_id: str | None = None
+    total_amount: int = 0
+    created_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        if not self.total_amount:
+            self.total_amount = sum(item.price * item.quantity for item in self.items)
+
+    def mark_paid(self, payment_id: str) -> "Order":
+        self.status = OrderStatus.PAID
+        self.payment_id = payment_id
+        return self
+
+    @classmethod
+    def create(cls, user_id: str, items: list[dict]) -> "Order":
+        import uuid
+        from datetime import datetime, timezone
+        order_items = [OrderItem(**item) for item in items]
+        return cls(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            items=order_items,
+            created_at=datetime.now(timezone.utc),
+        )
+
+# domain/models/payment.py
+from dataclasses import dataclass
+from enum import StrEnum
+
+class PaymentStatus(StrEnum):
+    SUCCESS = "success"
+    FAILED = "failed"
+    PENDING = "pending"
+
+@dataclass(frozen=True)
+class PaymentRequest:
+    user_id: str
+    amount: int  # cents
+    currency: str = "USD"
+    metadata: dict = {}
+
+@dataclass(frozen=True)
+class PaymentResult:
+    success: bool
+    payment_id: str | None = None
+    status: PaymentStatus = PaymentStatus.PENDING
+    error: str | None = None
+    metadata: dict = {}
+
+# domain/models/notification.py
+from dataclasses import dataclass
+from enum import StrEnum
+
+class NotificationChannel(StrEnum):
+    EMAIL = "email"
+    SMS = "sms"
+    PUSH = "push"
+
+@dataclass(frozen=True)
+class Notification:
+    id: str
+    channel: NotificationChannel
+    recipient: str
+    subject: str
+    body: str
+    metadata: dict = {}
+
+# domain/events.py
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from enum import StrEnum
+
+class EventType(StrEnum):
+    USER_CREATED = "user.created"
+    USER_UPDATED = "user.updated"
+    ORDER_CREATED = "order.created"
+    ORDER_PAID = "order.paid"
+    PAYMENT_FAILED = "payment.failed"
+
+@dataclass(frozen=True)
+class DomainEvent:
+    event_type: EventType
+    aggregate_id: str
+    payload: dict
+    timestamp: datetime = None
+    metadata: dict = {}
+
+    def __post_init__(self):
+        if self.timestamp is None:
+            object.__setattr__(self, 'timestamp', datetime.now(timezone.utc))
+
+# Convenience event constructors
+@dataclass(frozen=True)
+class UserCreated(DomainEvent):
+    event_type: EventType = EventType.USER_CREATED
+    user_id: str = ""
+    email: str = ""
+
+    def __post_init__(self):
+        if not self.aggregate_id:
+            object.__setattr__(self, 'aggregate_id', self.user_id)
+        if not self.payload:
+            object.__setattr__(self, 'payload', {"user_id": self.user_id, "email": self.email})
+
+@dataclass(frozen=True)
+class OrderCreated(DomainEvent):
+    event_type: EventType = EventType.ORDER_CREATED
+    order_id: str = ""
+    user_id: str = ""
+
+    def __post_init__(self):
+        if not self.aggregate_id:
+            object.__setattr__(self, 'aggregate_id', self.order_id)
+        if not self.payload:
+            object.__setattr__(self, 'payload', {"order_id": self.order_id, "user_id": self.user_id})
 ```
 
 ### Errors (AppError Shape)
@@ -262,17 +506,82 @@ class DuplicateEmailError(AppError):
 ### Ports (Protocol Interfaces)
 
 ```python
-# domain/ports/repository.py
+# domain/ports/repositories/user_repository.py
 from typing import Protocol, TypeVar
+from domain.models.user import User
 
-IdT = TypeVar("IdT")
-T = TypeVar("T")
+class UserRepository(Protocol):
+    """Repository for User aggregate — YOUR data store."""
+    async def find_by_id(self, user_id: str) -> User | None: ...
+    async def find_by_email(self, email: str) -> User | None: ...
+    async def find_all(self) -> list[User]: ...
+    async def save(self, user: User) -> None: ...
+    async def delete(self, user_id: str) -> None: ...
+    async def exists(self, user_id: str) -> bool: ...
+    async def count(self) -> int: ...
 
-class Repository(Protocol[T, IdT]):
-    def save(self, entity: T) -> None: ...
-    def find_by_id(self, entity_id: IdT) -> T | None: ...
-    def find_all(self) -> list[T]: ...
-    def delete(self, entity_id: IdT) -> None: ...
+# domain/ports/repositories/order_repository.py
+from typing import Protocol
+from domain.models.order import Order
+from domain.models.pagination import PageParams, PaginatedResult
+
+class OrderRepository(Protocol):
+    """Repository for Order aggregate."""
+    async def find_by_id(self, order_id: str) -> Order | None: ...
+    async def find_by_user(self, user_id: str) -> list[Order]: ...
+    async def find_paginated(self, page: PageParams) -> PaginatedResult[Order]: ...
+    async def save(self, order: Order) -> None: ...
+    async def delete(self, order_id: str) -> None: ...
+
+# domain/ports/gateways/payment_gateway.py
+from typing import Protocol
+from domain.models.payment import PaymentRequest, PaymentResult
+
+class PaymentGateway(Protocol):
+    """Gateway for external payment service (Stripe, etc.)."""
+    async def charge(self, request: PaymentRequest) -> PaymentResult: ...
+    async def refund(self, payment_id: str, amount: int) -> PaymentResult: ...
+    async def get_status(self, payment_id: str) -> str: ...
+
+# domain/ports/gateways/notification_gateway.py
+from typing import Protocol
+from domain.models.notification import Notification
+
+class NotificationGateway(Protocol):
+    """Gateway for sending notifications (email, SMS, push)."""
+    async def send_email(self, to: str, subject: str, body: str) -> bool: ...
+    async def send_sms(self, phone: str, message: str) -> bool: ...
+    async def send_push(self, user_id: str, title: str, body: str) -> bool: ...
+
+# domain/ports/gateways/storage_gateway.py
+from typing import Protocol
+
+class StorageGateway(Protocol):
+    """Gateway for file storage (S3, GCS, etc.)."""
+    async def upload(self, key: str, data: bytes, content_type: str) -> str: ...
+    async def download(self, key: str) -> bytes: ...
+    async def delete(self, key: str) -> bool: ...
+    async def get_url(self, key: str, expires_in: int = 3600) -> str: ...
+
+# domain/ports/services/auth_service.py
+from typing import Protocol
+from domain.models.auth import TokenPayload
+
+class AuthService(Protocol):
+    """Domain service for authentication."""
+    def create_token(self, user_id: str, scopes: list[str] | None = None) -> str: ...
+    def verify_token(self, token: str) -> TokenPayload: ...
+    def hash_password(self, password: str) -> str: ...
+    def verify_password(self, password: str, hashed: str) -> bool: ...
+
+# domain/ports/services/event_publisher.py
+from typing import Protocol
+from domain.events import DomainEvent
+
+class EventPublisher(Protocol):
+    """Domain service for publishing events."""
+    async def publish(self, event: DomainEvent) -> None: ...
+    async def publish_batch(self, events: list[DomainEvent]) -> None: ...
 
 # domain/ports/logger.py
 from typing import Protocol
@@ -280,13 +589,26 @@ from typing import Protocol
 class LoggerPort(Protocol):
     def info(self, message: str, **fields) -> None: ...
     def error(self, message: str, **fields) -> None: ...
+    def warning(self, message: str, **fields) -> None: ...
+    def debug(self, message: str, **fields) -> None: ...
 
 # domain/ports/time_port.py
 from typing import Protocol
 
 class TimePort(Protocol):
     def now_ms(self) -> int: ...
+    def now_iso(self) -> str: ...
     def elapsed_ms(self, start_ms: int) -> int: ...
+
+# domain/ports/cache.py
+from typing import Protocol, TypeVar
+
+T = TypeVar("T")
+
+class CachePort(Protocol[T]):
+    def get(self, key: str) -> T | None: ...
+    def set(self, key: str, value: T, ttl_seconds: int = 300) -> None: ...
+    def delete(self, key: str) -> None: ...
 
 # domain/ports/lifetime_port.py
 from typing import Protocol, Callable
@@ -301,36 +623,86 @@ class LifetimePort(Protocol):
 ```python
 # domain/workflows/create_user.py
 from domain.models.user import User
-from domain.ports.repository import Repository
+from domain.ports.repositories.user_repository import UserRepository
+from domain.ports.gateways.notification_gateway import NotificationGateway
+from domain.ports.services.event_publisher import EventPublisher
 from domain.ports.logger import LoggerPort
 from domain.errors.user_errors import DuplicateEmailError
+from domain.events import UserCreated
 
 def create_user(
     email: str,
     name: str,
-    user_repository: Repository[User, str],
+    user_repository: UserRepository,
+    notification_gateway: NotificationGateway,
+    event_publisher: EventPublisher,
     logger: LoggerPort,
 ) -> User:
+    """Create user workflow — orchestrates repositories and gateways."""
     if user_repository.find_by_email(email) is not None:
         raise DuplicateEmailError(email)
+    
     user = User.create(email=email, name=name)
     user_repository.save(user)
-    logger.info(f"User created: {user.id}")
+    
+    # Side effects via gateways
+    notification_gateway.send_email(
+        to=email,
+        subject="Welcome!",
+        body=f"Hi {name}, welcome to our platform!",
+    )
+    
+    event_publisher.publish(UserCreated(user_id=user.id, email=email))
+    
+    logger.info("user created", user_id=user.id, email=email)
     return user
 
-# domain/workflows/get_user.py
-from domain.models.user import User
-from domain.ports.repository import Repository
-from domain.errors.user_errors import UserNotFoundError
+# domain/workflows/create_order.py
+from domain.models.order import Order
+from domain.ports.repositories.order_repository import OrderRepository
+from domain.ports.repositories.user_repository import UserRepository
+from domain.ports.gateways.payment_gateway import PaymentGateway
+from domain.ports.services.event_publisher import EventPublisher
+from domain.errors.order_errors import UserNotFoundError, PaymentFailedError
 
-def get_user(
+def create_order(
     user_id: str,
-    user_repository: Repository[User, str],
-) -> User:
+    items: list[dict],
+    order_repository: OrderRepository,
+    user_repository: UserRepository,
+    payment_gateway: PaymentGateway,
+    event_publisher: EventPublisher,
+) -> Order:
+    """Create order — validates user, processes payment, saves order."""
+    # Verify user exists (repository)
     user = user_repository.find_by_id(user_id)
     if user is None:
         raise UserNotFoundError(user_id)
-    return user
+    
+    # Create order
+    order = Order.create(user_id=user_id, items=items)
+    
+    # Process payment (gateway — external service)
+    from domain.models.payment import PaymentRequest
+    payment_result = payment_gateway.charge(
+        PaymentRequest(
+            user_id=user_id,
+            amount=order.total_amount,
+            currency="USD",
+        )
+    )
+    
+    if not payment_result.success:
+        raise PaymentFailedError(order.id, payment_result.error)
+    
+    # Mark order as paid
+    order = order.mark_paid(payment_result.payment_id)
+    order_repository.save(order)
+    
+    # Publish event
+    event_publisher.publish(OrderCreated(order_id=order.id, user_id=user_id))
+    
+    return order
 ```
 
 ## Adapters Layer
@@ -1239,6 +1611,233 @@ FROM users u
 LEFT JOIN LATERAL (
     SELECT login_at FROM logins WHERE user_id = u.id ORDER BY login_at DESC LIMIT 1
 ) latest ON true;
+```
+
+---
+
+## Gateway Adapters (External Services)
+
+### Payment Gateway (Stripe)
+
+```python
+# adapters/external/stripe_gateway.py
+import httpx
+from domain.models.payment import PaymentRequest, PaymentResult, PaymentStatus
+from infra.config import settings
+
+class StripeGateway:
+    """Stripe payment gateway — translates domain models to Stripe API."""
+    
+    def __init__(self, api_key: str | None = None) -> None:
+        self._api_key = api_key or settings.stripe_api_key
+        self._base_url = "https://api.stripe.com/v1"
+        self._client = httpx.AsyncClient(
+            base_url=self._base_url,
+            headers={"Authorization": f"Bearer {self._api_key}"},
+        )
+
+    async def charge(self, request: PaymentRequest) -> PaymentResult:
+        try:
+            response = await self._client.post("/payment_intents", data={
+                "amount": request.amount,
+                "currency": request.currency.lower(),
+                "metadata[user_id]": request.user_id,
+                **request.metadata,
+            })
+            data = response.json()
+            
+            if response.status_code == 200:
+                return PaymentResult(
+                    success=True,
+                    payment_id=data["id"],
+                    status=PaymentStatus.SUCCESS,
+                    metadata=data,
+                )
+            else:
+                return PaymentResult(
+                    success=False,
+                    status=PaymentStatus.FAILED,
+                    error=data.get("error", {}).get("message", "Unknown error"),
+                )
+        except Exception as e:
+            return PaymentResult(
+                success=False,
+                status=PaymentStatus.FAILED,
+                error=str(e),
+            )
+
+    async def refund(self, payment_id: str, amount: int | None = None) -> PaymentResult:
+        try:
+            data = {"payment_intent": payment_id}
+            if amount:
+                data["amount"] = amount
+            
+            response = await self._client.post("/refunds", data=data)
+            result = response.json()
+            
+            return PaymentResult(
+                success=response.status_code == 200,
+                payment_id=result.get("id"),
+                status=PaymentStatus.SUCCESS if response.status_code == 200 else PaymentStatus.FAILED,
+                error=result.get("error", {}).get("message"),
+            )
+        except Exception as e:
+            return PaymentResult(success=False, status=PaymentStatus.FAILED, error=str(e))
+
+    async def get_status(self, payment_id: str) -> str:
+        try:
+            response = await self._client.get(f"/payment_intents/{payment_id}")
+            data = response.json()
+            return data.get("status", "unknown")
+        except Exception:
+            return "unknown"
+
+    async def close(self) -> None:
+        await self._client.aclose()
+```
+
+### Notification Gateway (SendGrid)
+
+```python
+# adapters/external/sendgrid_gateway.py
+import httpx
+from domain.models.notification import Notification, NotificationChannel
+from domain.ports.gateways.notification_gateway import NotificationGateway
+from infra.config import settings
+
+class SendGridGateway:
+    """SendGrid email gateway — translates domain notification to SendGrid API."""
+    
+    def __init__(self, api_key: str | None = None) -> None:
+        self._api_key = api_key or settings.sendgrid_api_key
+        self._client = httpx.AsyncClient(
+            base_url="https://api.sendgrid.com/v3",
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+
+    async def send_email(self, to: str, subject: str, body: str) -> bool:
+        try:
+            response = await self._client.post("/mail/send", json={
+                "personalizations": [{"to": [{"email": to}]}],
+                "from": {"email": settings.from_email},
+                "subject": subject,
+                "content": [{"type": "text/plain", "value": body}],
+            })
+            return response.status_code in (200, 202)
+        except Exception:
+            return False
+
+    async def send_sms(self, phone: str, message: str) -> bool:
+        # SendGrid doesn't do SMS — implement TwilioGateway instead
+        raise NotImplementedError("Use TwilioGateway for SMS")
+
+    async def send_push(self, user_id: str, title: str, body: str) -> bool:
+        # Implement Firebase Cloud Messaging gateway instead
+        raise NotImplementedError("Use FCMGateway for push notifications")
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+# adapters/external/twilio_gateway.py
+import httpx
+from infra.config import settings
+
+class TwilioGateway:
+    """Twilio SMS gateway."""
+    
+    def __init__(self) -> None:
+        self._account_sid = settings.twilio_account_sid
+        self._auth_token = settings.twilio_auth_token
+        self._from_number = settings.twilio_from_number
+        self._client = httpx.AsyncClient(
+            base_url=f"https://api.twilio.com/2010-04-01/Accounts/{self._account_sid}",
+            auth=(self._account_sid, self._auth_token),
+        )
+
+    async def send_sms(self, phone: str, message: str) -> bool:
+        try:
+            response = await self._client.post("/Messages.json", data={
+                "To": phone,
+                "From": self._from_number,
+                "Body": message,
+            })
+            return response.status_code == 201
+        except Exception:
+            return False
+
+    async def close(self) -> None:
+        await self._client.aclose()
+```
+
+### Storage Gateway (S3)
+
+```python
+# adapters/external/s3_gateway.py
+import boto3
+import botocore
+from domain.ports.gateways.storage_gateway import StorageGateway
+from infra.config import settings
+
+class S3Gateway:
+    """AWS S3 storage gateway."""
+    
+    def __init__(self) -> None:
+        self._client = boto3.client(
+            "s3",
+            aws_access_key_id=settings.aws_access_key_id,
+            aws_secret_access_key=settings.aws_secret_access_key,
+            region_name=settings.aws_region,
+        )
+        self._bucket = settings.s3_bucket_name
+
+    async def upload(self, key: str, data: bytes, content_type: str) -> str:
+        self._client.put_object(
+            Bucket=self._bucket,
+            Key=key,
+            Body=data,
+            ContentType=content_type,
+        )
+        return f"s3://{self._bucket}/{key}"
+
+    async def download(self, key: str) -> bytes:
+        response = self._client.get_object(Bucket=self._bucket, Key=key)
+        return response["Body"].read()
+
+    async def delete(self, key: str) -> bool:
+        try:
+            self._client.delete_object(Bucket=self._bucket, Key=key)
+            return True
+        except Exception:
+            return False
+
+    async def get_url(self, key: str, expires_in: int = 3600) -> str:
+        return self._client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self._bucket, "Key": key},
+            ExpiresIn=expires_in,
+        )
+```
+
+### Gateway Adapter Wiring
+
+```python
+# adapters/external/__init__.py
+from adapters.external.stripe_gateway import StripeGateway
+from adapters.external.sendgrid_gateway import SendGridGateway
+from adapters.external.s3_gateway import S3Gateway
+
+# Factory functions for composition root
+def create_payment_gateway() -> StripeGateway:
+    return StripeGateway()
+
+def create_notification_gateway() -> SendGridGateway:
+    return SendGridGateway()
+
+def create_storage_gateway() -> S3Gateway:
+    return S3Gateway()
 ```
 
 ## Composition Root (main.py)
@@ -3826,8 +4425,9 @@ class FileUploadResponse(BaseModel):
 | Correlation ID everywhere | Every request gets an ID, threaded through logs and errors |
 | Test at the lowest tier | Unit tests for domain + pure helpers, e2e for full API surface |
 | Portable adapters | Adapter files copy to any project — only port contracts and config change |
-| Auth as adapter | JWT/password hashing in adapters, not domain |
-| Cache via port | Domain defines cache port, adapters implement (memory/Redis) |
+| Repository = your data | Use repositories for PostgreSQL, MongoDB, SQLite, file systems |
+| Gateway = external services | Use gateways for Stripe, Twilio, SendGrid, S3, Auth0 |
+| Domain events via ports | Events published through domain port, not direct adapter calls |
 | Pagination in domain | PageParams/PaginatedResult are domain models |
 
 ## External References
