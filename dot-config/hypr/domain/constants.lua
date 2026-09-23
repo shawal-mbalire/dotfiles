@@ -52,17 +52,17 @@ M.CURVES = {
   { name = "quick",          points = { { 0.15, 0 },    { 0.1, 1 } } },
 }
 
--- Animations (subtle, tasteful)
+-- Animations (fast, minimal)
 M.ANIMATIONS = {
-  { leaf = "global",        speed = 12,  bezier = "default" },
-  { leaf = "border",        speed = 8,   bezier = "easeOutQuint" },
-  { leaf = "windows",       speed = 8,   bezier = "easeOutQuint" },
-  { leaf = "windowsIn",     speed = 8,   bezier = "easeOutQuint", style = "popin 87%" },
-  { leaf = "windowsOut",    speed = 12,  bezier = "linear",       style = "popin 87%" },
-  { leaf = "fade",          speed = 10,  bezier = "quick" },
-  { leaf = "workspaces",    speed = 0.1, bezier = "linear",       style = "fade" },
-  { leaf = "workspacesIn",  speed = 0.1, bezier = "linear",       style = "fade" },
-  { leaf = "workspacesOut", speed = 0.1, bezier = "linear",       style = "fade" },
+  { leaf = "global",        speed = 4,   bezier = "default" },
+  { leaf = "border",        speed = 3,   bezier = "easeOutQuint" },
+  { leaf = "windows",       speed = 3,   bezier = "easeOutQuint" },
+  { leaf = "windowsIn",     speed = 3,   bezier = "easeOutQuint", style = "popin 87%" },
+  { leaf = "windowsOut",    speed = 4,   bezier = "linear",       style = "popin 87%" },
+  { leaf = "fade",          speed = 3,   bezier = "quick" },
+  { leaf = "workspaces",    speed = 0.05, bezier = "linear",      style = "fade" },
+  { leaf = "workspacesIn",  speed = 0.05, bezier = "linear",      style = "fade" },
+  { leaf = "workspacesOut", speed = 0.05, bezier = "linear",      style = "fade" },
 }
 
 -- Layer-surface rules (static domain knowledge about known clients)

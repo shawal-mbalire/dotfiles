@@ -119,6 +119,8 @@ M.autostart = {
   "gammastep -O 16000",
   "wl-paste --watch cliphist store",
   "/usr/libexec/hyprpolkitagent",
+  -- Recover Bluetooth if rfkill soft-block was persisted from a prior session.
+  "rfkill unblock bluetooth",
   -- Quickshell replaces waybar + swaync + swayosd-server:
   -- one process owns the bar, notifications, control center and OSD.
   -- Stop the old daemons before enabling this.

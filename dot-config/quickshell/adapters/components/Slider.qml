@@ -1,4 +1,5 @@
 import QtQuick
+import "../../domain"
 
 // Horizontal slider with a draggable grab handle. `value` is 0..1 and stays
 // the caller's binding; `moved` fires only while the user interacts, so the

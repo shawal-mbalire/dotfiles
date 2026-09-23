@@ -215,7 +215,6 @@ LazyLoader {
                     model: prompt.clipboard ? prompt.clipResults : prompt.appResults
                     spacing: 3
                     clip: true
-                    cacheSize: 5
                     currentIndex: count > 0 ? 0 : -1
                     boundsBehavior: Flickable.StopAtBounds
 

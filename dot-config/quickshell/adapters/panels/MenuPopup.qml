@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Wayland
 import ".."
 import "../../domain"
 
@@ -17,23 +18,28 @@ LazyLoader {
             left: true
             right: true
         }
+        // Start below the bar so the bar pills stay clickable while a menu is
+        // open (clicking another pill switches menus instead of just closing).
+        margins.top: Theme.barHeight
         color: "transparent"
         exclusiveZone: 0
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
         // Close on any click outside the card
         MouseArea {
             anchors.fill: parent
+            focus: true
             onClicked: UiState.closePanels()
+            // Close on Escape
+            Keys.onEscapePressed: UiState.closePanels()
         }
-
-        // Close on Escape
-        Keys.onEscapePressed: UiState.closePanels()
 
         Rectangle {
             id: card
             anchors.top: parent.top
             anchors.right: parent.right
-            anchors.topMargin: Theme.barHeight + 1
+            anchors.topMargin: 6
             anchors.rightMargin: 8
             implicitWidth: 320
             implicitHeight: menuLoader.implicitHeight + 24
@@ -43,18 +49,12 @@ LazyLoader {
             border.color: Qt.rgba(Theme.surface1.r, Theme.surface1.g, Theme.surface1.b, 0.35)
 
             opacity: 0
-            y: -4
 
             Component.onCompleted: {
                 opacity = 1;
-                y = 0;
             }
 
             Behavior on opacity {
-                NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
-            }
-
-            Behavior on y {
                 NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
             }
 

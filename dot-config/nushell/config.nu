@@ -688,6 +688,7 @@ alias oc = opencode
 alias ghs = gh auth status --active
 alias gha = gh auth switch
 alias lg = lazygit
+alias tc = tuicr
 
 source ~/.zoxide.nu
 source ~/.cache/carapace/init.nu

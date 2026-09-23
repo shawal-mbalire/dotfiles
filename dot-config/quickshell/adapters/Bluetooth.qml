@@ -102,13 +102,25 @@ Singleton {
         }
     }
 
+    Process {
+        id: recoverProc
+        command: ["/bin/sh", "-c", "rfkill unblock bluetooth; bluetoothctl power on"]
+    }
+
     // ── BluetoothPort ─────────────────────────────────────────────────────
     function setEnabled(value) {
-        if (root.adapter) root.adapter.enabled = value;
+        if (root.adapter) {
+            root.adapter.enabled = value;
+        } else if (value) {
+            // No adapter exposed (rfkill soft-blocked or powered down). Recover
+            // with a one-shot unblock + power-on so the toggle can turn it back
+            // on even when BlueZ reports "No default controller".
+            recoverProc.running = true;
+        }
     }
 
     function toggle() {
-        if (root.adapter) root.adapter.enabled = !root.adapter.enabled;
+        setEnabled(root.adapter ? !root.adapter.enabled : true);
     }
 
     function setDiscovering(value) {
