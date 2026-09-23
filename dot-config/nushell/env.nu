@@ -96,6 +96,7 @@ if ($nu.os-info.name == "macos") {
     path add "/opt/homebrew/sbin"
 } else if ($nu.os-info.name == "linux") {
     path add "/home/linuxbrew/.linuxbrew/bin"
+    path add "/home/shawal/flutter/bin/"
     path add "/home/linuxbrew/.linuxbrew/sbin"
 }
 path add ($env.HOME | path join ".turso")
