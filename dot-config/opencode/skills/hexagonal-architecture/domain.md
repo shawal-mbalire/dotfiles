@@ -58,6 +58,40 @@ def create_document(
 | **Debugging** | Trace through layers | Test function in isolation |
 | **Refactoring** | Fear of breaking side effects | Safe to rearrange pure logic |
 
+## Validate at the Door (Fail Fast in Domain)
+
+Domain workflows validate their inputs as their **first action**. Invalid state must not propagate into side effects. If a workflow is given bad data, it must reject immediately — before calling any adapter, before touching any resource.
+
+```python
+# BAD: validation buried after side effects
+def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Document:
+    document = Document.create(content=content)
+    repo.save(document)                          # saved bad data
+    if not content.strip():
+        raise EmptyContentError()                # too late — already persisted
+    return document
+
+# GOOD: validation is the first thing
+def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Document:
+    # 1. Validate inputs — fail fast before any side effects
+    if not content.strip():
+        raise EmptyContentError()
+
+    # 2. Only then proceed with side effects
+    document = Document.create(content=content)
+    repo.save(document)
+    return document
+```
+
+**Workflow validation checklist:**
+
+- [ ] Validate every input parameter at the top of the workflow
+- [ ] Reject with a domain-specific `AppError` subclass (never `ValueError` or bare strings)
+- [ ] Validate before calling any adapter — no side effects on invalid input
+- [ ] Check preconditions (required fields, ranges, business rules) before orchestration
+- [ ] Validate domain model invariants when constructing models (e.g., `Document.create()` validates internally)
+- [ ] Fail with enough context to diagnose: what was invalid, what was expected
+
 ## Pure Function Testing Pattern
 
 ```python
@@ -71,6 +105,105 @@ def test_calculate_total_zero_tax():
     assert calculate_total(cart, tax_rate=0.0) == 20.0
 
 # No mocks, no setup, no database — just input → output
+```
+
+## Two Kinds of Domain Code: Pure Functions and Pure Orchestrators
+
+Every function in the domain is one of two kinds. Know which one you're writing.
+
+**Pure functions** — logic only, no port calls. Same input → same output. Trivial to test.
+
+```python
+def calculate_total(items: list[CartItem], tax_rate: float) -> float:
+    subtotal = sum(item.price * item.quantity for item in items)
+    return subtotal * (1 + tax_rate)
+
+def validate_content(content: str) -> None:
+    if not content.strip():
+        raise EmptyContentError()
+
+def apply_discount(total: float, discount_pct: float) -> float:
+    return total * (1 - discount_pct)
+```
+
+**Pure orchestrators** — coordinate pure functions and port calls. No business logic inline. Testable by faking ports.
+
+```python
+def create_document(
+    content: str,
+    repo: DocumentRepository,
+    logger: LoggerPort,
+) -> Document:
+    validate_content(content)           # pure function
+    doc = Document.create(content=content)  # pure function
+    repo.save(doc)                      # port call
+    logger.info(f"Created {doc.id}")    # port call
+    return doc
+```
+
+**The split prevents god functions.** If a function does validation + logic + I/O, extract the validation and logic into pure functions and keep the orchestration thin. Every function should be either a pure function (test by calling) or a pure orchestrator (test by faking ports). Nothing in between.
+
+## What Is a Workflow?
+
+A workflow is a **domain operation** — a business action that orchestrates pure functions and ports to achieve a goal. It lives in `domain/workflows/` and is the core of what the app does.
+
+**A workflow is a pure orchestrator that represents a business operation.**
+
+```python
+# domain/workflows/create_document.py
+def create_document(content: str, repo: DocumentRepository,
+                    logger: LoggerPort, time: TimePort) -> Document:
+    """Create a document: validate, persist, log, return."""
+    validate_content(content)
+    doc = Document.create(content=content)
+    repo.save(doc)
+    logger.info(f"Created {doc.id} in {time.elapsed_ms(start)}ms")
+    return doc
+
+# domain/workflows/authenticate_user.py
+def authenticate_user(email: str, password: str,
+                      user_repo: UserRepository,
+                      hasher: PasswordHasher,
+                      token_service: TokenService) -> str:
+    """Authenticate user: look up, verify, generate token."""
+    user = user_repo.find_by_email(email)
+    if user is None:
+        raise AuthenticationError("Invalid credentials")
+    if not hasher.verify(password, user.password_hash):
+        raise AuthenticationError("Invalid credentials")
+    return token_service.generate(user.id)
+
+# domain/workflows/process_payment.py
+def process_payment(order: Order, gateway: PaymentGateway,
+                    repo: PaymentRepository, logger: LoggerPort) -> PaymentResult:
+    """Process payment: charge via gateway, record, log."""
+    result = gateway.charge(order.total, order.payment_token)
+    payment = Payment.create(order_id=order.id, result=result)
+    repo.save(payment)
+    logger.info(f"Payment {payment.id} processed for order {order.id}")
+    return result
+```
+
+**What makes a workflow a workflow:**
+- It lives in `domain/workflows/`
+- It takes ports as arguments (never adapters, never config, never framework objects)
+- It orchestrates pure functions and port calls
+- It contains business logic (validation, rules, decisions)
+- It has no knowledge of databases, APIs, files, or frameworks
+- It is testable by faking the ports
+
+**What a workflow is NOT:**
+- Not a driving adapter (HTTP route, CLI handler) — those call workflows
+- Not a driven adapter (DB client, API client) — those implement ports
+- Not an entry point (main.py) — those wire adapters to workflows
+- Not a pure function — workflows call ports (impure), but contain no inline logic
+
+**The relationship:**
+
+```
+Driving adapter (HTTP route) calls → Workflow (business operation) calls → Ports → Adapters do I/O
+     ↑                                    ↑                                    ↑
+  Entry point wires                 Domain logic                     Infrastructure
 ```
 
 ## Adapter Impurity is Fine — But Use Pure Functions Inside

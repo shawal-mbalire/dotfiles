@@ -40,6 +40,7 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 10. **TimePort everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
 11. **LifetimePort for graceful exits** — Every workflow gets a `LifetimePort` to detect exit reasons (crash, user exit, error, normal) and run cleanup. No resource left behind.
 12. **Ports only when they make sense** — A port is a boundary, not a badge. Add one only when it earns its place (see [Port Taxonomy](./ports.md#port-taxonomy-when-to-add-a-port)); pure logic, pure transforms, and adapter-private concerns stay out.
+13. **Fail Fast** — When a system encounters an invalid state, missing dependency, or unrecoverable error, halt immediately and report. Never swallow, never silently degrade, never continue execution in a corrupt state. In dev, fail fast to surface wiring and logic bugs instantly. In prod, fail safe (resilience) but never fail silent.
 
 **The split:** Domain = what the app does (architecture). Adapters = how it connects (implementation).
 
@@ -285,6 +286,12 @@ These refine the [Core Principles](#core-principles) with concrete, checkable ru
 25. **Fail Safe in Prod** — Ship behind `FeatureFlagPort`, canary the roll-out, and bound the blast radius with timeouts, circuit breakers, and automatic rollback.
 26. **Gateway Ports for External Services** — Wrap each external system behind a `*Gateway` port that exposes domain capabilities only. The networking protocol lives in the adapter's frozen config, never in the port signature; swap transports per environment without touching the domain or workflows.
 27. **Ports Only When They Make Sense** — Add a port only when the [Port Taxonomy](./ports.md#port-taxonomy-when-to-add-a-port) test fires (real external dependency, substitution/test need, ≥2 implementations, or required determinism). Never create a port for pure logic, a pure transform, or an adapter-private concern.
+28. **Fail Fast at Every Boundary** — Invalid state must never propagate. Domain workflows validate inputs as their first action. The composition root validates all adapters before starting the driving adapter. Adapters translate vendor errors to `AppError` at the boundary — never return `None`-on-failure, raw SDK errors, or bare strings. Retry only transient errors; non-transient failures (validation, auth, not-found) fail immediately. In dev/test, observability failures panic. In prod, they fall back to stderr. Event consumers have a maximum retry count per message — after exhausting retries, move to a dead letter queue and alert.
+29. **File Placement** — A project has exactly four root directories (`domain/`, `infra/`, `adapters/`, `tests/`) plus root-level entry points. Every new file goes into one of these. No fifth root directory, ever. The decision tree: Is it an entry point? → root file. Is it a port/interface? → `domain/ports/`. Is it a model? → `domain/models/`. Is it workflow orchestration? → `domain/workflows/`. Is it an error type? → `domain/errors/`. Is it a portable adapter implementing a port? → `adapters/<backend>/`. Is it a decorator wrapping a port? → `adapters/decorators/`. Is it config or infra-as-code? → `infra/`. Is it a test? → `tests/`. If it doesn't fit, it's not a new file — it belongs inside an existing one. See [File Placement](./structures.md#where-does-a-new-file-go).
+30. **Domain, Port, or Adapter** — Every piece of code is one of three things. Domain = pure business logic, no side effects, imports nothing outside itself. Port = an interface (Protocol/ABC/Trait) the domain defines to declare what it needs (e.g., "I need a logger"). Adapter = an implementation of a port that talks to the outside world (e.g., GCloudLogger, JsonLogger — both implement LoggerPort). The domain never knows which adapter it's using; the composition root wires the right one. If it has side effects, it's an adapter. If it's an interface the domain defines, it's a port. If it's pure logic with no external dependency, it's domain. See [Domain, Port, or Adapter?](./structures.md#domain-port-or-adapter).
+31. **Transferable Ports and Adapters** — Every port and adapter must be copy-pasteable into another project unmodified. Ports contain no app-specific types — only domain primitives and standard port vocabulary. Adapters depend only on standard ports + their driver — never on app models, sibling adapters, or project-specific code. Before adding a port or adapter from a collection, verify it compiles and passes its contract test in the target project with zero changes.
+32. **Two Kinds of Functions** — Every function in the system is one of two kinds. Pure functions: same input → same output, no side effects, no port calls — trivial to test by calling and checking. Pure orchestrators: coordinate pure functions and port calls, no business logic inline — testable by faking ports. If a function does both (logic + side effects), split it. If a function is too large, extract the logic into pure functions and keep the orchestration thin. This prevents god functions and keeps every function testable at the lowest tier. See [Pure Functions and Pure Orchestrators](./structures.md#pure-functions-and-pure-orchestrators).
+33. **Workflows Are the App; Entry Points Are the Wiring** — A workflow is a domain operation that orchestrates pure functions and ports to achieve a business goal (authenticate user, create document, process payment). It lives in `domain/workflows/`, takes ports as arguments, and contains zero imports from adapters or infra. An entry point is a root-level file (main.py, cli.py, api.py) that reads config, creates adapters, wires them to ports, and starts the driving adapter. Workflows define what the app does. Entry points define how it starts. Never put business logic in an entry point. Never wire adapters in a workflow. See [Workflows vs Entry Points](./structures.md#workflows-vs-entry-points).
 
 ## 12FA Compliance
 
@@ -389,6 +396,7 @@ Building a new feature?
 ├─ Add TimePort for any process that needs duration tracking
 ├─ Use single files for modules with < 3 files (errors.py, not errors/__init__.py)
 ├─ Add capabilities as files under domain/, infra/, adapters/, tests/ — never a new root folder
+│  └─ Use the [File Placement](./structures.md#where-does-a-new-file-go) decision tree
 ├─ Implement Workflows as pure functions (same input → same output)
 ├─ Create infra/ modules for cross-cutting concerns
 ├─ Provisioning resources? Declare them as IaC under infra/; otherwise keep infra/ config-only
@@ -409,6 +417,11 @@ Building a new feature?
 ├─ Add mutation testing for domain/ and gate on a mutation-score threshold
 ├─ Model-check / bounded-verify the critical core (TLA+, Kani, CBMC, Dafny)
 ├─ Put risky behavior behind a FeatureFlagPort; plan canary + rollback
+├─ Validate all adapters at startup — crash immediately if any fail
+├─ Domain workflows validate inputs as their first action — no invalid state propagates
+├─ Retry only transient errors; non-transient failures fail fast
+├─ Event consumers have max retry count — poison pills go to dead letter queue
+├─ In dev/test, observability failures panic; in prod, fall back to stderr
 ├─ Run just verify (lint, typecheck, adapters-check, errors-check, all test tiers)
 
 Multiple languages?

@@ -115,6 +115,20 @@ except DriverError as e:
     ) from e
 ```
 
+#### Optional Returns vs Errors: When `None` Is Acceptable
+
+The rule "never return `None`-on-failure" has a nuance: `None` is legitimate for **"not found" semantics** — the operation succeeded, but the entity doesn't exist. `None` is the anti-pattern when used as a substitute for error reporting.
+
+| Scenario | Return `None`? | Reason |
+|----------|----------------|--------|
+| `find_by_id("missing-id")` | **Yes** | Entity doesn't exist — `None` is the correct answer |
+| `find_by_id("valid-id")` but DB is down | **No** | Operation failed — raise `AppError`, don't return `None` |
+| `get_user("unknown-email")` for lookup | **Yes** | Lookup semantics — `None` means "not found" |
+| `get_user("unknown-email")` for auth | **No** | Auth failure — raise `AuthorizationError`, don't return `None` |
+| `save(entity)` fails due to constraint violation | **No** | Operation failed — raise `ConflictError`, don't return `None` |
+
+**Rule:** If the operation *should* have succeeded but didn't (infrastructure error, constraint violation, timeout), raise an `AppError`. Return `None` only when "nothing found" is the expected, valid outcome of a lookup.
+
 ## Test Directory Structure
 
 **Small projects:**
@@ -256,6 +270,8 @@ replay id:
 ```
 
 **Definition of done for a change:** it has a test at the lowest tier that can catch its failure, a regression test for any bug fixed, no new untriaged `code`, and `just verify` is green. 100% certainty is impossible — the goal is that every defect is either prevented by a gate or pinpointed by a diagnostic.
+
+**Contract test deployment gate:** An adapter is not production-ready until its port's contract test suite passes — no exceptions. A copied-in adapter from a collection must pass the contract suite in the target project before it is accepted. If a contract test fails, the adapter is broken, not the test. Fix the adapter, not the test or the gate.
 
 ## Property-Based Testing
 

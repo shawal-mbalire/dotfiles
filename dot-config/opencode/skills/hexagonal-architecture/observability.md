@@ -29,6 +29,23 @@ class TracerPort(Protocol):
 - Buffers are bounded with **drop-oldest**; expose a `dropped_records` counter so loss is visible.
 - If the prod observability backend is down, the app keeps serving.
 
+### Dev vs Prod Fail-Fast Posture
+
+Fail-fast behavior must adapt to the environment. In dev, surface every problem immediately. In prod, prioritize availability.
+
+| Concern | Dev | Prod | Rationale |
+|---------|-----|------|-----------|
+| **Observability failure** | Panic (crash) | Swallow + stderr fallback | Dev: wiring bugs must surface immediately. Prod: logging must never take down the serving path |
+| **Adapter health check** | Fail startup | Fail startup | Both environments: an unreachable dependency at startup is always fatal |
+| **Config validation** | Fail startup | Fail startup | Both: invalid config means the process cannot operate correctly |
+| **Port contract violation** | Panic (assert/check at startup) | Fail startup | Dev: catch type mismatches fast. Prod: catch them at deploy time |
+| **Missing adapter (unwired port)** | Panic (None/TypeError) | Fail startup | Both: a missing adapter is never acceptable at runtime |
+| **Event consumer poison pill** | Log + DLQ + alert | Log + DLQ + alert | Both: infinite retry wastes resources; silent drop loses data |
+| **Rate limiting** | Ignore (no limit) | Enforce + 429 | Dev: no artificial constraints. Prod: protect the system |
+| **Circuit breaker tripped** | Log warning | Degrade gracefully + alert | Dev: surface the issue. Prod: serve partial results if possible |
+
+**Rule:** In dev/test, observability failures should panic to surface wiring and configuration issues instantly. In prod, observability failures fall back to `stderr` — resilience takes priority, but the loss must be visible via a `dropped_records` counter.
+
 ### Redaction and Privacy
 
 - Redact or allowlist fields in the logger adapter **before** persisting; never log secrets, tokens, passwords, or full PII.

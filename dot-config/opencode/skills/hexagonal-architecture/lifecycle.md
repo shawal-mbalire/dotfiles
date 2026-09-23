@@ -9,9 +9,58 @@ Adapters own startup/shutdown. Domain never touches lifecycle.
 ```
 1. Read config from environment
 2. Create adapters (open connections, allocate resources, validate config)
-3. Wire adapters into domain via ports
-4. Start driving adapter (listen on port, begin polling, register handlers)
+3. Validate all adapters — probe connections, check config, confirm readiness
+4. Wire adapters into domain via ports
+5. Start driving adapter (listen on port, begin polling, register handlers)
 ```
+
+**Fail-fast startup validation:** Before the driving adapter starts accepting requests, the composition root must validate that every adapter is operational. A missing database, an invalid API key, or a broken connection is a startup crash — not a runtime surprise. The process must exit immediately with a clear `AppError` identifying which adapter failed and why.
+
+```python
+# main.py — composition root with startup validation
+import sys
+from domain.errors import StartupError
+
+def main():
+    config = load_config()
+
+    # Create adapters
+    repo = create_document_repository(config)
+    logger = create_logger(config)
+    gateway = create_payment_gateway(config)
+
+    # Validate all adapters before starting
+    errors = []
+    if not repo.health_check():
+        errors.append(StartupError(
+            code="STARTUP-001",
+            message="Document repository unreachable",
+            context={"adapter": "postgres", "operation": "health_check"},
+        ))
+    if not gateway.health_check():
+        errors.append(StartupError(
+            code="STARTUP-002",
+            message="Payment gateway unreachable",
+            context={"adapter": "stripe", "operation": "health_check"},
+        ))
+
+    if errors:
+        # Fail fast — crash immediately with diagnostic info
+        for err in errors:
+            logger.error(err.message, code=err.code, context=err.context)
+        sys.exit(1)
+
+    # All adapters validated — safe to start
+    wire_adapters(repo, logger, gateway)
+    start_driving_adapter()
+```
+
+**When startup validation fails:**
+
+1. Log every failing adapter with its `code`, `context`, and `cause`
+2. Exit with a distinct code (e.g., `1` for startup failure)
+3. Do not start the driving adapter — no requests should reach unvalidated adapters
+4. In containerized environments, let the orchestrator (Docker, Kubernetes) restart the process
 
 **Shutdown (adapter cleanup):**
 

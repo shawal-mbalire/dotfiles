@@ -251,3 +251,58 @@ def make_document_repository(connection, config, time, metrics) -> Repository[Do
 ```
 
 **Anti-patterns:** Putting retry/caching logic inside the base adapter (violates single responsibility), using decorators for concerns that belong in the domain (business rules), stacking too many decorators (performance overhead).
+
+#### Retry Anti-Pattern: When NOT to Retry
+
+Retry is for **transient, infrastructure-level failures** only. Retrying non-transient errors delays the inevitable, wastes resources, and hides the real problem from the caller.
+
+**Retryable vs non-retryable errors:**
+
+| Error Class | Retryable? | Reason |
+|-------------|------------|--------|
+| `StorageUnavailableError(retryable=True)` | Yes | Backend temporarily down, connection pool exhausted |
+| `GatewayTimeoutError` | Yes | Network blip, server overload |
+| `RateLimitedError` | Yes (with backoff) | Temporary rate limit, will lift |
+| `ConnectionRefusedError` | Yes | Server not ready yet |
+| `ValidationError` | **No** | Client sent bad data — retrying won't fix it |
+| `NotFoundError` | **No** | Entity doesn't exist — retrying won't create it |
+| `AuthorizationError` | **No** | Credentials are wrong — retrying won't fix them |
+| `ConflictError` | **No** | Optimistic lock conflict — retry the whole operation, not the same call |
+| `AppError(retryable=False)` | **No** | Business rule violation — caller must fix input |
+
+**Rule:** The `retryable` field on `AppError` is the contract. If `retryable=False`, the retry decorator must propagate immediately. Never retry errors that represent invalid input, missing resources, or authorization failures.
+
+#### Event Consumer Fail Fast
+
+Event consumers must handle poison pills (messages that always fail processing) without infinite retries or silent drops.
+
+**Rules:**
+- Each message gets a **maximum retry count** (e.g., 3 attempts)
+- After exhausting retries, move the message to a **dead letter queue (DLQ)** and alert
+- Never silently drop messages — a dropped message is a silent data loss
+- Log every retry attempt with the failure reason and attempt number
+- Track DLQ depth as a metric — a growing DLQ means a systemic problem
+
+```python
+# adapters/event_consumer.py
+class EventConsumer:
+    def __init__(self, bus: EventConsumerPort, handler: EventHandler,
+                 max_retries: int = 3, dlq: DeadLetterPort = None):
+        self._bus = bus
+        self._handler = handler
+        self._max_retries = max_retries
+        self._dlq = dlq
+
+    def _process_with_fail_fast(self, message: EventMessage):
+        for attempt in range(self._max_retries):
+            try:
+                self._handler.handle(message)
+                return
+            except Exception as e:
+                if attempt == self._max_retries - 1:
+                    # Fail fast: move to DLQ, don't retry further
+                    if self._dlq:
+                        self._dlq.send(message, reason=str(e))
+                    raise  # Re-raise so the bus can ack/nack
+                time.sleep(2 ** attempt * 0.1)
+```
