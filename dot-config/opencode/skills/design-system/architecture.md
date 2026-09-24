@@ -103,6 +103,44 @@ export class CounterComponent {
 | Cross-component state | `signal()` in shared service |
 | Event streams | `Observable` / `Subject` |
 
+## React Component Architecture
+
+Supported target — full rules in [frameworks/react.md](./frameworks/react.md). Summary:
+
+- **Function components only** (React 19 baseline); hooks for state — no class components.
+- **State**: `useState` / `useReducer` locally; lift shared state to context; no external state library by default.
+- **Derived state**: `useMemo` only when re-render cost is measured; prefer plain computation in render.
+- **Styling**: CSS Modules (or SCSS) co-located with the component; tokens via `var(--token)`; no inline hardcoded values.
+- **Ports**: consume via `usePorts()` from `PortsProvider` — never import concrete adapters in components.
+- **File pattern**:
+
+```
+components/button/
+├── Button.tsx                # Function component + typed props
+├── Button.module.css         # Co-located styles (tokens via var())
+└── Button.test.tsx           # Unit tests (optional)
+```
+
+```tsx
+// components/button/Button.tsx — see components.md for full exemplar
+export function Button({ variant = 'primary', loading, disabled, onButtonClick, children }: ButtonProps) {
+  const inactive = disabled || loading;
+  return (
+    <button
+      type="button"
+      className={[styles.btn, styles[`btn--${variant}`], loading ? styles['btn--loading'] : ''].join(' ')}
+      disabled={inactive}
+      aria-disabled={inactive || undefined}
+      aria-busy={loading || undefined}
+      onClick={(e) => { if (!inactive) onButtonClick?.(e); }}
+    >
+      {loading && <span className="spinner spinner--sm" aria-hidden="true" />}
+      {children}
+    </button>
+  );
+}
+```
+
 ## OOCSS Naming Convention
 
 Follow Object-Oriented CSS naming:

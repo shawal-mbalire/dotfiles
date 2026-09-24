@@ -2,6 +2,8 @@
 
 Canonical registry for keyframes, utility classes, `AnimationPort`/`AnimationService`, declarative Angular triggers, and composition recipes. All animation keyframes and classes used in the design system must come from this file.
 
+**Framework-neutral**: keyframes and `.anim-*` / state classes (`.is-lifted`, `.is-pressed`, `.is-entering`, `.is-exiting`) are plain CSS — identical for Angular, React, and web. Angular `@angular/animations` triggers and `AnimationService` are optional Angular conveniences; React toggles the same classes (enter/leave via `is-entering`/`is-exiting` + `onAnimationEnd`) with no animation library. Haptics are not part of this registry — see [haptics.md](./haptics.md).
+
 ## Keyframe Registry
 
 All keyframes are defined once. Reference by name — never redefine.

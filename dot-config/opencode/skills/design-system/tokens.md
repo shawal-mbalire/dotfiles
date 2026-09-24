@@ -276,6 +276,8 @@ Fixed component dimensions (not spacing):
 | --duration-spinner | 1000ms | Spinner rotation cycle |
 | --duration-loading | 1500ms | Skeleton shimmer cycle |
 
+**Haptic events are behavior tokens, not CSS tokens** — they cannot be expressed as CSS custom properties. Named registry (`tap`, `select`, `retry-ack`, `success`, `warning`, `error`) lives in [haptics.md](./haptics.md) and tokens.json `haptic` group; call sites use names only, never raw vibration patterns.
+
 **Easing Functions:**
 
 | Token | Value | Use Case |

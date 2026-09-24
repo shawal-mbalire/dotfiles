@@ -7,10 +7,11 @@ Flutter is a first-class target for this design system. Domain rules (tokens, Sh
 | Signals in project | Target |
 |--------------------|--------|
 | `angular.json` | Angular |
+| `package.json` with `react` dependency | React |
 | `pubspec.yaml` | Flutter |
-| Both or neither | Ask the user once; do not guess |
+| Multiple or none | Ask the user once; do not guess |
 
-When ambiguous, ask: "Should I generate Angular or Flutter code for this?"
+When ambiguous, ask: "Should I generate Angular, React, or Flutter code for this?"
 
 ## Token Mapping
 
@@ -113,11 +114,52 @@ Use `MediaQuery.disableAnimationsOf(context)` (or `TickerMode`) for reduced-moti
 - Breakpoints mirror `--bp-*`: 576 / 768 / 992 / 1200 / 1400.
 - `LayoutBuilder` + breakpoint helpers (equivalent of CDK BreakpointObserver).
 
+## Haptics
+
+Map semantic events from [haptics.md](../haptics.md) via `HapticPort` — never call `HapticFeedback` directly in widgets.
+
+```dart
+// adapters/haptics/flutter_haptic_adapter.dart
+import 'package:flutter/services.dart';
+import '../../domain/haptics/haptic_port.dart'; // HapticEvent + HapticPort (pure Dart)
+
+class FlutterHapticAdapter implements HapticPort {
+  bool _enabled = true;
+
+  @override
+  Future<void> play(HapticEvent event) async {
+    if (!_enabled) return;
+    switch (event) {
+      case HapticEvent.tap:
+      case HapticEvent.retryAck:
+        await HapticFeedback.lightImpact();
+      case HapticEvent.select:
+        await HapticFeedback.selectionClick();
+      case HapticEvent.success:
+      case HapticEvent.warning:
+        await HapticFeedback.notificationImpact();
+      case HapticEvent.error:
+        await HapticFeedback.errorImpact();
+    }
+  }
+
+  @override
+  bool isEnabled() => _enabled;
+
+  @override
+  void setEnabled(bool enabled) => _enabled = enabled;
+}
+```
+
+- Fire `retryAck` on every retry press; `success` only when the attempt settles OK (see Retry Contract in [loading.md](../loading.md)).
+- Respect platform haptic settings; when disabled, visual feedback already covers the action.
+- Wire the adapter wherever other ports are provided (composition root).
+
 ## Loading States
 
 - Skeleton: `Shimmer` package or custom gradient animation with `AppDurations.loading`.
 - Progress: `LinearProgressIndicator` / `CircularProgressIndicator` with token colors.
-- Pattern and a11y rules from [loading.md](../loading.md) apply unchanged.
+- Pattern and a11y rules from [loading.md](../loading.md) apply unchanged, including the **Retry Contract** (ack every press, attempt counter, no silent backoff).
 
 ## Verification Checklist (Flutter)
 
@@ -129,3 +171,4 @@ Use `MediaQuery.disableAnimationsOf(context)` (or `TickerMode`) for reduced-moti
 - [ ] Logical geometry only (`EdgeInsetsDirectional`, `AlignmentDirectional`)
 - [ ] Lucide icons only; no emoji
 - [ ] Shape Spec matches decision-rules output
+- [ ] Haptics via `HapticPort` registry events only; paired with visual feedback

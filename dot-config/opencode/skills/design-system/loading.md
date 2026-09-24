@@ -148,9 +148,11 @@ Spinner or infinite progress bar. Use for unknown durations.
 .dot-loading span:nth-child(3) { animation-delay: 0s; }
 ```
 
-## Optimistic UI (Angular)
+## Optimistic UI
 
-Use Angular signals and services for optimistic updates:
+Use framework builtins for optimistic updates. Angular example first; React 19 equivalent below.
+
+### Angular (signals + HttpClient)
 
 ```typescript
 import { Injectable, signal } from '@angular/core';
@@ -195,7 +197,7 @@ export class OptimisticUIService {
 }
 ```
 
-### Usage in Component
+### Angular Usage in Component
 
 ```typescript
 import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
@@ -238,6 +240,57 @@ export class TodoItemComponent {
       )
     );
   }
+}
+```
+
+### React 19 (useOptimistic)
+
+Zero external deps — React 19 builtins only. Rollback **must** surface an error (Retry Contract rule 6).
+
+```tsx
+import { useOptimistic, useTransition, useState, type FormEvent } from 'react';
+
+export function TodoItem({ todo }: { todo: { id: number; title: string } }) {
+  const [current, setCurrent] = useState(todo);
+  const [error, setError] = useState<string | null>(null);
+  const [optimisticTitle, setOptimisticTitle] = useOptimistic(current.title);
+  const [pending, startTransition] = useTransition();
+
+  function updateTitle(title: string) {
+    if (title === current.title) return;
+    setError(null);
+    startTransition(async () => {
+      setOptimisticTitle(title);
+      try {
+        const res = await fetch(`/api/todos/${current.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title }),
+        });
+        if (!res.ok) throw new Error('Save failed');
+        const result = await res.json();
+        setCurrent(result);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Save failed'); // visible — no silent rollback
+      }
+    });
+  }
+
+  return (
+    <div className={pending ? 'is-pending' : undefined}>
+      <input
+        defaultValue={current.title}
+        disabled={pending}
+        aria-busy={pending || undefined}
+        onBlur={(e: FormEvent<HTMLInputElement>) => updateTitle(e.currentTarget.value)}
+      />
+      {error && (
+        <span role="alert" className="input-error-message">
+          {error}
+        </span>
+      )}
+    </div>
+  );
 }
 ```
 
@@ -411,6 +464,50 @@ export class TodoItemComponent {
 - Offer undo for destructive actions
 - Allow retry for failed operations
 - Clear errors when user starts correcting
+
+## Retry Contract
+
+**Every retry is a user action and must produce feedback** (Core Principle 18: Action Acknowledgement). Applies to all targets (Angular, React, Flutter). This contract is **visual/AT only** — haptics are a separate optional channel ([haptics.md](./haptics.md)) that may fire alongside but are never part of contract compliance.
+
+### Lifecycle
+
+```
+press → dispatch ack (visual press state)
+      → loading (spinner in control, aria-busy="true", control disabled for double-submit guard)
+      → settled:
+           success → success feedback (toast/inline)
+           failure → error surface + attempt counter; control re-enabled for next retry
+```
+
+Rules:
+
+1. **Re-ack every attempt** — each retry press fires the dispatch ack again (visual press state). Never suppress acks after the first failure.
+2. **Attempt feedback** — show "Retrying… (attempt N of M)" or equivalent while pending when the operation has a known/max attempt count.
+3. **Backoff is never silent** — while waiting before an automatic retry: control is disabled **with visible countdown text** ("Retry available in 4s"), or the retry stays manual-only. No invisible waiting states.
+4. **Double-submit guard** — the retry control is `disabled` (and `aria-busy="true"` while in-flight) until the attempt settles.
+5. **First fail vs re-fail** — both surface the same error affordance; only the attempt counter increments. Do not escalate visuals on each failure unless the error class changed.
+6. **Rollback surfaces errors** — optimistic UI rollback must emit visible error feedback (inline or toast); a silent rollback violates the contract.
+7. **Announce outcomes** — `role="alert"` / `aria-live` on failure; polite live region for "Retrying…" updates.
+8. **Bounded waits** — every wait terminates in `success | error | timeout` (never hangs); operations that can exceed 1s get progress + cancel treatment per the response-time budgets in [reactions.md](./reactions.md).
+
+### Retry Control Sketch
+
+```html
+<button
+  class="button"
+  [attr.aria-busy]="retrying() || null"
+  [disabled]="retrying() || backoffRemaining() > 0"
+  (click)="onRetry()">
+  @if (backoffRemaining() > 0) {
+    <span>Retry in {{ backoffRemaining() }}s</span>
+  } @else if (retrying()) {
+    <span class="spinner spinner--sm" aria-hidden="true"></span>
+    <span>Retrying… (attempt {{ attempt() }} of {{ maxAttempts() }})</span>
+  } @else {
+    <span>Retry</span>
+  }
+</button>
+```
 
 ### Angular Reactive Forms Validation
 

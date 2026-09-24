@@ -197,6 +197,8 @@ Shape Spec:
 
 ### Button (Control, No Well, Lift on Press, No Bloom, No Exit)
 
+Retry controls are the same Shape Spec as buttons (`surface-type: control`, `exit: none`); the retry lifecycle (ack → loading → outcome) lives in [loading.md](./loading.md).
+
 ```
 Shape Spec:
   pattern: 4

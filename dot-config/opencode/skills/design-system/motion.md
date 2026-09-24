@@ -1,6 +1,6 @@
 # Motion Design
 
-Motion principles and transition guidance for the design system. The canonical animation registry — keyframes, utility classes, `AnimationService`, declarative triggers, and composition recipes — lives in [animations-library.md](./animations-library.md).
+Motion principles and transition guidance for the design system. The canonical animation registry — keyframes, utility classes, `AnimationService`, declarative triggers, and composition recipes — lives in [animations-library.md](./animations-library.md). Haptic feedback is not part of motion tokens — see [haptics.md](./haptics.md).
 
 ## When to Use Which
 

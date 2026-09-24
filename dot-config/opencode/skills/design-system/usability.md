@@ -12,6 +12,8 @@ The following principles are based on Jakob Nielsen's 10 Usability Heuristics (1
 | Success feedback | Toast notifications, inline confirmations |
 | Error feedback | Inline errors, error states on components |
 | Processing state | Disabled buttons with loading spinner |
+| Retry feedback | Attempt counter ("attempt 2 of 3"), re-ack on every retry press, backoff wait = disabled + countdown (never silent) |
+| Action acknowledgement | Press state at dispatch, before async settles (visual/AT only — haptics are a separate optional channel, see haptics.md) |
 
 ## 2. Match Between System and Real World
 
@@ -114,7 +116,9 @@ The following principles are based on Jakob Nielsen's 10 Usability Heuristics (1
 
 ## Usability Checklist
 
-- [ ] System status visible (loading, success, error)
+- [ ] System status visible (loading, success, error, retrying)
+- [ ] Reaction weight matches action significance; interruption escalates one level at a time ([reactions.md](./reactions.md))
+- [ ] Identical actions produce identical reactions across the product
 - [ ] Language matches user expectations
 - [ ] User can undo/redo actions
 - [ ] Consistent behavior across components

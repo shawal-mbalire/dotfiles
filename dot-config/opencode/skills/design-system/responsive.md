@@ -24,6 +24,8 @@ Start with desktop layout and adapt downward:
 
 In Angular, use `@angular/cdk/layout` for responsive logic instead of `window.matchMedia`:
 
+In React, use a local `useMediaQuery` hook wrapping `window.matchMedia` (with cleanup) — no responsive package — see [frameworks/react.md](./frameworks/react.md). Prefer CSS container queries for component-level responsiveness in all targets.
+
 ```typescript
 import { Component, inject, signal, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';

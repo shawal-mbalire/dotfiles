@@ -1,6 +1,6 @@
 # Component Contracts
 
-Components are documented as contracts specifying required elements, tokens, variants, and interactions. **Angular** is the preferred implementation framework.
+Components are documented as contracts specifying required elements, tokens, variants, and interactions. **Angular** is the preferred implementation framework; **React** is a supported target (see [frameworks/react.md](./frameworks/react.md) — function-component translations of these contracts, key exemplars below). Framework-specific implementation blocks are labeled; contracts (elements, tokens, states, interactions) apply to every target.
 
 ## Angular Component Pattern
 
@@ -120,6 +120,8 @@ All components must establish visual hierarchy through:
 | **Active** | 80% | Pressed state feedback |
 | **Disabled** | 50% | Inactive elements |
 | **Loading** | 70% | Processing state |
+| **Retrying** | 70% | Retry in flight (same as loading; see Retry Contract) |
+| **Failed** | 100% | Settled failure — error affordance visible, not dimmed |
 
 ---
 
@@ -236,10 +238,12 @@ export class CardComponent {
 ### States
 - Default: resting state
 - Hover: color shift
-- Active: pressed state
+- Active: pressed state (dispatch ack — visual only; haptics are a separate optional channel, see haptics.md)
 - Focus: visible outline
 - Disabled: reduced opacity
-- Loading: spinner replaces label
+- Loading: spinner replaces label, `aria-busy="true"`, disabled (double-submit guard)
+- Retrying: same as loading + attempt text ("Retrying… (attempt N of M)"); see Retry Contract in [loading.md](./loading.md)
+- Failed: settled error — control re-enabled for next retry; error surfaced inline or via toast
 
 ### Accessibility
 - Must have visible focus indicator
@@ -293,6 +297,61 @@ export class ButtonComponent {
   }
 }
 ```
+
+#### React Implementation (exemplar)
+
+Function component, zero extra deps. Dispatch ack at press (visual) before async; loading/retry states per the Retry Contract. Haptics stay out of this component — they are a separate optional channel wired at call sites per [haptics.md](./haptics.md).
+
+```tsx
+import { type MouseEvent, type ReactNode } from 'react';
+import styles from './Button.module.css';
+
+export interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  disabled?: boolean;
+  loading?: boolean;
+  onButtonClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  children: ReactNode;
+}
+
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  disabled = false,
+  loading = false,
+  onButtonClick,
+  children,
+}: ButtonProps) {
+  const inactive = disabled || loading;
+
+  return (
+    <button
+      type="button"
+      className={[
+        styles.btn,
+        styles[`btn--${variant}`],
+        styles[`btn--${size}`],
+        loading ? styles['btn--loading'] : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      disabled={inactive}
+      aria-disabled={inactive || undefined}
+      aria-busy={loading || undefined}
+      onClick={(event) => {
+        if (inactive) return;
+        onButtonClick?.(event); // caller owns async; :active CSS = dispatch ack
+      }}
+    >
+      {loading && <span className="spinner spinner--sm" aria-hidden="true" />}
+      {children}
+    </button>
+  );
+}
+```
+
+Retry wiring (both frameworks): visual press ack on each attempt, `loading`/`aria-busy` while in flight, attempt counter + error surface on settle — full contract in [loading.md](./loading.md).
 
 ---
 
@@ -692,6 +751,29 @@ export class ModalComponent implements AfterViewInit {
 - Announce content to screen readers via `aria-live`
 - Provide close button with `aria-label="Dismiss"`
 - Do not auto-dismiss error toasts
+- Error toasts offering **Retry** must wire the Retry Contract (visual/AT): pressing Retry re-acks (press state), swaps the action into loading/`aria-busy`, and settles to success (remove toast) or a new failure (increment attempt, `role="alert"`). Haptics, if enabled, overlay separately per [haptics.md](./haptics.md).
+
+### Retry Action Pattern (error toast)
+
+```html
+<div class="toast toast--error" role="alert">
+  <span>Couldn’t save your changes.</span>
+  <span class="toast__meta" aria-live="polite">Attempt {{ attempt }} of {{ maxAttempts }}</span>
+  <button
+    class="button button--secondary button--sm"
+    [attr.aria-busy]="retrying() || null"
+    [disabled]="retrying()"
+    (click)="onRetry()">
+    @if (retrying()) {
+      <span class="spinner spinner--sm" aria-hidden="true"></span>
+      Retrying…
+    } @else {
+      Retry
+    }
+  </button>
+  <button class="toast__close" aria-label="Dismiss notification">×</button>
+</div>
+```
 
 ### Angular Implementation
 

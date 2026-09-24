@@ -16,7 +16,7 @@ ThemePort:
 - Provide an interactive control (e.g., `<select>` or radio group) that updates this DOM attribute.
 - Save theme preference to localStorage for persistence across sessions.
 - Apply theme transitions smoothly: `transition: background-color var(--duration-slow) var(--easing-default), color var(--duration-slow) var(--easing-default);`
-- In Angular, use an `@Injectable` ThemeService with signals for reactive theme state.
+- In Angular, use an `@Injectable` ThemeService with signals for reactive theme state. In React, use a `ThemeContext` provider exposing the theme name only (colors stay in CSS variables) — see [frameworks/react.md](./frameworks/react.md).
 
 ## High Contrast Mode
 

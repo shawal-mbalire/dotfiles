@@ -185,6 +185,17 @@ Every interactive element must define all required states.
 | `has-transition` | WARNING | Interactive elements should have `transition` for state changes |
 | `no-transition-all` | WARNING | Avoid `transition: all` — specify individual properties for performance and predictability |
 | `no-wholesale-opacity-hover` | WARNING | No blanket `opacity` changes on `:hover` for text-bearing components — use color/background/shadow tokens instead (disabled `opacity` is allowed) |
+| `async-action-has-loading` | ERROR | Controls that trigger async work (submit, save, retry) must define a loading/disabled state (`aria-busy` while in-flight) per the Retry Contract in loading.md |
+| `retry-has-feedback` | WARNING | Retry affordances must surface pending state and attempt feedback (never silent backoff or bare disabled) |
+
+### 6a. Haptics
+
+Haptics are a **separate optional channel** from visual/AT action feedback — these rules govern haptic call sites only; compliance with the action-feedback contract never depends on them.
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `haptics-from-registry` | WARNING | Haptic calls must use named `HapticEvent` values from haptics.md (`tap`, `select`, `retry-ack`, `success`, `warning`, `error`) — no raw vibration patterns or platform impact constants outside adapters |
+| `no-haptic-as-sole-feedback` | WARNING | Every haptic call site must sit alongside visual (and where applicable AT) feedback in the same handler — haptics never replace the action-feedback contract |
 
 ### 6b. Motion Library & Shape Spec
 
@@ -219,6 +230,8 @@ Decision rules from [decision-rules.md](./decision-rules.md) are enforced here.
 | `angular-onpush` | ERROR | All Angular components must use `ChangeDetectionStrategy.OnPush` |
 | `angular-signal-inputs` | WARNING | Prefer signal-based `input()` and `output()` over `@Input()`/`@Output()` decorators |
 
+**Scoping**: `angular-*` rules apply only to Angular components (`@Component` files). React targets use function components under the dependency budget in [frameworks/react.md](./frameworks/react.md) (no dedicated React structure rules beyond shared rules above; `react-minimal-deps` is a review checklist item, not an automated rule).
+
 ### 9. CSS Architecture
 
 | Rule | Severity | Description |
@@ -227,6 +240,18 @@ Decision rules from [decision-rules.md](./decision-rules.md) are enforced here.
 | `no-id-selectors` | ERROR | Never use ID selectors for styling |
 | `max-nesting-depth` | WARNING | CSS nesting depth must not exceed 3 levels |
 | `contain-layout` | INFO | Components with animations should use `contain: layout style` |
+
+### 10. Reaction Design (review-level)
+
+Timing, weight, and interruption rules from [reactions.md](./reactions.md) are judgment checks — review them; most are not automatable.
+
+| Check | Severity | Description |
+|-------|----------|-------------|
+| `reaction-within-budget` | WARNING (review) | Dispatch ack ≤100ms; settled feedback ≤1s; long ops show progress/cancel and terminate `success\|error\|timeout` |
+| `reaction-weight-match` | WARNING (review) | No modal for non-blocking feedback; no transient toast as the only surface for blocking failure; success never blocks |
+| `no-silent-wait` | ERROR | Waits/backoff/timeouts must be visible (spinner, countdown, progress) — aligns with Retry Contract |
+| `prefer-undo-over-confirm` | WARNING (review) | Confirmation dialogs only for irreversible/high-cost actions; reversible actions offer undo |
+| `same-action-same-reaction` | WARNING (review) | Identical triggers produce identical reaction skeletons across the product |
 
 ## Configuration
 
@@ -256,6 +281,10 @@ Decision rules from [decision-rules.md](./decision-rules.md) are enforced here.
     "@design/animation-from-library": "warn",
     "@design/morph-uses-library-tokens": "warn",
     "@design/pattern-4-peel-exit": "warn",
+    "@design/async-action-has-loading": "error",
+    "@design/retry-has-feedback": "warn",
+    "@design/haptics-from-registry": "warn",
+    "@design/no-haptic-as-sole-feedback": "warn",
     "@design/no-divitis": "warn",
     "@design/semantic-html": "warn",
     "@design/no-important": "error"
@@ -292,6 +321,7 @@ Before merging any UI code:
 - [ ] Icon-only elements have `aria-label`
 - [ ] Logical properties used (no physical direction properties)
 - [ ] All interactive states defined (hover, focus-visible, disabled)
+- [ ] Async/retry controls have loading state + attempt feedback (`async-action-has-loading`, `retry-has-feedback`)
 - [ ] Focus indicators visible (2px outline)
 - [ ] Error states have `role="alert"` or `aria-live`
 - [ ] Angular components are standalone with OnPush
@@ -305,3 +335,6 @@ Before merging any UI code:
 - [ ] Pattern 4: outer + inner radius tokens paired; morph uses `--duration-morph`/`--easing-morph`
 - [ ] All animations from the animations library; motion values tokenized
 - [ ] Reduced-motion guard present for animated components
+- [ ] Haptics (if any) use registry events only and never stand alone as feedback (`haptics-from-registry`, `no-haptic-as-sole-feedback`)
+- [ ] Reactions within time budgets; weight matches action; no silent waits; undo preferred over confirm for reversible acts (`reaction-within-budget`, `reaction-weight-match`, `no-silent-wait`, `prefer-undo-over-confirm`, `same-action-same-reaction` — see reactions.md)
+- [ ] React targets (if any): dependency budget held — `react`, `react-dom`, `lucide-react` only (per frameworks/react.md)

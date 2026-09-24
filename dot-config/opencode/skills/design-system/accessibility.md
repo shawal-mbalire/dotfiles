@@ -56,7 +56,18 @@ this.focusTrap.focusInitialElementWhenReady();
 <div cdkTrapFocus *cdkTrapFocus="isOpen" class="modal__content" tabindex="-1">…</div>
 ```
 
+**React**: prefer native `<dialog>.showModal()` (browser traps focus and restores it on `close()`); a minimal local `useFocusTrap` only for non-dialog overlays — no focus-trap package by default (see [frameworks/react.md](./frameworks/react.md)).
+
 **Flutter**: use `FocusScope` with `canRequestFocus` / `FocusTraversalGroup` (see [frameworks/flutter.md](./frameworks/flutter.md)).
+
+## Haptic Feedback
+
+Haptics are **supplementary** — they never replace visual or screen-reader feedback (full registry in [haptics.md](./haptics.md)):
+
+- Every haptic call must pair with visual feedback in the same handler (press state, toast, inline error).
+- Fire haptics only on discrete commits (press, select, settled outcome) — never hover/focus, never continuous during loading.
+- Honor OS haptic settings and the in-app `HapticPort.setEnabled()` preference; when off/unsupported, adapters no-op and existing visual/AT feedback must already satisfy the action-feedback contract.
+- Do not treat `prefers-reduced-motion` as license to remove visual feedback — only the haptic channel is gated (conservative proxy, see haptics.md).
 
 ## Focus Indicators
 
@@ -121,6 +132,7 @@ Support Windows High Contrast Mode:
 - [ ] Reduced motion supported
 - [ ] High contrast mode supported
 - [ ] Screen reader tested
+- [ ] Haptics (if used) paired with visual/AT feedback; disabled when OS/app setting is off
 
 ## Contrast Verification
 
