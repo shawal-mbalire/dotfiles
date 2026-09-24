@@ -15,7 +15,7 @@ ThemePort:
 - Use a root-level attribute (e.g., `<html data-theme="dark">` or `<body class="theme-dark">`) to control the global theme.
 - Provide an interactive control (e.g., `<select>` or radio group) that updates this DOM attribute.
 - Save theme preference to localStorage for persistence across sessions.
-- Apply theme transitions smoothly: `transition: background-color 0.25s ease, color 0.25s ease;`
+- Apply theme transitions smoothly: `transition: background-color var(--duration-slow) var(--easing-default), color var(--duration-slow) var(--easing-default);`
 - In Angular, use an `@Injectable` ThemeService with signals for reactive theme state.
 
 ## High Contrast Mode
@@ -112,12 +112,24 @@ See [Accessibility Requirements](./accessibility.md#reduced-motion) for implemen
   --state-warning: #ffc107;
   --state-error: #dc3545;
   --state-info: #0dcaf0;
+  --state-success-soft: #d1e7dd;
+  --state-warning-soft: #fff3cd;
+  --state-error-soft: #f8d7da;
+  --state-info-soft: #cff4fc;
   
   /* Shadow */
   --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
   --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
   --shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
   --shadow-xl: 0 1rem 3rem rgba(0, 0, 0, 0.25);
+  --shadow-hover: 0 0.5rem 0.9375rem rgba(0, 0, 0, 0.08);
+  --shadow-active: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.03);
+
+  /* Overlay */
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Border width */
+  --border-width: 1px;
   
   /* Z-index */
   --z-below: -1;
@@ -137,6 +149,16 @@ See [Accessibility Requirements](./accessibility.md#reduced-motion) for implemen
   --border-radius-lg: 8px;
   --border-radius-xl: 12px;
   --border-radius-full: 9999px;
+
+  /* Dual Radius (Pattern 4) */
+  --radius-outer-sm: 4px;
+  --radius-outer-md: 8px;
+  --radius-outer-lg: 12px;
+  --radius-outer-xl: 16px;
+  --radius-inner-sm: 2px;
+  --radius-inner-md: 4px;
+  --radius-inner-lg: 6px;
+  --radius-inner-xl: 8px;
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -181,13 +203,18 @@ See [Accessibility Requirements](./accessibility.md#reduced-motion) for implemen
   --duration-fast: 100ms;
   --duration-normal: 200ms;
   --duration-slow: 300ms;
+  --duration-morph: 350ms;
   --duration-slower: 500ms;
+  --duration-spinner: 1000ms;
+  --duration-loading: 1500ms;
   
   /* Easing */
   --easing-default: cubic-bezier(0.4, 0, 0.2, 1);
   --easing-in: cubic-bezier(0.4, 0, 1, 1);
   --easing-out: cubic-bezier(0, 0, 0.2, 1);
   --easing-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+  --easing-morph: cubic-bezier(0.65, 0, 0.35, 1);
+  --easing-peel: cubic-bezier(0.33, 1, 0.68, 1);
   --easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
   
   /* Breakpoints */
@@ -197,6 +224,16 @@ See [Accessibility Requirements](./accessibility.md#reduced-motion) for implemen
   --bp-lg: 992px;
   --bp-xl: 1200px;
   --bp-xxl: 1400px;
+
+  /* Sizes */
+  --size-sidebar: 250px;
+  --size-modal-max: 500px;
+  --size-toast-min: 300px;
+  --size-toast-max: 450px;
+  --size-icon-sm: 16px;
+  --size-spinner-sm: 20px;
+  --size-spinner-md: 40px;
+  --size-spinner-lg: 60px;
 }
 ```
 
@@ -233,16 +270,28 @@ See [Accessibility Requirements](./accessibility.md#reduced-motion) for implemen
   --state-warning: #ffda6a;
   --state-error: #ea868f;
   --state-info: #6edff6;
+  --state-success-soft: #0a3622;
+  --state-warning-soft: #332701;
+  --state-error-soft: #2c0b0e;
+  --state-info-soft: #032830;
   
   /* Shadow */
   --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.25);
   --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.4);
   --shadow-xl: 0 1rem 3rem rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 0.5rem 0.9375rem rgba(0, 0, 0, 0.25);
+  --shadow-active: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.15);
+
+  /* Overlay */
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Border width */
+  --border-width: 1px;
   
   /* Dark mode elevation: shadows on dark backgrounds are subtle.
      For visible elevation, use lighter shadows or combine with
-     subtle border highlights (e.g., border: 1px solid rgba(255,255,255,0.1)) */
+     subtle border highlights (e.g., border: var(--border-width) solid rgba(255,255,255,0.1)) */
 }
 ```
 
@@ -316,11 +365,11 @@ import { ThemeService } from './theme.service';
     <button
       (click)="themeService.toggleTheme()"
       [attr.aria-label]="'Switch to ' + (themeService.currentTheme() === 'light' ? 'dark' : 'light') + ' theme'">
-      @if (themeService.currentTheme() === 'light') {
-        <span class="icon-sun">☀️</span>
-      } @else {
-        <span class="icon-moon">🌙</span>
-      }
+  @if (themeService.currentTheme() === 'light') {
+    <ds-icon name="sun" [attr.aria-hidden]="true" />
+  } @else {
+    <ds-icon name="moon" [attr.aria-hidden]="true" />
+  }
     </button>
   `
 })
@@ -380,9 +429,9 @@ private listenForSystemPreference(): void {
   (click)="themeService.toggleTheme()"
   [attr.aria-label]="'Switch to ' + (themeService.currentTheme() === 'light' ? 'dark' : 'light') + ' theme'">
   @if (themeService.currentTheme() === 'light') {
-    <span class="icon-sun">☀️</span>
+    <ds-icon name="sun" [attr.aria-hidden]="true" />
   } @else {
-    <span class="icon-moon">🌙</span>
+    <ds-icon name="moon" [attr.aria-hidden]="true" />
   }
 </button>
 ```

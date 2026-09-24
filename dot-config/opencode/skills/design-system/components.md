@@ -140,8 +140,8 @@ All components must establish visual hierarchy through:
 
 ### Interactions
 - Hover: increase shadow elevation (--shadow-md -> --shadow-lg)
-- Focus: 2px outline ring using --border-focus
-- Transition: `box-shadow 0.3s ease`
+- Focus: outline using --border-focus-width and --border-focus tokens
+- Transition: `box-shadow var(--duration-slow) var(--easing-default)`
 
 ### States
 - Default: resting state
@@ -231,7 +231,7 @@ export class CardComponent {
 - Active: `transform: scale(0.98)`
 - Focus: 2px outline ring
 - Disabled: `opacity: 0.5`, `cursor: not-allowed`
-- Transition: `background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease`
+- Transition: `background-color var(--duration-normal) var(--easing-default), transform var(--duration-fast) var(--easing-default), box-shadow var(--duration-normal) var(--easing-default)`
 
 ### States
 - Default: resting state
@@ -273,12 +273,16 @@ export class ButtonComponent {
     return `btn btn--${this.variant()} btn--${this.size()}`;
   }
 
+  @HostBinding('attr.disabled') get nativeDisabled() {
+    return this.disabled() || this.loading() ? '' : null;
+  }
+
   @HostBinding('attr.aria-disabled') get ariaDisabled() {
-    return this.disabled() || this.loading();
+    return this.disabled() || this.loading() ? 'true' : null;
   }
 
   @HostBinding('attr.aria-busy') get ariaBusy() {
-    return this.loading();
+    return this.loading() ? 'true' : null;
   }
 
   @HostListener('click', ['$event'])
@@ -310,7 +314,7 @@ export class ButtonComponent {
 - Hover: background-color shift to --surface-primary
 - Arrow animation: `transform: translateX(4px)` on row hover
 - Focus: 2px outline ring
-- Transition: `background-color 0.2s ease, transform 0.2s ease`
+- Transition: `background-color var(--duration-normal) var(--easing-default), transform var(--duration-normal) var(--easing-default)`
 
 ### States
 - Default: resting state
@@ -345,7 +349,7 @@ export class ButtonComponent {
 - Hover: background-color shift or underline
 - Active: persistent accent color or border indicator
 - Focus: 2px outline ring
-- Transition: `background-color 0.2s ease, border-color 0.2s ease`
+- Transition: `background-color var(--duration-normal) var(--easing-default), border-color var(--duration-normal) var(--easing-default)`
 
 ### States
 - Default: resting state
@@ -381,7 +385,7 @@ export class ButtonComponent {
 - Focus: border-color shifts to --border-focus, 2px outline ring
 - Error: border-color shifts to --state-error
 - Disabled: `opacity: 0.5`, `cursor: not-allowed`
-- Transition: `border-color 0.2s ease, box-shadow 0.2s ease`
+- Transition: `border-color var(--duration-normal) var(--easing-default), box-shadow var(--duration-normal) var(--easing-default)`
 
 ### States
 - Default: resting state
@@ -396,12 +400,14 @@ export class ButtonComponent {
 - Error messages must be associated via `aria-describedby`
 - Required fields must have `aria-required="true"`
 
+**Reactivity note**: with `OnPush`, never wrap a raw `FormControl` in `computed()` alone — subscribe via `toSignal(control.statusChanges)` (or read `control.status`/`control.dirty` inside a `computed` that also reads a status signal) so error UI updates when validation runs.
+
 ### Angular Implementation
 
 ```typescript
-import { Component, ChangeDetectionStrategy, input, signal, computed, inject, Self } from '@angular/core';
-import { ReactiveFormsModule, FormControl } from '@angular/forms';
-import { NgControl } from '@angular/forms';
+import { Component, ChangeDetectionStrategy, input, signal, computed, inject, Self, viewChild, ElementRef, output, effect } from '@angular/core';
+import { ReactiveFormsModule, FormControl, NgControl } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-input',
@@ -441,9 +447,21 @@ export class InputComponent {
 
   control = new FormControl('');
 
-  hasError = computed(() => this.control.invalid && (this.control.dirty || this.control.touched));
+  // Subscribe to both statusChanges and valueChanges to trigger OnPush re-evaluation.
+  // dirty/touched are plain properties on FormControl, not signals, so we need
+  // an observable trigger that fires when the user interacts with the input.
+  private statusChanges = toSignal(this.control.statusChanges, { initialValue: undefined });
+  private valueChanges = toSignal(this.control.valueChanges, { initialValue: undefined });
+
+  hasError = computed(() => {
+    this.statusChanges(); // recompute on validation status change
+    this.valueChanges();  // recompute on user input
+    return this.control.invalid && (this.control.dirty || this.control.touched);
+  });
 
   errorMessage = computed(() => {
+    this.statusChanges();
+    this.valueChanges();
     if (!this.control.errors) return '';
     const errors = this.control.errors;
     if (errors['required']) return `${this.label()} is required.`;
@@ -473,7 +491,7 @@ export class InputComponent {
 ### Interactions
 - Hover: background-color shift or underline
 - Focus: 2px outline ring
-- Transition: `background-color 0.2s ease, color 0.2s ease`
+- Transition: `background-color var(--duration-normal) var(--easing-default), color var(--duration-normal) var(--easing-default)`
 
 ### States
 - Default: accent color text
@@ -507,7 +525,8 @@ export class InputComponent {
 - Close: fade out overlay + scale down dialog
 - Backdrop click: closes modal (unless persistent)
 - Escape key: closes modal
-- Transition: `opacity 0.2s ease, transform 0.2s ease`
+- Focus trap while open (Angular CDK `cdkTrapFocus`); restore focus to trigger on close
+- Transition: `opacity var(--duration-normal) var(--easing-default), transform var(--duration-normal) var(--easing-default)`
 
 ### States
 - Default: visible, interactive
@@ -525,6 +544,7 @@ export class InputComponent {
 
 ```typescript
 import { Component, ChangeDetectionStrategy, input, output, signal, effect, ElementRef, inject, viewChild, AfterViewInit } from '@angular/core';
+import { FocusTrap, FocusTrapFactory } from '@angular/cdk/a11y';
 
 @Component({
   selector: 'app-modal',
@@ -554,6 +574,7 @@ import { Component, ChangeDetectionStrategy, input, output, signal, effect, Elem
 })
 export class ModalComponent implements AfterViewInit {
   private elementRef = inject(ElementRef);
+  private focusTrapFactory = inject(FocusTrapFactory);
 
   title = input.required<string>();
   isOpen = input(false);
@@ -562,6 +583,7 @@ export class ModalComponent implements AfterViewInit {
 
   private titleId = `modal-title-${Math.random().toString(36).slice(2, 9)}`;
   private previousActiveElement: HTMLElement | null = null;
+  private focusTrap: FocusTrap | null = null;
 
   content = viewChild<ElementRef>('content');
 
@@ -570,10 +592,15 @@ export class ModalComponent implements AfterViewInit {
       if (this.isOpen()) {
         this.previousActiveElement = document.activeElement as HTMLElement;
         document.body.style.overflow = 'hidden';
-        // Focus trap logic
-        setTimeout(() => this.content()?.nativeElement?.focus(), 0);
+        const el = this.content()?.nativeElement;
+        if (el) {
+          this.focusTrap = this.focusTrapFactory.create(el);
+          this.focusTrap.focusInitialElementWhenReady();
+        }
       } else {
         document.body.style.overflow = '';
+        this.focusTrap?.destroy();
+        this.focusTrap = null;
         this.previousActiveElement?.focus();
       }
     });
@@ -597,14 +624,15 @@ export class ModalComponent implements AfterViewInit {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: var(--z-modal);
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
+  transition: opacity var(--duration-normal) var(--easing-default),
+              visibility var(--duration-normal) var(--easing-default);
 }
 
 .modal--open {
@@ -616,11 +644,11 @@ export class ModalComponent implements AfterViewInit {
   background: var(--surface-primary);
   border-radius: var(--border-radius-lg);
   padding: var(--space-lg);
-  max-width: 500px;
-  width: 90%;
+  max-inline-size: var(--size-modal-max);
+  inline-size: 90%;
   box-shadow: var(--shadow-xl);
   transform: scale(0.95);
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-normal) var(--easing-default);
 }
 
 .modal--open .modal__content {
@@ -650,7 +678,7 @@ export class ModalComponent implements AfterViewInit {
 - Exit: slide out + fade
 - Auto-dismiss: after 5-8 seconds (configurable)
 - Pause auto-dismiss on hover
-- Transition: `transform 0.3s ease, opacity 0.3s ease`
+- Transition: `transform var(--duration-slow) var(--easing-default), opacity var(--duration-slow) var(--easing-default)`
 
 ### States
 - Entering: slide + fade in
@@ -668,7 +696,7 @@ export class ModalComponent implements AfterViewInit {
 ### Angular Implementation
 
 ```typescript
-import { Component, ChangeDetectionStrategy, input, output, signal, inject } from '@angular/core';
+import { Component, ChangeDetectionStrategy, input, output, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 export interface Toast {
@@ -686,7 +714,7 @@ export interface Toast {
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="toast-container" aria-live="polite">
+    <div class="toast-container" [attr.aria-live]="hasErrorToasts() ? 'assertive' : 'polite'">
       @for (toast of toasts(); track toast.id) {
         <div
           class="toast"
@@ -710,6 +738,8 @@ export interface Toast {
 export class ToastContainerComponent {
   toasts = signal<Toast[]>([]);
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  hasErrorToasts = computed(() => this.toasts().some(t => t.type === 'error'));
 
   show(toast: Omit<Toast, 'id'>) {
     const id = crypto.randomUUID();
@@ -752,15 +782,16 @@ export class ToastContainerComponent {
   gap: var(--space-sm);
   padding: var(--space-md);
   background: var(--surface-primary);
-  border: 1px solid var(--border-primary);
+  border: var(--border-width) solid var(--border-primary);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-lg);
-  min-width: 300px;
-  max-width: 450px;
+  min-inline-size: var(--size-toast-min);
+  max-inline-size: var(--size-toast-max);
   pointer-events: auto;
   transform: translateX(100%);
   opacity: 0;
-  transition: transform 0.3s ease, opacity 0.3s ease;
+  transition: transform var(--duration-slow) var(--easing-default),
+              opacity var(--duration-slow) var(--easing-default);
 }
 
 .toast--visible {
@@ -780,4 +811,194 @@ export class ToastContainerComponent {
 [dir="rtl"] .toast--visible {
   transform: translateX(0);
 }
+```
+
+---
+
+## Component → Pattern Map
+
+Default pattern per component role. Override only with an explicit Shape Spec from [decision-rules.md](./decision-rules.md).
+
+| Component | Role | Default Pattern | Notes |
+|-----------|------|-----------------|-------|
+| Card | container | Active pattern | Pattern 4: dual-radius surface + well |
+| Button | control | Active pattern | Pattern 4: morph radius on press |
+| ListItem | list-row | Active pattern | Pattern 2: separators |
+| Navigation | container | Active pattern | |
+| Input | control | Active pattern | |
+| Link | control | Active pattern | |
+| Modal | overlay | Active pattern | Focus trap required |
+| Toast | feedback | Active pattern | Enter/exit from library |
+| Tabs | control | Active pattern | Arrow-key roving tabindex |
+| Menu | overlay | Active pattern | Focus trap + dismiss |
+| Tooltip | overlay | Active pattern | Focus/hover, not click |
+| Table | container | Active pattern | Pattern 2: row separators |
+| Badge | feedback | Active pattern | Compact, no well (Pattern 4) |
+| Drawer | overlay | Active pattern | Focus trap; peel exit on Pattern 4 |
+
+---
+
+## Pattern 4 Surface Contract
+
+Required whenever Shape Spec `pattern = 4` and Q5 = `yes` (inner well present).
+
+**Required structure**:
+
+```html
+<article class="surface" [class.surface--hovered]="hovered()">
+  <div class="surface__well">
+    <!-- content -->
+  </div>
+</article>
+```
+
+**Required tokens**: `--radius-outer-*`, `--radius-inner-*`, `--shadow-hover`/`--shadow-active` (or pattern elevation tokens), `--duration-morph`, `--easing-morph`, `--easing-peel`.
+
+```css
+.surface {
+  background: var(--surface-primary);
+  border-radius: var(--radius-outer-lg);
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-radius var(--duration-morph) var(--easing-morph),
+    box-shadow var(--duration-slow) var(--easing-default),
+    transform var(--duration-normal) var(--easing-peel);
+}
+
+.surface__well {
+  background: var(--bg-primary);
+  border-radius: var(--radius-inner-lg);
+  transition: border-radius var(--duration-morph) var(--easing-morph);
+}
+
+.surface:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+  border-radius: var(--radius-outer-xl);
+}
+
+.surface:hover .surface__well {
+  border-radius: var(--radius-inner-xl);
+}
+```
+
+**Rules**:
+- Both radii transition together on the same clock.
+- Hover = lift ("coming off") + optional radius bloom one step.
+- Dismiss/exit = `peelOff` only (`exit-peel` bundle).
+- Atomic components (chip, badge, avatar) may omit the well (Q5 = `no`).
+
+---
+
+## Tabs Component
+
+**Required Elements**: `role="tablist"`, `role="tab"` buttons, `role="tabpanel"` panels
+**Required Tokens**: --bg-primary, --text-primary, --accent-primary, --border-primary, --border-focus
+**Variants**: `line` (underline), `pill`, `enclosed`
+
+### Interactions
+- Hover: background or text color shift
+- Selected: persistent accent indicator
+- Focus: 2px outline ring
+- Transition: `background-color var(--duration-normal) var(--easing-default), border-color var(--duration-normal) var(--easing-default)`
+
+### Accessibility
+- Arrow keys move between tabs; Home/End jump to first/last
+- Roving tabindex (only selected tab is tabbable)
+- `aria-selected`, `aria-controls`, `aria-labelledby` on panels
+- Tab list uses `aria-orientation="horizontal"`
+
+### Pattern 4 note
+Selected tab uses dual radius morph on the active indicator surface.
+
+---
+
+## Menu Component
+
+**Required Elements**: `role="menu"`, `role="menuitem"`
+**Required Tokens**: --surface-primary, --text-primary, --accent-primary, --shadow-lg, --z-dropdown
+
+### Interactions
+- Open: fade in + scale (or peel for Pattern 4)
+- Item hover: background highlight
+- Escape / outside click: close
+- Transition: `opacity var(--duration-normal) var(--easing-default), transform var(--duration-normal) var(--easing-default)`
+
+### Accessibility
+- Focus trap while open (CDK / Flutter FocusScope)
+- Arrow keys navigate items; Enter/Space activate
+- Restore focus to trigger on close
+- `aria-haspopup="menu"`, `aria-expanded`
+
+---
+
+## Tooltip Component
+
+**Required Elements**: trigger element with `aria-describedby`, tooltip with `role="tooltip"`
+**Required Tokens**: --surface-elevated, --text-primary, --shadow-lg, --z-tooltip
+
+### Interactions
+- Show on hover and keyboard focus (not click-only)
+- Hide on blur, mouse leave, Escape
+- Delay ~`--duration-slow` in (hover), no delay out
+- Transition: `opacity var(--duration-normal) var(--easing-default)`
+
+### Accessibility
+- Never the only source of critical information
+- Keyboard focus must show tooltip
+- Not interactive content inside by default
+
+---
+
+## Table Component
+
+**Required Elements**: `<table>`, `<thead>`, `<tbody>`, `<th scope>`
+**Required Tokens**: --bg-primary, --surface-primary, --text-primary, --border-primary
+
+### Interactions
+- Row hover: subtle background (not wholesale opacity)
+- Sortable headers: focus + `aria-sort`
+- Transition: `background-color var(--duration-normal) var(--easing-default)`
+
+### Accessibility
+- Caption or `aria-label`
+- Scope on headers (`col`/`row`)
+- Pattern 2: bottom row separators only
+
+---
+
+## Badge Component
+
+**Required Elements**: `<span>` with optional status text
+**Required Tokens**: --state-*-soft (or --accent-primary), --text-primary, --border-radius-full (pill) or pattern radius
+**Variants**: `success`, `warning`, `error`, `info`, `neutral`
+
+### Interactions
+- Static by default; interactive badges (filters) get full hover/focus states
+- No wholesale opacity hover on text-bearing badges
+
+### Accessibility
+- Status conveyed by text, not color alone
+- `aria-label` if abbreviated/number-only
+
+---
+
+## Drawer Component
+
+**Required Elements**: `<aside>` or `role="dialog" aria-modal="true"`
+**Required Tokens**: --surface-primary, --bg-overlay, --shadow-xl, --z-modal
+
+**Variants**: `side` (inline-end/start), `bottom`
+
+### Interactions
+- Open: slide in from edge + backdrop fade
+- Close: reverse; Escape and backdrop click
+- Focus trap while open; restore focus on close
+- Pattern 4 exit: `peelOff` instead of plain slide when Shape Spec says `exit-peel`
+- Transition: `transform var(--duration-slow) var(--easing-default), opacity var(--duration-slow) var(--easing-default)`
+
+### Accessibility
+- Same focus-trap rules as Modal
+- Use logical properties for edge (`inset-inline-end`, not `right`)
+- Background scroll locked while open
 ```

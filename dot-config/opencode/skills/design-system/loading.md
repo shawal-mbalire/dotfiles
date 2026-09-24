@@ -2,6 +2,8 @@
 
 **Note on gradients**: Skeleton screens use `linear-gradient` for the shimmer effect. This is a functional animation for loading feedback, not visual decoration. The "no gradients" rule in patterns.md applies to decorative styling of base components (backgrounds, borders), not to loading state animations.
 
+**Note on keyframes**: `shimmer`, `spin`, and `dotPulse` are defined in [animations-library.md](./animations-library.md). Do not redefine them here — reference the library names.
+
 ## Skeleton Screens
 
 Use skeleton screens for content loading:
@@ -15,31 +17,26 @@ Use skeleton screens for content loading:
     var(--surface-primary) 75%
   );
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
-  border-radius: 4px;
-}
-
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  animation: shimmer var(--duration-loading) infinite;
+  border-radius: var(--border-radius-sm);
 }
 
 /* Skeleton variants */
 .skeleton-text {
   height: 1em;
-  margin-bottom: 0.5em;
+  margin-bottom: var(--space-sm);
 }
 
 .skeleton-title {
   height: 1.5em;
   width: 60%;
-  margin-bottom: 1em;
+  margin-bottom: var(--space-md);
 }
 
 .skeleton-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: var(--size-spinner-md);
+  height: var(--size-spinner-md);
+  border-radius: var(--border-radius-full);
 }
 
 .skeleton-image {
@@ -61,17 +58,17 @@ Progress bar with percentage. Use for known durations.
 ```css
 .progress {
   width: 100%;
-  height: 8px;
+  height: var(--space-sm);
   background: var(--surface-secondary);
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   overflow: hidden;
 }
 
 .progress-bar {
   height: 100%;
   background: var(--accent-primary);
-  border-radius: 4px;
-  transition: width 0.3s ease;
+  border-radius: var(--border-radius-sm);
+  transition: width var(--duration-slow) var(--easing-default);
 }
 
 .progress-bar--success {
@@ -98,30 +95,25 @@ Spinner or infinite progress bar. Use for unknown durations.
 
 ```css
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--border-primary);
-  border-top: 4px solid var(--accent-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  width: var(--size-spinner-md);
+  height: var(--size-spinner-md);
+  border: var(--border-width) solid var(--border-primary);
+  border-block-start-color: var(--accent-primary);
+  border-radius: var(--border-radius-full);
+  animation: spin var(--duration-spinner) linear infinite;
 }
 
 /* Small spinner */
 .spinner--sm {
-  width: 20px;
-  height: 20px;
+  width: var(--size-spinner-sm);
+  height: var(--size-spinner-sm);
   border-width: 2px;
 }
 
 /* Large spinner */
 .spinner--lg {
-  width: 60px;
-  height: 60px;
+  width: var(--size-spinner-lg);
+  height: var(--size-spinner-lg);
   border-width: 6px;
 }
 
@@ -140,25 +132,20 @@ Spinner or infinite progress bar. Use for unknown durations.
 ```css
 .dot-loading {
   display: flex;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .dot-loading span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: var(--space-sm);
+  height: var(--space-sm);
+  border-radius: var(--border-radius-full);
   background: var(--accent-primary);
-  animation: dot-pulse 1.4s ease-in-out infinite;
+  animation: dotPulse var(--duration-spinner) ease-in-out infinite;
 }
 
 .dot-loading span:nth-child(1) { animation-delay: -0.32s; }
 .dot-loading span:nth-child(2) { animation-delay: -0.16s; }
 .dot-loading span:nth-child(3) { animation-delay: 0s; }
-
-@keyframes dot-pulse {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
-}
 ```
 
 ## Optimistic UI (Angular)
@@ -267,16 +254,14 @@ export class TodoItemComponent {
 .button--loading::after {
   content: '';
   position: absolute;
-  width: 16px;
-  height: 16px;
+  inset: 0;
+  margin: auto;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
   border: 2px solid transparent;
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-  top: 50%;
-  left: 50%;
-  margin-top: -8px;
-  margin-left: -8px;
+  border-block-start-color: currentColor;
+  border-radius: var(--border-radius-full);
+  animation: spin var(--duration-spinner) linear infinite;
 }
 ```
 
@@ -307,9 +292,10 @@ export class TodoItemComponent {
 
 .card--loading .spinner {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  margin: auto;
+  width: max-content;
+  height: max-content;
   z-index: 1;
 }
 ```
@@ -323,15 +309,15 @@ export class TodoItemComponent {
 .input--loading::after {
   content: '';
   position: absolute;
-  right: 12px;
+  inset-inline-end: var(--space-sm);
   top: 50%;
   transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
   border: 2px solid var(--border-primary);
-  border-top-color: var(--accent-primary);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
+  border-block-start-color: var(--accent-primary);
+  border-radius: var(--border-radius-full);
+  animation: spin var(--duration-spinner) linear infinite;
 }
 ```
 
@@ -367,20 +353,20 @@ export class TodoItemComponent {
 .input-error-message {
   color: var(--state-error);
   font-size: var(--font-size-sm);
-  margin-top: var(--space-xs);
+  margin-block-start: var(--space-xs);
 }
 
 .input-error-icon {
   color: var(--state-error);
-  margin-right: var(--space-xs);
+  margin-inline-end: var(--space-xs);
 }
 ```
 
 ```html
 <div class="input-group">
   <input type="text" class="input input--error" aria-invalid="true" aria-describedby="email-error">
-  <div class="input-error-message" id="email-error">
-    <span class="input-error-icon">⚠️</span>
+  <div class="input-error-message" id="email-error" role="alert">
+    <ds-icon name="alert-triangle" [attr.aria-hidden]="true" class="input-error-icon" />
     Email is required.
   </div>
 </div>
@@ -414,7 +400,7 @@ export class TodoItemComponent {
 .card__error-message {
   color: var(--state-error);
   padding: var(--space-md);
-  background: rgba(220, 53, 69, 0.1);
+  background: var(--state-error-soft);
   border-radius: 0 0 var(--border-radius) var(--border-radius);
 }
 ```

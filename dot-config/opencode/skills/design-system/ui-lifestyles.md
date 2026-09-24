@@ -256,15 +256,15 @@ UI Lifestyles categorize different types of web interfaces based on their primar
 
 ## UI Lifestyle Quick Reference
 
-| Lifestyle | Primary Purpose | Key Navigation | Pattern 1 | Pattern 2 | Pattern 3 |
-|-----------|-----------------|----------------|-----------|-----------|-----------|
-| Landing Page | Conversion | Single-page scroll | ✓ | | ✓ |
-| Dashboard | Analytics | Sidebar, tabs | ✓ | ✓ | ✓ |
-| E-commerce | Sales | Category nav, search | ✓ | | ✓ |
-| SaaS App | Service delivery | Sidebar, breadcrumbs | ✓ | ✓ | ✓ |
-| Content/Blog | Reading | Header, sidebar | ✓ | | ✓ |
-| Portfolio | Showcase | Minimal, horizontal | ✓ | | ✓ |
-| Documentation | Reference | Sidebar TOC, search | ✓ | ✓ | ✓ |
-| Social/Messaging | Communication | Bottom nav, tabs | ✓ | ✓ | ✓ |
-| Admin/CMS | Content management | Sidebar, breadcrumbs | ✓ | ✓ | ✓ |
-| Onboarding | Activation | Step-by-step wizard | ✓ | | ✓ |
+| Lifestyle | Primary Purpose | Key Navigation | Pattern 1 | Pattern 2 | Pattern 3 | Pattern 4 |
+|-----------|-----------------|----------------|-----------|-----------|-----------|-----------|
+| Landing Page | Conversion | Single-page scroll | ✓ | | ✓ | |
+| Dashboard | Analytics | Sidebar, tabs | ✓ | ✓ | ✓ | ✓ |
+| E-commerce | Sales | Category nav, search | ✓ | | ✓ | |
+| SaaS App | Service delivery | Sidebar, breadcrumbs | ✓ | ✓ | ✓ | ✓ |
+| Content/Blog | Reading | Header, sidebar | ✓ | | ✓ | |
+| Portfolio | Showcase | Minimal, horizontal | ✓ | | ✓ | ✓ |
+| Documentation | Reference | Sidebar TOC, search | ✓ | ✓ | ✓ | |
+| Social/Messaging | Communication | Bottom nav, tabs | ✓ | ✓ | ✓ | |
+| Admin/CMS | Content management | Sidebar, breadcrumbs | ✓ | ✓ | ✓ | |
+| Onboarding | Activation | Step-by-step wizard | ✓ | | ✓ | ✓ |

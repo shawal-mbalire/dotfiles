@@ -53,7 +53,7 @@ Base components provide inherited structure for all patterns. They establish con
 }
 
 .wrapper--bordered {
-  border: 1px solid var(--border-primary);
+  border: var(--border-width) solid var(--border-primary);
 }
 ```
 
@@ -99,8 +99,8 @@ Base components provide inherited structure for all patterns. They establish con
 
 ### Design Tokens
 
-- **Border Radius**: Strict adherence to `border-radius: 5px` for all structural elements (cards, buttons, input fields). Do not use fully rounded/pill-shaped corners unless explicitly requested for a specific icon button.
-- **Borders**: All containers, buttons, and distinct UI sections MUST have uniform border. Apply `border: 1px solid var(--border-color)`.
+- **Border Radius**: Strict adherence to `var(--border-radius)` for all structural elements (cards, buttons, input fields). Do not use fully rounded/pill-shaped corners unless explicitly requested for a specific icon button.
+- **Borders**: All containers, buttons, and distinct UI sections MUST have uniform border. Apply `border: var(--border-width) solid var(--border-primary)`.
 - **Spacing**: Use mathematically even padding and margins (conceptual scale: xs, sm, md, lg) to ensure 1px borders align cleanly on the grid.
 - **Colors**: NEVER hardcode color values in the component CSS. All backgrounds, text, and border colors must map to CSS variable tokens defined in the root theme stylesheet.
 
@@ -111,14 +111,15 @@ Base components provide inherited structure for all patterns. They establish con
 | Hover (card) | box-shadow | increase elevation |
 | Hover (button) | background-color | --accent-hover |
 | Hover (link) | background-color | --surface-primary |
-| Focus (all) | outline | 2px solid --border-focus |
+| Focus (all) | outline | `var(--border-focus-width, 2px) solid var(--border-focus)` |
 | Active (button) | transform | scale(0.98) |
 | Disabled | opacity | 0.5 |
 
 **Transitions**:
-- Background color: `transition: background-color 0.25s ease`
-- Box shadow: `transition: box-shadow 0.25s ease`
-- Transform: `transition: transform 0.15s ease`
+- Transitions (via motion tokens):
+  - Background color: `transition: background-color var(--duration-normal) var(--easing-default)`
+  - Box shadow: `transition: box-shadow var(--duration-normal) var(--easing-default)`
+  - Transform: `transition: transform var(--duration-fast) var(--easing-default)`
 
 ## Pattern 2: Interactive Numbered List (Mono Tone)
 
@@ -174,14 +175,15 @@ Base components provide inherited structure for all patterns. They establish con
 |-------|----------|-------|
 | Hover (row) | background-color | --surface-primary |
 | Hover (arrow) | transform | translateX(4px) |
-| Focus (row) | outline | 2px solid --border-focus |
+| Focus (row) | outline | `var(--border-focus-width, 2px) solid var(--border-focus)` |
 | Active (row) | background-color | --surface-secondary |
 | Disabled | opacity | 0.5 |
 
 **Transitions**:
-- Background color: `transition: background-color 0.2s ease`
-- Transform: `transition: transform 0.2s ease`
-- Combined: `transition: background-color 0.2s ease, transform 0.2s ease`
+- Transitions (via motion tokens):
+  - Background color: `transition: background-color var(--duration-normal) var(--easing-default)`
+  - Transform: `transition: transform var(--duration-normal) var(--easing-default)`
+  - Combined: `transition: background-color var(--duration-normal) var(--easing-default), transform var(--duration-normal) var(--easing-default)`
 
 ## Pattern 3: Minimalist Flat Theme with Subtle Depth
 
@@ -190,10 +192,9 @@ Base components provide inherited structure for all patterns. They establish con
 ### Design Tokens
 
 - **Color Discipline**: Agents MUST NOT introduce colors outside the defined 3-5 color palette. Gradients are prohibited.
-- **Border Radius**: Use a moderate, modern border radius (e.g., `border-radius: 8px` or `12px`) to soften the flat design. It should be slightly larger than Pattern 1's 5px.
+- **Border Radius**: Use a moderate, modern border radius (`--border-radius-lg` or `--border-radius-xl`) to soften the flat design. It should be slightly larger than Pattern 1's `--border-radius`.
 - **Elevation (Shadows)**: Do not use visible borders to separate main content areas. Instead, use very soft, diffused shadow for elevated elements (cards, modals).
-  - Light Theme: `box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05)`
-  - Dark Theme: `box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2)`
+  - Define theme-level soft elevation tokens (or override `--shadow-md`/`--shadow-lg` in the pattern theme) — do not write raw `box-shadow` values in component CSS.
 
 ### Minimal Color Palettes
 
@@ -233,31 +234,95 @@ Use these restricted palettes (3-5 colors maximum). Place values in your root th
 
 ### Interactions
 
+| State | Property | Token |
+|-------|----------|-------|
+| Hover (card) | box-shadow | `--shadow-hover` |
+| Hover (link) | text-decoration | underline |
+| Focus (all) | outline | `var(--border-focus-width, 2px) solid var(--accent-primary)` |
+| Active (card) | box-shadow | `--shadow-active` |
+| Disabled | opacity | 0.5 |
+
+**Transitions** (all via motion tokens):
+- Box shadow: `transition: box-shadow var(--duration-slow) var(--easing-default)`
+- Text decoration: `transition: text-decoration-color var(--duration-normal) var(--easing-default)`
+- Transform (if used): `transition: transform var(--duration-normal) var(--easing-default)`
+
+## Pattern 4: Morphic Surfaces (Dual-Radius Morph)
+
+**Objective**: Implement surfaces that read as one continuous material. Components morph between states and into each other by animating paired external (shell) and internal (content well) radii, with tasteful lift/peel motion that feels like layers coming off a surface.
+
+Shape handling for this pattern is governed by the questionnaire in [decision-rules.md](./decision-rules.md). Animations come from [animations-library.md](./animations-library.md).
+
+### Design Tokens
+
+- **Dual Radius**: Every surface has an external shell radius (`--radius-outer-*`) and an internal well radius (`--radius-inner-*`). Both are modified during morphs so nested surfaces stay concentric.
+  - Relationship rule: `inner ≈ outer − component padding`. Discrete tokens exist for independent morph control (outer may grow while inner holds, or both may step together).
+- **Morph Motion**: State changes and radius blooms use `--duration-morph` (350ms) with `--easing-morph`. Lift/peel movement uses `--easing-peel`.
+- **Elevation**: Dynamic shadows only. Shadows deepen on lift, settle on press. No static borders on main surfaces (optional hairline for controls).
+- **Colors**: NEVER hardcode color values. All backgrounds, text, and border colors map to CSS variable tokens. Gradients prohibited.
+
+### Dual Radius Structure
+
+```html
+<article class="surface">
+  <div class="surface__well">
+    <h3>Title</h3>
+    <p>Content</p>
+  </div>
+</article>
+```
+
+```css
+.surface {
+  background: var(--surface-primary);
+  border-radius: var(--radius-outer-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-sm);
+  transition: border-radius var(--duration-morph) var(--easing-morph),
+              transform var(--duration-normal) var(--easing-peel),
+              box-shadow var(--duration-slow) var(--easing-default);
+}
+
+.surface__well {
+  background: var(--bg-primary);
+  border-radius: var(--radius-inner-md);
+  padding: var(--space-sm);
+  transition: border-radius var(--duration-morph) var(--easing-morph);
+}
+```
+
+### Interactions
+
 | State | Property | Value |
 |-------|----------|-------|
-| Hover (card) | box-shadow | 0 8px 15px rgba(0,0,0,0.08) light / 0 8px 15px rgba(0,0,0,0.25) dark |
-| Hover (link) | text-decoration | underline |
-| Focus (all) | outline | 2px solid --accent-primary |
-| Active (card) | box-shadow | 0 2px 4px rgba(0,0,0,0.03) light / 0 2px 4px rgba(0,0,0,0.15) dark |
+| Hover (surface) | transform | translateY(-2px) — lift off |
+| Hover (surface) | box-shadow | --shadow-md (deepen) |
+| Hover (surface) | border-radius | outer blooms one step (e.g., md → lg) |
+| Hover (well) | border-radius | inner blooms one step in sync |
+| Active (surface) | transform | translateY(0) scale(0.99) — press back |
+| State morph | border-radius | outer + inner animate together |
+| Exit (dismiss) | animation | peelOff (lift → fade → radius contract) |
+| Focus (all) | outline | `var(--border-focus-width, 2px) solid var(--border-focus)` |
 | Disabled | opacity | 0.5 |
 
 **Transitions**:
-- Box shadow: `transition: box-shadow 0.3s ease`
-- Text decoration: `transition: text-decoration-color 0.2s ease`
-- Transform (if used): `transition: transform 0.2s ease`
+- Radius morph: `transition: border-radius var(--duration-morph) var(--easing-morph)`
+- Lift: `transition: transform var(--duration-normal) var(--easing-peel)`
+- Shadow: `transition: box-shadow var(--duration-slow) var(--easing-default)`
+- Combined: all three on the surface host; radius-only on the well
 
 ## Pattern Comparison Matrix
 
-| Attribute | Pattern 1 | Pattern 2 | Pattern 3 |
-|-----------|-----------|-----------|-----------|
-| **Border Radius** | 5px | N/A | 8-12px |
-| **Borders** | 1px solid | Bottom separators | Avoided |
-| **Shadows** | None | None | Subtle elevation |
-| **Color Palette** | Full theme via CSS vars | Mono tone (single color family) | 3-5 core colors |
-| **Primary Interaction** | Background shift | Row highlight + arrow | Shadow elevation |
-| **Hover Transition** | 0.25s ease | 0.2s ease | 0.3s ease |
-| **Theme Switching** | Yes (multi-theme) | Single theme | Dual (light/dark) |
-| **Gradients** | Prohibited | Prohibited | Prohibited |
+| Attribute | Pattern 1 | Pattern 2 | Pattern 3 | Pattern 4 |
+|-----------|-----------|-----------|-----------|-----------|
+| **Border Radius** | 5px | N/A | 8-12px | Dual: outer 4-16px + inner 2-8px |
+| **Borders** | 1px solid | Bottom separators | Avoided | Optional hairline / none |
+| **Shadows** | None | None | Subtle elevation | Dynamic (lift states) |
+| **Color Palette** | Full theme via CSS vars | Mono tone (single color family) | 3-5 core colors | Full theme via CSS vars |
+| **Primary Interaction** | Background shift | Row highlight + arrow | Shadow elevation | Radius morph + lift |
+| **Hover Transition** | `--duration-normal` | `--duration-normal` | `--duration-slow` | `--duration-morph` / `--duration-normal` lift |
+| **Theme Switching** | Yes (multi-theme) | Single theme | Dual (light/dark) | Yes (multi-theme) |
+| **Gradients** | Prohibited | Prohibited | Prohibited | Prohibited |
 
 ## Angular Pattern Implementation
 
@@ -266,7 +331,7 @@ Use these restricted palettes (3-5 colors maximum). Place values in your root th
 ```typescript
 import { Injectable, signal } from '@angular/core';
 
-export type PatternId = 1 | 2 | 3;
+export type PatternId = 1 | 2 | 3 | 4;
 
 @Injectable({ providedIn: 'root' })
 export class PatternService {
@@ -303,7 +368,8 @@ export class PatternCardComponent {
       'card': true,
       'card--pattern-1': pattern === 1,
       'card--pattern-2': pattern === 2,
-      'card--pattern-3': pattern === 3
+      'card--pattern-3': pattern === 3,
+      'card--pattern-4': pattern === 4
     };
   });
 }
@@ -312,45 +378,63 @@ export class PatternCardComponent {
 ### Pattern-Specific SCSS
 
 ```scss
-// Pattern 1: Strict geometric, 5px radius, visible borders
+// Pattern 1: Strict geometric, pattern radius, visible borders
 :host(.card--pattern-1) {
-  border: 1px solid var(--border-primary);
-  border-radius: var(--border-radius); // 5px
+  border: var(--border-width) solid var(--border-primary);
+  border-radius: var(--border-radius);
   box-shadow: none;
 }
 
 // Pattern 2: Sharp edges, mono tone, bottom separators
 :host(.card--pattern-2) {
   border-radius: 0;
-  border-bottom: 1px solid var(--border-secondary);
+  border-bottom: var(--border-width) solid var(--border-secondary);
   background: var(--surface-primary);
 }
 
 // Pattern 3: Soft radius, subtle shadows, no borders
 :host(.card--pattern-3) {
   border: none;
-  border-radius: var(--border-radius-xl); // 12px
+  border-radius: var(--border-radius-xl);
   box-shadow: var(--shadow-sm);
+}
+
+// Pattern 4: Dual-radius morph, dynamic lift shadows, peel exits
+:host(.card--pattern-4) {
+  border: none;
+  border-radius: var(--radius-outer-lg);
+  box-shadow: var(--shadow-sm);
+  transition: border-radius var(--duration-morph) var(--easing-morph),
+              transform var(--duration-normal) var(--easing-peel),
+              box-shadow var(--duration-slow) var(--easing-default);
+}
+
+:host(.card--pattern-4:hover) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-outer-xl);
 }
 ```
 
 ## Token Reference by Category
 
-| Category | Pattern 1 Tokens | Pattern 2 Tokens | Pattern 3 Tokens |
-|----------|------------------|------------------|------------------|
-| **Background** | --bg-primary, --bg-secondary | --bg-primary | --bg-primary |
-| **Surface** | --surface-primary | --surface-primary | --surface-primary |
-| **Text** | --text-primary, --text-secondary | --text-primary, --text-secondary | --text-primary |
-| **Border** | --border-primary | --border-primary, --border-secondary | N/A |
-| **Accent** | --accent-primary | N/A (mono tone) | --accent-primary |
-| **Shadow** | N/A | N/A | --shadow-sm, --shadow-md, --shadow-lg |
+| Category | Pattern 1 Tokens | Pattern 2 Tokens | Pattern 3 Tokens | Pattern 4 Tokens |
+|----------|------------------|------------------|------------------|------------------|
+| **Background** | --bg-primary, --bg-secondary | --bg-primary | --bg-primary | --bg-primary |
+| **Surface** | --surface-primary | --surface-primary | --surface-primary | --surface-primary |
+| **Text** | --text-primary, --text-secondary | --text-primary, --text-secondary | --text-primary | --text-primary, --text-secondary |
+| **Border** | --border-primary | --border-primary, --border-secondary | N/A | Optional --border-primary |
+| **Accent** | --accent-primary | N/A (mono tone) | --accent-primary | --accent-primary |
+| **Shadow** | N/A | N/A | --shadow-sm, --shadow-md, --shadow-lg | --shadow-sm, --shadow-md (dynamic) |
+| **Radius** | --border-radius | 0 | --border-radius-lg, --border-radius-xl | --radius-outer-*, --radius-inner-* |
+| **Motion** | --duration-normal, --easing-default | --duration-normal, --easing-default | --duration-slow, --easing-default | --duration-morph, --easing-morph, --easing-peel |
 
 ## Component Cheat Sheet
 
 | Component | Required Tokens | Border Radius | Transitions |
 |-----------|-----------------|---------------|-------------|
-| Card | --bg-primary, --border-primary, --shadow-md | 5px (P1), 8-12px (P3) | box-shadow 0.3s ease |
-| Button | --bg-primary, --text-primary, --accent-primary | 5px | background-color 0.2s ease, transform 0.15s ease |
-| ListItem | --bg-primary, --text-primary, --border-secondary | N/A | background-color 0.2s ease, transform 0.2s ease |
-| Navigation | --bg-primary, --text-primary, --border-primary | 5px | background-color 0.2s ease |
-| Input | --bg-primary, --text-primary, --border-primary, --border-focus | 5px | border-color 0.2s ease |
+| Card | --bg-primary, --border-primary, --shadow-md | `--border-radius` (P1), `--border-radius-lg/xl` (P3), dual outer/inner (P4) | box-shadow `--duration-slow`; P4: + radius morph `--duration-morph` |
+| Button | --bg-primary, --text-primary, --accent-primary | `--border-radius` | background-color `--duration-normal`, transform `--duration-fast` |
+| ListItem | --bg-primary, --text-primary, --border-secondary | `0` (P2) / pattern default | background-color `--duration-normal`, transform `--duration-normal` |
+| Navigation | --bg-primary, --text-primary, --border-primary | `--border-radius` | background-color `--duration-normal` |
+| Input | --bg-primary, --text-primary, --border-primary, --border-focus | `--border-radius` | border-color `--duration-normal` |

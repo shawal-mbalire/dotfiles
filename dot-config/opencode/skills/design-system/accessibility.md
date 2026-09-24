@@ -37,6 +37,27 @@
 - Escape key must close modals/dropdowns
 - Arrow keys should navigate within composite widgets (tabs, menus)
 
+## Focus Traps
+
+Overlays (modal, drawer, menu) must trap focus while open and restore focus to the trigger on close.
+
+**Angular**: use Angular CDK `cdkTrapFocus` / `FocusTrapFactory` — do not hand-roll Tab-key listeners.
+
+```typescript
+import { FocusTrapFactory } from '@angular/cdk/a11y';
+
+// In the open effect:
+this.focusTrap = this.focusTrapFactory.create(this.dialogElement.nativeElement);
+this.focusTrap.focusInitialElementWhenReady();
+// On close: this.focusTrap.destroy(); then this.triggerElement?.focus();
+```
+
+```html
+<div cdkTrapFocus *cdkTrapFocus="isOpen" class="modal__content" tabindex="-1">…</div>
+```
+
+**Flutter**: use `FocusScope` with `canRequestFocus` / `FocusTraversalGroup` (see [frameworks/flutter.md](./frameworks/flutter.md)).
+
 ## Focus Indicators
 
 All focus indicators must:
@@ -48,8 +69,8 @@ All focus indicators must:
 Example focus style:
 ```css
 :focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 2px;
+  outline: var(--border-focus-width, 2px) solid var(--border-focus);
+  outline-offset: var(--border-focus-offset, 2px);
 }
 ```
 

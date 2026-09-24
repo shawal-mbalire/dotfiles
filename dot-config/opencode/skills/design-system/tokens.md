@@ -17,6 +17,7 @@ Visual hierarchy is established through three primary mechanisms:
 | **Background** | --bg-primary, --bg-secondary, --bg-tertiary | Page and container backgrounds |
 | **Surface** | --surface-primary, --surface-secondary, --surface-elevated | Card, modal, dropdown backgrounds |
 | **Text** | --text-primary, --text-secondary, --text-tertiary | Heading, body, caption text |
+| **Text on Accent** | --text-on-accent | Text on accent-colored backgrounds (buttons, badges) |
 | **Border** | --border-primary, --border-secondary, --border-focus | Structural borders, focus rings |
 | **Accent** | --accent-primary, --accent-secondary, --accent-hover | Interactive element highlights |
 | **State** | --state-success, --state-warning, --state-error, --state-info | Feedback and validation |
@@ -33,7 +34,7 @@ Text opacity creates visual importance without changing hue:
 | **Disabled** | --text-disabled | 30% | Inactive elements, placeholder text |
 
 **Fallback for busy backgrounds**: When text overlays images or gradients, do not use opacity-based hierarchy. Instead, use solid colors with sufficient contrast:
-- Apply a semi-transparent overlay behind text (e.g., `background: rgba(0, 0, 0, 0.6)`)
+- Apply a semi-transparent overlay behind text (e.g., `background: var(--bg-overlay)`)
 - Use solid color tokens with verified contrast ratios (4.5:1 for normal text, 3:1 for large text)
 - Test contrast using tools like WebAIM Contrast Checker
 
@@ -168,6 +169,24 @@ h3 {
 - Pattern 1 uses `--border-radius` (5px) for strict geometric consistency
 - Pattern 2 uses `0` (sharp edges) — override at component level
 - Pattern 3 uses `--border-radius-lg` or `--border-radius-xl` for softer aesthetics
+- Pattern 4 uses paired dual-radius tokens (below) for shell + well morphing
+
+### Dual Radius Tokens (Pattern 4)
+
+| Token | Value | Use Case |
+|-------|-------|----------|
+| --radius-outer-sm | 4px | Compact shells (badges, chips) |
+| --radius-outer-md | 8px | Standard surfaces, controls |
+| --radius-outer-lg | 12px | Containers, cards |
+| --radius-outer-xl | 16px | Large containers, overlays |
+| --radius-inner-sm | 2px | Inner well paired with outer-sm |
+| --radius-inner-md | 6px | Inner well paired with outer-md |
+| --radius-inner-lg | 10px | Inner well paired with outer-lg |
+| --radius-inner-xl | 14px | Inner well paired with outer-xl |
+
+**Relationship rule**: `inner ≈ outer − component padding` (e.g., outer-lg with space-md padding → inner around 4–6px). Discrete tokens exist so outer and inner can morph independently (outer may bloom while inner holds, or both step together).
+
+**Morph rule**: whenever `--radius-outer-*` transitions, the paired `--radius-inner-*` on the well element transitions on the same clock (`--duration-morph` + `--easing-morph`). See [decision-rules.md](./decision-rules.md) Q5/Q6.
 
 ## Spacing Scale
 
@@ -181,6 +200,7 @@ Spacing follows a conceptual scale. Use consistent relative sizing:
 | --space-lg | Large | Section padding, major gaps |
 | --space-xl | Extra large | Page sections, hero spacing |
 | --space-2xl | Double extra large | Major layout divisions |
+| --space-3xl | Triple extra large | Full-page sections, hero blocks |
 
 ## Elevation Tokens
 
@@ -192,6 +212,56 @@ Shadow tokens indicate depth and hierarchy:
 | --shadow-md | Medium | Card resting state |
 | --shadow-lg | Elevated | Card hover, dropdown menus |
 | --shadow-xl | Highest | Modals, dialogs, popovers |
+| --shadow-hover | Interactive lift | Hover elevation (Pattern 3/4) |
+| --shadow-active | Pressed | Active/pressed elevation (Pattern 3/4) |
+
+**Rules:**
+- Never write raw `box-shadow` values in component CSS — define elevation changes as theme-level tokens (`--shadow-hover`, `--shadow-active`) when a state needs a custom shadow.
+
+## Border Width Token
+
+| Token | Value | Use Case |
+|-------|-------|----------|
+| --border-width | 1px | Standard structural borders (Pattern 1) |
+
+## Focus Ring Tokens
+
+| Token | Value | Use Case |
+|-------|-------|----------|
+| --border-focus-width | 2px | Focus indicator width |
+| --border-focus-offset | 2px | Focus indicator offset from element |
+
+## Overlay Token
+
+| Token | Value | Use Case |
+|-------|-------|----------|
+| --bg-overlay | rgba(0, 0, 0, 0.5) | Modal backdrops, scrims |
+
+## State Soft Tokens
+
+Soft background tints for feedback surfaces (error banners, success toasts):
+
+| Token | Use Case |
+|-------|----------|
+| --state-success-soft | Success background tint |
+| --state-warning-soft | Warning background tint |
+| --state-error-soft | Error background tint |
+| --state-info-soft | Info background tint |
+
+## Size Tokens
+
+Fixed component dimensions (not spacing):
+
+| Token | Value | Use Case |
+|-------|-------|----------|
+| --size-sidebar | 250px | Sidebar width |
+| --size-modal-max | 500px | Modal max-inline-size |
+| --size-toast-min | 300px | Toast min-inline-size |
+| --size-toast-max | 450px | Toast max-inline-size |
+| --size-icon-sm | 16px | Small inline icon/spinner |
+| --size-spinner-sm | 20px | Small spinner |
+| --size-spinner-md | 40px | Default spinner |
+| --size-spinner-lg | 60px | Large spinner |
 
 ## Motion Tokens
 
@@ -201,7 +271,10 @@ Shadow tokens indicate depth and hierarchy:
 | --duration-fast | 100ms | Micro-interactions (button press) |
 | --duration-normal | 200ms | Standard transitions (hover states) |
 | --duration-slow | 300ms | Complex animations (modals, drawers) |
+| --duration-morph | 350ms | Dual-radius morph transitions (Pattern 4) |
 | --duration-slower | 500ms | Page transitions |
+| --duration-spinner | 1000ms | Spinner rotation cycle |
+| --duration-loading | 1500ms | Skeleton shimmer cycle |
 
 **Easing Functions:**
 
@@ -211,6 +284,8 @@ Shadow tokens indicate depth and hierarchy:
 | --easing-in | cubic-bezier(0.4, 0, 1, 1) | Elements exiting |
 | --easing-out | cubic-bezier(0, 0, 0.2, 1) | Elements entering |
 | --easing-in-out | cubic-bezier(0.42, 0, 0.58, 1) | Symmetric animations |
+| --easing-morph | cubic-bezier(0.65, 0, 0.35, 1) | Symmetric shape morphs (radius pairs) |
+| --easing-peel | cubic-bezier(0.33, 1, 0.68, 1) | Lift-off / peel exits ("coming off") |
 | --easing-bounce | cubic-bezier(0.68, -0.55, 0.265, 1.55) | Playful emphasis |
 
 ## Z-index Scale
@@ -222,13 +297,14 @@ Layering tokens prevent z-index conflicts:
 | --z-below | -1 | Background elements |
 | --z-base | 0 | Default stacking |
 | --z-above | 1 | Above siblings |
-| --z-dropdown | 100 | Dropdown menus |
-| --z-sticky | 200 | Sticky headers |
-| --z-overlay | 300 | Backdrops, overlays |
-| --z-modal | 400 | Modal dialogs |
-| --z-popover | 500 | Popovers, tooltips |
-| --z-tooltip | 600 | Tooltips |
-| --z-toast | 700 | Toast notifications |
+| --z-dropdown | 1000 | Dropdown menus |
+| --z-sticky | 1020 | Sticky headers |
+| --z-fixed | 1030 | Fixed position elements |
+| --z-overlay | 1040 | Backdrops, overlays |
+| --z-modal | 1050 | Modal dialogs |
+| --z-popover | 1060 | Popovers, tooltips |
+| --z-tooltip | 1070 | Tooltips |
+| --z-toast | 1080 | Toast notifications |
 
 **Rules:**
 - Never use raw z-index values
@@ -251,7 +327,7 @@ Layering tokens prevent z-index conflicts:
 
 ```css
 /* Base styles for desktop */
-.container { max-width: 1200px; }
+.container { max-inline-size: var(--bp-xl); }
 
 /* Tablet and below */
 @media (max-width: 1200px) { }

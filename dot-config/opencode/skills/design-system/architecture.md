@@ -127,11 +127,11 @@ Use CSS Nesting for component-scoped styles:
 ```css
 .card {
   background: var(--surface-primary);
-  border-radius: 8px;
+  border-radius: var(--border-radius-lg);
 
   &__header {
     padding: var(--space-md);
-    border-bottom: 1px solid var(--border-primary);
+    border-bottom: var(--border-width) solid var(--border-primary);
   }
 
   &__body {
@@ -300,7 +300,7 @@ export class ButtonComponent {
   justify-content: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--border-primary);
+  border: var(--border-width) solid var(--border-primary);
   border-radius: var(--border-radius);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -313,7 +313,7 @@ export class ButtonComponent {
 // BEM-like naming within component scope
 :host(.btn--primary) {
   background: var(--accent-primary);
-  color: white;
+  color: var(--text-on-accent);
   border-color: var(--accent-primary);
 
   &:hover {
@@ -368,13 +368,14 @@ styles/
   align-items: center;
   justify-content: center;
   padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--border-primary);
+  border: var(--border-width) solid var(--border-primary);
   border-radius: var(--border-radius);
   background: var(--surface-primary);
   color: var(--text-primary);
   font-size: var(--font-size-base);
   cursor: pointer;
-  transition: all var(--duration-normal) var(--easing-default);
+  transition: background-color var(--duration-normal) var(--easing-default),
+              border-color var(--duration-normal) var(--easing-default);
 }
 
 .button:hover {
@@ -388,7 +389,7 @@ styles/
 
 .button--primary {
   background: var(--accent-primary);
-  color: white;
+  color: var(--text-on-accent);
   border-color: var(--accent-primary);
 }
 
@@ -460,6 +461,30 @@ export class Pattern3CardStrategy implements CardVariantStrategy {
     };
   }
 }
+
+// adapters/patterns/Pattern4CardStrategy.ts
+import { Injectable } from '@angular/core';
+import { CardVariantStrategy } from '../../domain/ports/CardVariantStrategy';
+
+@Injectable()
+export class Pattern4CardStrategy implements CardVariantStrategy {
+  getClasses() {
+    return {
+      'card--morph': true,
+      'card--dual-radius': true
+    };
+  }
+
+  getStyles() {
+    return {
+      '--card-radius-outer': 'var(--radius-outer-lg)',
+      '--card-radius-inner': 'var(--radius-inner-lg)',
+      '--card-shadow': 'var(--shadow-sm)',
+      '--card-morph-duration': 'var(--duration-morph)',
+      '--card-morph-easing': 'var(--easing-morph)'
+    };
+  }
+}
 ```
 
 ### Component Using Strategy
@@ -514,7 +539,7 @@ export const appConfig: ApplicationConfig = {
 import { InjectionToken } from '@angular/core';
 
 export interface DesignConfig {
-  patternId: 1 | 2 | 3;
+  patternId: 1 | 2 | 3 | 4;
   enableAnimations: boolean;
   iconSet: 'lucide';
 }
@@ -544,14 +569,21 @@ export class AppComponent {
 /* Base styles (desktop) */
 .container {
   padding: var(--space-lg);
-  max-width: 1200px;
-  margin: 0 auto;
+  max-inline-size: var(--bp-xl);
+  margin-inline: auto;
+}
+
+/* Desktop and below */
+@media (max-width: 1200px) {
+  .container {
+    padding: var(--space-md);
+  }
 }
 
 /* Tablet and below */
-@media (max-width: 1024px) {
+@media (max-width: 992px) {
   .container {
-    padding: var(--space-md);
+    padding: var(--space-sm);
   }
 }
 
@@ -572,18 +604,18 @@ Use only when explicitly required by project constraints. Uses `min-width` to bu
 }
 
 /* Tablet and up */
-@media (min-width: 768px) {
+@media (min-width: 993px) {
   .container {
     padding: var(--space-md);
   }
 }
 
 /* Desktop and up */
-@media (min-width: 1024px) {
+@media (min-width: 1201px) {
   .container {
     padding: var(--space-lg);
-    max-width: 1200px;
-    margin: 0 auto;
+    max-inline-size: var(--bp-xl);
+    margin-inline: auto;
   }
 }
 ```
@@ -603,7 +635,7 @@ Use only when explicitly required by project constraints. Uses `min-width` to bu
 }
 
 .flex-item--wide {
-  flex: 2 1 600px;
+  flex: 2 1 var(--bp-md);
 }
 ```
 
@@ -628,7 +660,7 @@ Use only when explicitly required by project constraints. Uses `min-width` to bu
 ```css
 .layout-sidebar {
   display: grid;
-  grid-template-columns: 250px 1fr;
+  grid-template-columns: var(--size-sidebar) 1fr;
   gap: var(--space-lg);
   min-height: 100vh;
 }
@@ -640,25 +672,26 @@ Use only when explicitly required by project constraints. Uses `min-width` to bu
   
   .sidebar {
     position: fixed;
-    left: -250px;
-    width: 250px;
+    inset-inline-start: calc(var(--size-sidebar) * -1);
+    width: var(--size-sidebar);
     height: 100vh;
     background: var(--surface-primary);
-    transition: left 0.3s ease;
+    transition: inset-inline-start var(--duration-slow) var(--easing-default);
     z-index: var(--z-overlay);
   }
   
   .sidebar.open {
-    left: 0;
+    inset-inline-start: 0;
   }
   
   .sidebar-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--bg-overlay);
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
+    transition: opacity var(--duration-slow) var(--easing-default),
+                visibility var(--duration-slow) var(--easing-default);
   }
   
   .sidebar.open + .sidebar-overlay {
@@ -686,7 +719,7 @@ Use only when explicitly required by project constraints. Uses `min-width` to bu
 .padding-lg { padding: var(--space-lg); }
 .padding-xl { padding: var(--space-xl); }
 
-.margin-horizontal-auto { margin-left: auto; margin-right: auto; }
+.margin-inline-auto { margin-inline: auto; }
 ```
 
 ### Display
@@ -727,9 +760,9 @@ Use only when explicitly required by project constraints. Uses `min-width` to bu
 
 ### Text
 ```css
-.text-align-left { text-align: left; }
+.text-align-start { text-align: start; }
 .text-align-center { text-align: center; }
-.text-align-right { text-align: right; }
+.text-align-end { text-align: end; }
 
 .text-color-primary { color: var(--text-primary); }
 .text-color-secondary { color: var(--text-secondary); }

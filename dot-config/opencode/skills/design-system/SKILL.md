@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: Generate HTML and CSS based on UI/UX Design Patterns with strict token adherence, accessibility compliance, and theme adaptability. Use when building UI components, implementing design systems, creating responsive layouts, or applying consistent visual patterns across web interfaces.
+description: Generate HTML and CSS based on UI/UX Design Patterns with strict token adherence, accessibility compliance, and theme adaptability. Includes a rule-based shape questionnaire, dual-radius morph pattern, and animations library. Use when building UI components, implementing design systems, creating responsive layouts, applying consistent visual patterns, defining morph transitions, or running design decision rules across web interfaces.
 ---
 
 # Design System Skill
@@ -16,7 +16,21 @@ This skill provides guidelines for generating HTML and CSS based on UI/UX Design
 
 ## Framework Preference
 
-**Angular** is the preferred framework for implementing this design system. When generating component code, services, or interactive behavior:
+**Angular** is the preferred framework. **Flutter** is a supported target.
+
+### Framework Detection
+
+| Signals in project | Target |
+|--------------------|--------|
+| `angular.json` | Angular |
+| `pubspec.yaml` | Flutter |
+| Both or neither | Ask the user once; do not guess |
+
+When ambiguous, ask: "Should I generate Angular or Flutter code for this?"
+
+### Angular Implementation Notes
+
+When generating Angular component code, services, or interactive behavior:
 
 - Use Angular **standalone components** (default since Angular 15+)
 - Use **signals** for reactive state management (Angular 16+)
@@ -29,6 +43,10 @@ This skill provides guidelines for generating HTML and CSS based on UI/UX Design
 
 When generating JavaScript logic (validators, managers, controllers), always provide the **Angular implementation** first, with vanilla JS as a fallback only when explicitly requested.
 
+### Flutter Implementation Notes
+
+See [frameworks/flutter.md](./frameworks/flutter.md) for Flutter-specific mapping (tokens → ThemeExtension, ports → adapters, widget contracts, motion mapping, focus traps, RTL via Directionality).
+
 ## Reference Files
 
 `SKILL.md` is the map. Open a file below only when you need its depth.
@@ -37,17 +55,20 @@ When generating JavaScript logic (validators, managers, controllers), always pro
 |-------|------|
 | Color, typography, spacing, elevation, motion, z-index, breakpoint tokens | [tokens.md](./tokens.md) |
 | Card, button, list item, navigation, input, link component contracts | [components.md](./components.md) |
-| Multi-theme, numbered list, flat theme pattern specifications | [patterns.md](./patterns.md) |
-| WCAG AA requirements, ARIA roles, contrast, keyboard navigation | [accessibility.md](./accessibility.md) |
+| Multi-theme, numbered list, flat theme, morphic surfaces pattern specifications | [patterns.md](./patterns.md) |
+| Shape questionnaire, layered decision rules, Shape Spec consistency | [decision-rules.md](./decision-rules.md) |
+| WCAG AA requirements, ARIA roles, contrast, keyboard navigation, focus traps | [accessibility.md](./accessibility.md) |
 | Nielsen Norman heuristics for design system implementation | [usability.md](./usability.md) |
 | Desktop-first strategy, container queries, fluid typography | [responsive.md](./responsive.md) |
 | Theme switching, CSS variables, palette examples, Angular service | [themes.md](./themes.md) |
-| Transition principles, timing functions, Angular animations, reduced motion | [motion.md](./motion.md) |
+| Motion principles, timing functions, transition property tables | [motion.md](./motion.md) |
+| Keyframe registry, utility classes, AnimationPort/Service, morph and peel recipes | [animations-library.md](./animations-library.md) |
 | Box model, specificity, OOCSS naming, Angular file structure, utilities | [architecture.md](./architecture.md) |
 | Skeleton screens, progress indicators, error states, Angular services | [loading.md](./loading.md) |
 | RTL support, text expansion, bidirectional text, locale formatting | [i18n.md](./i18n.md) |
 | UI lifestyle categories, navigation patterns, content hierarchy | [ui-lifestyles.md](./ui-lifestyles.md) |
 | Design lint rules, token enforcement, no-emoji, Lucide icons, no-gradients | [lint-rules.md](./lint-rules.md) |
+| Flutter token mapping, widget contracts, focus traps, RTL, reduced motion | [frameworks/flutter.md](./frameworks/flutter.md) |
 
 ## Evaluation Rubric
 
@@ -64,6 +85,8 @@ When generating HTML, CSS, or component code based on these guidelines, evaluate
 9. **Angular Performance**: Does code avoid unnecessary re-renders, use `trackBy` in `*ngFor`, and apply `ChangeDetectionStrategy.OnPush`?
 10. **Lint Compliance**: Does output pass all design lint rules (no hardcoded values, no gradients, no emojis, Lucide icons only)?
 11. **Hexagonal Purity**: Does domain code have zero Angular imports? Do components depend on ports, not concrete adapters?
+12. **Motion Compliance**: Do animations come from the animations library, use motion tokens (no raw ms/cubic-bezier), and honor `prefers-reduced-motion`?
+13. **Consistency**: Does the component match the Shape Spec resolved by the decision-rules questionnaire (same answers ⇒ identical radius, elevation, structure, motion bundle)?
 
 ## Core Principles
 
@@ -123,6 +146,8 @@ Consider the following when choosing a pattern:
 - **Pattern 2 (Interactive Numbered List)**: Best for minimalist, typography-focused interfaces where clean rows and hover interactions take precedence over heavy containers.
 
 - **Pattern 3 (Minimalist Flat Theme)**: Best for modern, clean interfaces with restricted color palettes, subtle depth through shadows, and emphasis on content over chrome.
+
+- **Pattern 4 (Morphic Surfaces)**: Best for interactive apps where components should feel like one continuous material — dual-radius shells that morph between states with tasteful lift/peel ("coming off") motion.
 
 **Important**: These patterns are not mutually exclusive. Elements from different patterns can be combined within an application as long as the visual language remains consistent.
 
@@ -198,10 +223,23 @@ export interface LayoutPort {
 }
 
 // domain/ports/AnimationPort.ts
+export interface MorphState {
+  outerRadius: string;
+  innerRadius?: string;
+  scale?: number;
+}
+
+export interface PeelOptions {
+  duration?: number;
+  distance?: number;
+}
+
 export interface AnimationPort {
   fadeIn(element: HTMLElement, duration?: number): void;
   fadeOut(element: HTMLElement, duration?: number): void;
   slideIn(element: HTMLElement, direction?: string): void;
+  morph(element: HTMLElement, from: MorphState, to: MorphState): void;
+  peelOff(element: HTMLElement, options?: PeelOptions): void;
 }
 ```
 
@@ -244,13 +282,14 @@ When generating UI code:
 
 1. **Understand the context** - What type of interface are you building? See [ui-lifestyles.md](./ui-lifestyles.md) for guidance.
 2. **Select pattern approach** - Choose based on project needs, not prescription.
-3. **Apply all tokens** from the [Design Tokens Reference](./tokens.md).
-4. **Follow component contracts** from [Component Contracts](./components.md).
-5. **Implement all interaction states** (hover, focus, active, disabled).
-6. **Use exact transition properties** as specified in [Motion Design](./motion.md).
-7. **Ensure accessibility requirements** are met (WCAG AA) from [Accessibility Requirements](./accessibility.md).
-8. **Apply usability principles** from [Usability Principles](./usability.md).
-9. **Evaluate against the rubric** before finalizing.
+3. **Run the shape questionnaire** - Answer L2 questions (hybrid mode: infer from context, ask only when ambiguous), apply decision rules, resolve the Shape Spec. See [decision-rules.md](./decision-rules.md).
+4. **Apply all tokens** from the [Design Tokens Reference](./tokens.md) — radius, elevation, and motion tokens must match the Shape Spec.
+5. **Follow component contracts** from [Component Contracts](./components.md) and the structure template from the Shape Spec.
+6. **Implement all interaction states** (hover, focus, active, disabled).
+7. **Use animations from the library** - keyframes, utilities, and Angular triggers only from [animations-library.md](./animations-library.md); motion principles from [motion.md](./motion.md).
+8. **Ensure accessibility requirements** are met (WCAG AA) from [Accessibility Requirements](./accessibility.md).
+9. **Apply usability principles** from [Usability Principles](./usability.md).
+10. **Evaluate against the rubric** before finalizing (including Motion Compliance and Consistency).
 
 ### Angular-Specific Workflow
 
@@ -263,7 +302,7 @@ When generating Angular components:
 5. **Services**: Use `@Injectable({ providedIn: 'root' })` for singletons (ThemeService, AnimationService).
 6. **Styles**: Use SCSS with `:host` for component scoping. Access CSS variables via `var()`.
 7. **Responsive**: Use `@angular/cdk/layout` BreakpointObserver, not window.matchMedia.
-8. **Animations**: Use `@angular/animations` for enter/leave; CSS transitions for hover/focus states.
+8. **Animations**: Use `@angular/animations` for enter/leave; CSS transitions for hover/focus states. All primitives from [animations-library.md](./animations-library.md); Pattern 4 morphs use `morph()`/`peelOff()`.
 9. **Forms**: Use reactive forms with `Validators` for input validation patterns.
 
 Always reference the appropriate sections and apply all rules. Verify output against the Evaluation Rubric before finalizing.

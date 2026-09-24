@@ -57,12 +57,12 @@ export class ResponsiveLayoutComponent {
   screenSize = toSignal(
     this.breakpointObserver.observe([
       '(max-width: 768px)',
-      '(min-width: 769px) and (max-width: 1024px)',
-      '(min-width: 1025px)'
+      '(min-width: 769px) and (max-width: 992px)',
+      '(min-width: 993px)'
     ]).pipe(
       map(result => {
         if (result.breakpoints['(max-width: 768px)']) return 'mobile';
-        if (result.breakpoints['(min-width: 769px) and (max-width: 1024px)']) return 'tablet';
+        if (result.breakpoints['(min-width: 769px) and (max-width: 992px)']) return 'tablet';
         return 'desktop';
       })
     ),
@@ -166,7 +166,7 @@ Follow the breakpoint tokens defined in the Design Tokens Reference:
 @media (max-width: 992px) { }
 
 /* Tablet and below */
-@media (max-width: 1200px) { }
+@media (max-width: 992px) { }
 
 /* Large desktop and above */
 @media (min-width: 1400px) { }
@@ -189,14 +189,14 @@ Follow the breakpoint tokens defined in the Design Tokens Reference:
 }
 
 /* Tablet: two columns */
-@media (min-width: 769px) and (max-width: 1024px) {
+@media (min-width: 769px) and (max-width: 992px) {
   .grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 /* Desktop: three columns */
-@media (min-width: 1025px) {
+@media (min-width: 993px) {
   .grid {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -207,24 +207,25 @@ Follow the breakpoint tokens defined in the Design Tokens Reference:
 ```css
 .layout {
   display: grid;
-  grid-template-columns: 250px 1fr;
+  grid-template-columns: var(--size-sidebar) 1fr;
   gap: var(--space-lg);
 }
 
 /* Tablet: collapsible sidebar */
-@media (max-width: 1024px) {
+@media (max-width: 992px) {
   .layout {
     grid-template-columns: 1fr;
   }
   
   .sidebar {
     position: fixed;
-    left: -250px;
-    transition: left 0.3s ease;
+    inset-inline-start: calc(var(--size-sidebar) * -1);
+    width: var(--size-sidebar);
+    transition: inset-inline-start var(--duration-slow) var(--easing-default);
   }
   
   .sidebar.open {
-    left: 0;
+    inset-inline-start: 0;
   }
 }
 ```
@@ -238,7 +239,7 @@ Follow the breakpoint tokens defined in the Design Tokens Reference:
 }
 
 /* Mobile: stack cards */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .card-grid {
     grid-template-columns: 1fr;
   }
@@ -248,20 +249,25 @@ Follow the breakpoint tokens defined in the Design Tokens Reference:
 ## Responsive Utilities
 
 ### Hide/Show Based on Screen Size
+
+Load utility classes **last** in your stylesheet cascade (or inside `@layer utilities`) so they win by source order — never use `!important`.
+
 ```css
-/* Hide on mobile, show on tablet+ */
-@media (max-width: 768px) {
-  .hide-mobile { display: none !important; }
-}
+@layer utilities {
+  /* Hide on mobile, show on tablet+ */
+  @media (max-width: 768px) {
+    .hide-mobile { display: none; }
+  }
 
-/* Hide on tablet, show on mobile and desktop */
-@media (min-width: 769px) and (max-width: 1024px) {
-  .hide-tablet { display: none !important; }
-}
+  /* Hide on tablet, show on mobile and desktop */
+  @media (min-width: 769px) and (max-width: 992px) {
+    .hide-tablet { display: none; }
+  }
 
-/* Hide on desktop, show on tablet and mobile */
-@media (min-width: 1025px) {
-  .hide-desktop { display: none !important; }
+  /* Hide on desktop, show on tablet and mobile */
+  @media (min-width: 993px) {
+    .hide-desktop { display: none; }
+  }
 }
 ```
 

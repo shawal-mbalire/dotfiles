@@ -10,12 +10,14 @@ Every CSS value must trace to a design token. No ad-hoc values.
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| `no-hardcoded-colors` | ERROR | All color values must use `var(--token)`. Exception: `transparent`, `inherit`, `currentColor` |
+| `no-hardcoded-colors` | ERROR | All color values must use `var(--token)`. Exception: `transparent`, `inherit`, `currentColor`. Use `var(--text-on-accent)` instead of `white`, `var(--text-primary)` instead of `black` |
 | `no-hardcoded-spacing` | ERROR | All spacing must use `var(--space-*)` tokens. Exception: `0`, `auto`, `100%` |
-| `no-hardcoded-radius` | ERROR | All border-radius must use `var(--border-radius-*)` tokens |
+| `no-hardcoded-radius` | ERROR | All border-radius must use `var(--border-radius-*)`, `var(--radius-outer-*)`, or `var(--radius-inner-*)` tokens |
 | `no-hardcoded-shadow` | ERROR | All box-shadow must use `var(--shadow-*)` tokens |
 | `no-hardcoded-font-size` | ERROR | All font-size must use `var(--font-size-*)` tokens |
 | `no-hardcoded-z-index` | ERROR | All z-index must use `var(--z-*)` tokens |
+| `no-hardcoded-motion` | ERROR | All durations/easing must use `var(--duration-*)` and `var(--easing-*)` tokens |
+| `no-hardcoded-border-width` | ERROR | Structural borders must use `var(--border-width)` (focus rings use `var(--border-focus-width)` token) |
 
 ```css
 /* BAD */
@@ -23,6 +25,10 @@ Every CSS value must trace to a design token. No ad-hoc values.
 
 /* GOOD */
 .card { background: var(--surface-primary); border-radius: var(--border-radius-lg); box-shadow: var(--shadow-md); }
+
+/* GOOD — Pattern 4 dual radius */
+.surface { border-radius: var(--radius-outer-lg); }
+.surface__well { border-radius: var(--radius-inner-lg); }
 ```
 
 ### 2. No Gradients
@@ -35,7 +41,7 @@ Gradient colors are prohibited in component styles. Functional gradients (skelet
 | `no-gradient-borders` | ERROR | `border-image: linear-gradient(...)` prohibited |
 | `no-gradient-text` | ERROR | `background-clip: text` with gradients prohibited |
 
-**Exception**: Skeleton screen shimmer animation:
+**Exception**: Skeleton screen shimmer animation (keyframe name `shimmer` from [animations-library.md](./animations-library.md)):
 ```css
 /* PERMITTED — functional loading animation */
 .skeleton {
@@ -46,7 +52,7 @@ Gradient colors are prohibited in component styles. Functional gradients (skelet
     var(--surface-primary) 75%
   );
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
+  animation: shimmer var(--duration-loading) infinite;
 }
 ```
 
@@ -173,10 +179,24 @@ Every interactive element must define all required states.
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| `has-hover-state` | WARNING | Interactive elements must have `:hover` styles |
+| `has-hover-state` | ERROR | Interactive elements must have `:hover` styles |
 | `has-focus-visible` | ERROR | Interactive elements must have `:focus-visible` styles |
 | `has-disabled-state` | WARNING | Interactive elements must have `:disabled` or `[disabled]` styles |
 | `has-transition` | WARNING | Interactive elements should have `transition` for state changes |
+| `no-transition-all` | WARNING | Avoid `transition: all` — specify individual properties for performance and predictability |
+| `no-wholesale-opacity-hover` | WARNING | No blanket `opacity` changes on `:hover` for text-bearing components — use color/background/shadow tokens instead (disabled `opacity` is allowed) |
+
+### 6b. Motion Library & Shape Spec
+
+Decision rules from [decision-rules.md](./decision-rules.md) are enforced here.
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `animation-from-library` | WARNING | Keyframes and animation classes must come from [animations-library.md](./animations-library.md) registry — no ad-hoc `@keyframes` |
+| `morph-uses-library-tokens` | WARNING | Radius transitions must use `--duration-morph` + `--easing-morph`; lift/peel must use `--easing-peel` |
+| `shape-spec-match` | ERROR | Component structure, radius tokens (outer/inner pair when Q5=yes), elevation, and motion bundle must match the resolved Shape Spec |
+| `pattern-4-dual-radius` | ERROR | Pattern 4 surfaces with an inner well must set both `--radius-outer-*` and `--radius-inner-*` |
+| `pattern-4-peel-exit` | WARNING | Pattern 4 dismiss/exit animations must use `peelOff`, not `fadeOut` |
 
 ### 7. Accessibility
 
@@ -203,8 +223,8 @@ Every interactive element must define all required states.
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| `no-important` | ERROR | Never use `!important` |
-| `no-id-selectors` | WARNING | Never use ID selectors for styling |
+| `no-important` | ERROR | Never use `!important`. Exception: `prefers-reduced-motion` guards only |
+| `no-id-selectors` | ERROR | Never use ID selectors for styling |
 | `max-nesting-depth` | WARNING | CSS nesting depth must not exceed 3 levels |
 | `contain-layout` | INFO | Components with animations should use `contain: layout style` |
 
@@ -218,14 +238,24 @@ Every interactive element must define all required states.
   "rules": {
     "@design/no-hardcoded-colors": "error",
     "@design/no-hardcoded-spacing": "error",
+    "@design/no-hardcoded-radius": "error",
+    "@design/no-hardcoded-motion": "error",
     "@design/no-decorative-gradients": "error",
     "@design/no-emoji-in-templates": "error",
     "@design/use-lucide-icons": "error",
     "@design/use-logical-properties": "error",
     "@design/has-focus-visible": "error",
+    "@design/has-hover-state": "error",
+    "@design/no-id-selectors": "error",
+    "@design/no-transition-all": "warn",
     "@design/aria-required-for-inputs": "error",
     "@design/angular-standalone": "error",
     "@design/angular-onpush": "error",
+    "@design/shape-spec-match": "error",
+    "@design/pattern-4-dual-radius": "error",
+    "@design/animation-from-library": "warn",
+    "@design/morph-uses-library-tokens": "warn",
+    "@design/pattern-4-peel-exit": "warn",
     "@design/no-divitis": "warn",
     "@design/semantic-html": "warn",
     "@design/no-important": "error"
@@ -266,5 +296,12 @@ Before merging any UI code:
 - [ ] Error states have `role="alert"` or `aria-live`
 - [ ] Angular components are standalone with OnPush
 - [ ] Semantic HTML used before `<div>`
-- [ ] No `!important` declarations
+- [ ] No `!important` declarations (exception: `prefers-reduced-motion` guard only)
+- [ ] No wholesale `opacity` hover on text-bearing components
+- [ ] No `transition: all` — specify individual properties
+- [ ] No ID selectors for styling
 - [ ] CSS nesting depth <= 3
+- [ ] Shape Spec resolved via decision-rules questionnaire and matched (`shape-spec-match`)
+- [ ] Pattern 4: outer + inner radius tokens paired; morph uses `--duration-morph`/`--easing-morph`
+- [ ] All animations from the animations library; motion values tokenized
+- [ ] Reduced-motion guard present for animated components
