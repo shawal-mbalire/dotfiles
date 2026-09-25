@@ -111,7 +111,6 @@ path add ($env.HOME | path join "./google-cloud-sdk/bin")
 
 mkdir ~/.cache/starship
 starship init nu | save -f ~/.cache/starship/init.nu
-zoxide init nushell | save -f ~/.zoxide.nu
 
 $env.STARSHIP_CONFIG = ($env.HOME | path join ".config/starship/starship.toml")
 $env.CARAPACE_BRIDGES = 'zsh,fish,bash,inshellisense' # optional

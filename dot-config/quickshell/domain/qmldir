@@ -1,7 +1,0 @@
-singleton Theme 1.0 models/Theme.qml
-singleton Constants 1.0 models/Constants.qml
-singleton Formatters 1.0 models/Formatters.qml
-singleton AudioGroups 1.0 models/AudioGroups.qml
-singleton Time 1.0 models/Time.qml
-singleton Measure 1.0 workflows/Measure.qml
-singleton Ports 1.0 ports.qml
