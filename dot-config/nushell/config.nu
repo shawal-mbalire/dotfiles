@@ -658,17 +658,29 @@ $env.config = {
         }
     ]
 }
+def zen [...args: string] {
+    if $nu.os-info.name == "linux" {
+        flatpak run app.zen_browser.zen ...$args
+    } else {
+        print "Error: Zen Browser via Flatpak is only available on Linux."
+    }
+}
+
 
 def up [] {
-  sudo dnf update -y 
-  sudo flatpak upgrade -y
+  if $nu.os-info.name == "linux" {
+    sudo dnf update -y 
+    sudo flatpak upgrade -y
+  }
   brew upgrade -y
   brew update -y
 }
 
 def cleanup [] {
-  sudo dnf autoremove -y
-  sudo dnf clean all 
+  if $nu.os-info.name == "linux" {
+    sudo dnf autoremove -y
+    sudo dnf clean all 
+  }
   brew cleanup
 }
 
