@@ -1,6 +1,6 @@
-# Pure Functions in Domain
+# Pure Functions
 
-Domain workflows should be pure functions wherever possible. This makes testing trivial, eliminates code duplication, and makes the system predictable.
+Every function that can be pure must be pure. This applies everywhere — domain, adapters, tests. The only impure functions are thin I/O methods in adapters and the wiring in the composition root. This makes testing trivial, eliminates code duplication, and makes the system predictable.
 
 ## What is a Pure Function?
 
@@ -107,9 +107,9 @@ def test_calculate_total_zero_tax():
 # No mocks, no setup, no database — just input → output
 ```
 
-## Two Kinds of Domain Code: Pure Functions and Pure Orchestrators
+## Two Kinds of Code: Pure Functions and Pure Orchestrators
 
-Every function in the domain is one of two kinds. Know which one you're writing.
+Every function in the system is one of two kinds. Know which one you're writing.
 
 **Pure functions** — logic only, no port calls. Same input → same output. Trivial to test.
 
@@ -141,7 +141,7 @@ def create_document(
     return doc
 ```
 
-**The split prevents god functions.** If a function does validation + logic + I/O, extract the validation and logic into pure functions and keep the orchestration thin. Every function should be either a pure function (test by calling) or a pure orchestrator (test by faking ports). Nothing in between.
+**The split prevents jack-of-all-trades functions.** If a function does validation + logic + I/O, extract the validation and logic into pure functions and keep the orchestration thin. Every function should be either a pure function (test by calling) or a pure orchestrator (test by faking ports). Nothing in between.
 
 ## What Is a Workflow?
 
