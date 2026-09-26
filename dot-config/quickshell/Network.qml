@@ -26,7 +26,7 @@ RowLayout {
     text: root.icon
     color: Networking.wifiEnabled ? colorPink : colorOverlay0
     font {
-      family: themeFont
+      family: themeNerdFont
       pixelSize: themeFontSize
       weight: themeFontWeight
     }

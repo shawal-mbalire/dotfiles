@@ -109,7 +109,7 @@ PanelWindow {
         Text {
           text: "\uf028"
           color: colorYellow
-          font { family: themeFont; pixelSize: 14; weight: themeFontWeight }
+          font { family: themeNerdFont; pixelSize: 14; weight: themeFontWeight }
         }
 
         Text {
@@ -159,7 +159,7 @@ PanelWindow {
         Text {
           text: "\uf185"
           color: colorText
-          font { family: themeFont; pixelSize: 14; weight: themeFontWeight }
+          font { family: themeNerdFont; pixelSize: 14; weight: themeFontWeight }
         }
 
         Text {
@@ -211,7 +211,7 @@ PanelWindow {
         Text {
           text: "\uf1eb"
           color: colorPink
-          font { family: themeFont; pixelSize: 14; weight: themeFontWeight }
+          font { family: themeNerdFont; pixelSize: 14; weight: themeFontWeight }
         }
 
         Text {

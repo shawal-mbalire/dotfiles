@@ -26,7 +26,7 @@ RowLayout {
     text: root.icon
     color: colorYellow
     font {
-      family: themeFont
+      family: themeNerdFont
       pixelSize: themeFontSize
       weight: themeFontWeight
     }

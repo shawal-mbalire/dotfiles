@@ -32,6 +32,7 @@ ShellRoot {
   property color colorMantle: "#181825"
   property color colorCrust: "#11111b"
   property string themeFont: "Comfortaa"
+  property string themeNerdFont: "Hack Nerd Font"
   property int themeFontSize: 15
   property int themeFontWeight: 1000
 
@@ -67,8 +68,11 @@ ShellRoot {
 
         RowLayout {
           spacing: 20
+
+          Gammastep {}
           Network {}
           Volume {}
+          Brightness {}
           Battery {}
         }
       }

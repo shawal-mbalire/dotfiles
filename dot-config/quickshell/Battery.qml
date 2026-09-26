@@ -25,7 +25,7 @@ RowLayout {
          : root.level <= 30 ? colorPeach
          : colorGreen
     font {
-      family: themeFont
+      family: themeNerdFont
       pixelSize: 17
       weight: themeFontWeight
     }
