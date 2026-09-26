@@ -64,7 +64,7 @@ PanelWindow {
 
   Rectangle {
     anchors.fill: parent
-    color: "#0a1a18"
+    color: colorBase
     radius: 10
 
     ColumnLayout {
@@ -82,8 +82,8 @@ PanelWindow {
           Layout.fillWidth: true
           height: 54
           radius: 8
-          color: modelData.urgency === 1 ? "#2a1015" : "#0f211f"
-          border.color: modelData.urgency === 1 ? "#ff5048" : "#1d3631"
+          color: modelData.urgency === 1 ? colorSurface1 : colorSurface0
+          border.color: modelData.urgency === 1 ? colorRed : colorSurface1
           border.width: 1
 
           RowLayout {
@@ -95,7 +95,7 @@ PanelWindow {
               implicitWidth: 32
               implicitHeight: 32
               radius: 6
-              color: "#1d3631"
+              color: colorSurface1
 
               Image {
                 anchors.centerIn: parent
@@ -109,7 +109,7 @@ PanelWindow {
               Text {
                 anchors.centerIn: parent
                 text: String.fromCodePoint(0xF0494)
-                color: "#5a4d3e"
+                color: colorOverlay0
                 font { pixelSize: 16 }
                 visible: modelData.appIcon === ""
               }
@@ -121,16 +121,16 @@ PanelWindow {
 
               Text {
                 text: modelData.summary
-                color: "#f5e2c5"
-                font { family: "Comfortaa"; pixelSize: 12; weight: 800 }
+                color: colorText
+                font { family: themeFont; pixelSize: 12; weight: 800 }
                 elide: Text.ElideRight
                 Layout.fillWidth: true
               }
 
               Text {
                 text: modelData.body
-                color: "#5a4d3e"
-                font { family: "Comfortaa"; pixelSize: 10; weight: 600 }
+                color: colorOverlay0
+                font { family: themeFont; pixelSize: 10; weight: 600 }
                 elide: Text.ElideRight
                 Layout.fillWidth: true
                 visible: text !== ""
@@ -141,12 +141,12 @@ PanelWindow {
               implicitWidth: 20
               implicitHeight: 20
               radius: 10
-              color: dismissArea.containsMouse ? "#ff5048" : "transparent"
+              color: dismissArea.containsMouse ? colorRed : "transparent"
 
               Text {
                 anchors.centerIn: parent
                 text: "\u00D7"
-                color: "#f5e2c5"
+                color: colorText
                 font { pixelSize: 14; weight: 800 }
               }
 

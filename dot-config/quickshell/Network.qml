@@ -1,6 +1,6 @@
 import Quickshell
 import Quickshell.Networking
-import QtQuick 
+import QtQuick
 import QtQuick.Layouts
 
 RowLayout {
@@ -24,25 +24,24 @@ RowLayout {
 
   Text {
     text: root.icon
-    color: Networking.wifiEnabled ? "#ea9ea8" : "#5a4d3e"
+    color: Networking.wifiEnabled ? colorPink : colorOverlay0
     font {
-      family: "Comfortaa"
-      pixelSize: 15
-      weight: 1000
+      family: themeFont
+      pixelSize: themeFontSize
+      weight: themeFontWeight
     }
   }
   Text {
     text: {
       if (!Networking.wifiEnabled) return "off"
       if (!root.active) return "Disconnected"
-
       return root.active.name
     }
-    color: Networking.wifiEnabled ? "#ea9ea8" : "#5a4d3e"
+    color: Networking.wifiEnabled ? colorPink : colorOverlay0
     font {
-      family: "Comfortaa"
-      pixelSize: 15
-      weight: 1000
+      family: themeFont
+      pixelSize: themeFontSize
+      weight: themeFontWeight
     }
   }
 }

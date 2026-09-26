@@ -11,29 +11,25 @@ RowLayout {
     precision: SystemClock.Minutes
   }
 
-
-  // date
   Text {
     text: Qt.formatDateTime(clock.date, "MMM d")
-    color: "#5a4d3e"
+    color: colorOverlay0
     font {
-      family: "Comfortaa"
-      pixelSize: 15
-      weight: 1000
+      family: themeFont
+      pixelSize: themeFontSize
+      weight: themeFontWeight
     }
     Layout.alignment: Qt.AlignVCenter
   }
 
-  // time
   Text {
     text: Qt.formatDateTime(clock.date, "hh:mm")
-    color: "#f5e2c5"
+    color: colorText
     font {
-      family: "Comfortaa"
-      pixelSize: 15
-      weight: 1000
+      family: themeFont
+      pixelSize: themeFontSize
+      weight: themeFontWeight
     }
     Layout.alignment: Qt.AlignVCenter
   }
 }
-
