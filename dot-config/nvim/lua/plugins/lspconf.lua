@@ -1,3 +1,12 @@
-require("lspconfig").qmlls.setup({
-  cmd = { "qmlls", "-E" },
-})
+return {
+  {
+    "neovim/nvim-lspconfig",
+    opts = {
+      servers = {
+        qmlls = {
+          cmd = { "qmlls", "-E" },
+        },
+      },
+    },
+  },
+}
