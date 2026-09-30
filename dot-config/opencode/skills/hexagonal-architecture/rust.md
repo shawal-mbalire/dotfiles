@@ -469,10 +469,10 @@ impl<T: Send + Sync> Repository<T> for SqliteRepository<T> {
         query
             .execute(&self.pool)
             .await
-            .map(|_| ()) // parameterized only
             .map_err(|e| DomainError::storage_unavailable(
                 e, "adapter.sqlite_repository.save", ""  // correlation_id set by caller
-            ))?
+            ))?;
+        Ok(())
     }
 
     async fn find_by_id(&self, id: &str) -> Result<Option<T>, DomainError> {
@@ -483,12 +483,16 @@ impl<T: Send + Sync> Repository<T> for SqliteRepository<T> {
             .map_err(|e| DomainError::storage_unavailable(
                 e, "adapter.sqlite_repository.find_by_id", ""
             ))?;
-        row.as_ref()
-            .map(|r| self.mapper.from_row(r))
-            .transpose()
-            .map_err(|e| DomainError::storage_unavailable(
-                e, "adapter.sqlite_repository.from_row", ""
-            ))
+        match row {
+            Some(r) => {
+                let doc = self.mapper.from_row(r)
+                    .map_err(|e| DomainError::storage_unavailable(
+                        e, "adapter.sqlite_repository.from_row", ""
+                    ))?;
+                Ok(Some(doc))
+            }
+            None => Ok(None),
+        }
     }
 
     async fn find_all(&self) -> Result<Vec<T>, DomainError> {
@@ -511,10 +515,10 @@ impl<T: Send + Sync> Repository<T> for SqliteRepository<T> {
             .bind(id)
             .execute(&self.pool)
             .await
-            .map(|_| ())
             .map_err(|e| DomainError::storage_unavailable(
                 e, "adapter.sqlite_repository.delete", ""
-            ))
+            ))?;
+        Ok(())
     }
 }
 ```
@@ -611,12 +615,21 @@ pub struct DuckDbConfig {
 }
 
 pub fn duck_db_config_from_env() -> DuckDbConfig {
+    fn env_u64(key: &str, default: u64) -> u64 {
+        match std::env::var(key) {
+            Ok(raw) => match raw.parse() {
+                Ok(n) => n,
+                Err(_) => default,
+            },
+            Err(_) => default,
+        }
+    }
     DuckDbConfig {
         mode: std::env::var("DUCKDB_MODE").unwrap_or_else(|_| "hub".into()),
         database_path: std::env::var("DUCKDB_PATH").unwrap_or_else(|_| "build/dev.duckdb".into()),
         socket_path: std::env::var("DUCKDB_SOCKET").unwrap_or_else(|_| "build/dev.duckdb.sock".into()),
-        poll_interval_ms: std::env::var("DUCKDB_POLL_INTERVAL_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(250),
-        batch_size: std::env::var("DUCKDB_BATCH_SIZE").ok().and_then(|v| v.parse().ok()).unwrap_or(100),
+        poll_interval_ms: env_u64("DUCKDB_POLL_INTERVAL_MS", 250),
+        batch_size: env_u64("DUCKDB_BATCH_SIZE", 100),
     }
 }
 
@@ -756,10 +769,12 @@ impl EventPublisherPort for DuckDbEventBus {
 impl EventConsumerPort for DuckDbEventBus {
     fn subscribe(&self, topic: &str, consumer: &str, handler: Box<dyn Fn(Value) + Send + Sync>) {
         // Durable cursor lives in the hub; 0 on first run
-        let mut cursor = self.connection.lock().unwrap()
+        let mut cursor = match self.connection.lock().unwrap()
             .request(&serde_json::json!({ "op": "load_cursor", "topic": topic, "consumer": consumer }))
-            .map(|r| r["last_seq"].as_i64().unwrap_or(0))
-            .unwrap_or(0);
+        {
+            Ok(r) => r["last_seq"].as_i64().unwrap_or(0),
+            Err(_) => 0,
+        };
 
         while !self.shutdown.load(Ordering::Relaxed) {
             let response = self.connection.lock().unwrap()
@@ -842,10 +857,12 @@ async fn main() {
 // BAD: soft fail — Option hides the error
 fn find_document(id: &str) -> Option<Document> { ... }
 
-// GOOD: hard fail — Result with specific error
-fn find_document(id: &str) -> Result<Document, DomainError> {
-    repo.find_by_id(id)
-        .ok_or_else(|| DomainError::DocumentNotFound { id: id.to_string() })?
+// GOOD: hard fail — Result with specific error, flat control flow
+fn find_document(id: &str, repo: &dyn FileRepository) -> Result<Document, DomainError> {
+    match repo.find_by_id(id)? {
+        Some(doc) => Ok(doc),
+        None => Err(DomainError::DocumentNotFound { id: id.to_string() }),
+    }
 }
 
 // BAD: unwrap everywhere — panics with no context
@@ -865,6 +882,93 @@ assert_eq!(
     result.status, result.content
 );
 ```
+
+## Avoid Monadic Pipelines
+
+`Result` and `Option` are the idiomatic way to signal errors and absence in Rust — **return them** from ports and workflows, and use `?` for straight-line propagation. What this skill forbids is the *monadic style*: building control flow out of chained combinators (`.and_then`, `.ok_or`, `.map_err`, `.transpose`, `.flatten`, `.unwrap_or_else`) so that each step stops being a readable statement.
+
+**Why it's banned here — it violates the core principles:**
+
+- **Reads like pseudocode** — `x.and_then(..).map(..).ok_or(..)?` packs several intents into one dense line. A `match` or a guard clause is a sequence of steps you can read top-to-bottom.
+- **Fail fast, never swallow** — `ok_or`/`ok()` discard the underlying error; the diagnostics rules (Rule 19, Rule 27) require preserving `cause`.
+- **Two kinds of functions** — inline `|v| ...` closures smuggle logic into data flow. Extract a named pure function instead; keep orchestrators thin.
+- **Type-nesting** — `Result<Option<T>, E>` plus `transpose()`/`flatten()` creates a second, hidden control flow. `Result<Option<T>, E>` is fine as a *signature*; handle it with `match`, never with combinator chains.
+
+**Allowed:**
+- `Result<T, DomainError>` / `Option<T>` as return types, including `Result<Option<T>, DomainError>` signatures
+- `?` for single-step propagation — one statement per line, never inside a chain
+- One `map_err` **only at the adapter boundary** to translate a vendor error into `AppError` while preserving its `cause` — never in domain code
+- Pure iteration with `.map`/`.collect`/`.filter` over collections (data transformation, not error control flow)
+- `match`, `if let`, guard clauses, and early `return` for all branching
+
+```rust
+// BAD — monadic pipeline: chained combinators hide control flow
+fn publish(id: &str, repo: &dyn FileRepository, bus: &dyn EventPublisherPort) -> Result<(), DomainError> {
+    repo.find_by_id(id)
+        .map_err(|e| DomainError::storage_unavailable(e, "workflow.publish", ""))?
+        .ok_or_else(|| DomainError::not_found("document", id))
+        .and_then(|doc| {
+            if doc.status == DocumentStatus::Draft {
+                Err(DomainError::not_publishable(id))
+            } else {
+                Ok(doc)
+            }
+        })
+        .map(|doc| bus.publish("doc.published", doc))
+}
+
+// GOOD — flat control flow: each line is one intent, errors keep their cause
+fn publish(id: &str, repo: &dyn FileRepository, bus: &dyn EventPublisherPort) -> Result<(), DomainError> {
+    let doc = repo.find_by_id(id)?;                    // ? propagates the translated DomainError
+    let doc = match doc {
+        Some(doc) => doc,
+        None => return Err(DomainError::not_found("document", id)),
+    };
+    if doc.status == DocumentStatus::Draft {           // guard clause, not and_then
+        return Err(DomainError::not_publishable(id));
+    }
+    bus.publish("doc.published", doc);
+    Ok(())
+}
+```
+
+**Config parsing** is where monadic chains creep in most. Use a named pure function instead:
+
+```rust
+// BAD — ok().and_then(..).unwrap_or(..) chain, one dense line
+poll_interval_ms: std::env::var("DUCKDB_POLL_INTERVAL_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(250),
+
+// GOOD — named pure function, testable, one intent per line
+fn env_u64(key: &str, default: u64) -> u64 {
+    match std::env::var(key) {
+        Ok(raw) => match raw.parse() {
+            Ok(n) => n,
+            Err(_) => default,
+        },
+        Err(_) => default,
+    }
+}
+poll_interval_ms: env_u64("DUCKDB_POLL_INTERVAL_MS", 250),
+```
+
+**`Result<Option<T>, E>` from a port:** resolve it with `match`, never with `.transpose()`:
+
+```rust
+// BAD — .map().transpose().map_err() gymnastics over Result<Option<T>, E>
+let doc = row.as_ref()
+    .map(|r| self.mapper.from_row(r))
+    .transpose()
+    .map_err(|e| DomainError::storage_unavailable(e, "adapter.sqlite_repository.from_row", ""))?;
+
+// GOOD — match states the two cases, cause preserved on the error path
+let doc = match row {
+    Some(r) => self.mapper.from_row(r)
+        .map_err(|e| DomainError::storage_unavailable(e, "adapter.sqlite_repository.from_row", ""))?,
+    None => return Ok(None),
+};
+```
+
+This applies everywhere — domain workflows, adapters, config, and tests. If you find yourself typing a combinator chain, stop and rewrite it as statements: `?`, a `match`, a guard clause, an early return. That is the shape that reads like pseudocode.
 
 ## Structured Logging
 

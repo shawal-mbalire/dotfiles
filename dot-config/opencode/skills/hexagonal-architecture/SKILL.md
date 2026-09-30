@@ -291,6 +291,7 @@ These refine the [Core Principles](#core-principles) with concrete, checkable ru
 30. **Transferable Ports and Adapters** — Every port and adapter must be copy-pasteable into another project unmodified. Ports contain no app-specific types — only domain primitives and standard port vocabulary. Adapters depend only on standard ports + their driver — never on app models, sibling adapters, or project-specific code. Before adding a port or adapter from a collection, verify it compiles and passes its contract test in the target project with zero changes.
 31. **Two Kinds of Functions** — Every function in the system is one of two kinds. Pure functions: same input → same output, no side effects, no port calls — trivial to test by calling and checking. Pure orchestrators: coordinate pure functions and port calls, no business logic inline — testable by faking ports. If a function does both (logic + side effects), split it. If a function is too large, extract the logic into pure functions and keep the orchestration thin. This prevents jack-of-all-tradess and keeps every function testable at the lowest tier. See [Pure Functions and Pure Orchestrators](./structures.md#pure-functions-and-pure-orchestrators).
 32. **Workflows Read Like Pseudocode; Entry Points Read Like Shell Scripts** — A workflow orchestrates pure functions and ports with each line expressing one intent: validate → create → persist → log. An entry point reads like a shell script: load config → create adapters → wire → start. No implementation details leak into either. If you can't read it top-to-bottom and describe what it does, extract the details. See [Workflows vs Entry Points](./structures.md#workflows-vs-entry-points).
+33. **No Monadic Pipelines** — Return `Result`/`Option` and use `?` for straight-line propagation, but never build control flow out of chained combinators (`.and_then`, `.ok_or`, `.transpose`, `.flatten`, `.unwrap_or_else`). Every line states one intent: `match`, guard clauses, and early returns for branching; a single `map_err` at the adapter boundary for error translation (preserving `cause`). This matters most in Rust, where `Result`/`Option` make combinator chains the default temptation. See [Avoid Monadic Pipelines](./rust.md#avoid-monadic-pipelines).
 
 ## 12FA Compliance
 
@@ -408,6 +409,7 @@ Building a new feature?
 ├─ Wire everything in the entry point (main, app, index)
 ├─ Run the port's contract test against every adapter (local and copied-in)
 ├─ Return/raise AppError everywhere (code, context, cause, origin, correlation_id)
+├─ No monadic pipelines — Result/Option + `?` only; branch with match/guards/early returns; one map_err at the adapter boundary (Rule 33)
 ├─ Register each new code in the error registry (errors-check must pass)
 ├─ Install a crash/panic handler and breadcrumb buffer in the composition root
 ├─ Add a fault-injection test for every driven adapter's failure paths

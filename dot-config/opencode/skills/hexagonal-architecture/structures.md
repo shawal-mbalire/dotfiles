@@ -196,6 +196,8 @@ def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) 
 
 **The test:** Read the function aloud. If you stumble on implementation details (SQL, JSON, connection strings), those details belong in a pure function or an adapter — not in the workflow or entry point.
 
+**Monadic pipelines break this rule.** In `Result`/`Option`-based languages, combinator chains (`.and_then`, `.ok_or`, `.map_err`, `.transpose`, `.unwrap_or_else`) collapse several intents into one dense expression and swallow error causes. Rewrite them as `?`, `match`, guard clauses, and early returns so each line states one intent. See [Avoid Monadic Pipelines](./rust.md#avoid-monadic-pipelines).
+
 ## Nested Hexagonal Architecture
 
 For large systems with **multiple bounded contexts** (e.g., `billing`, `inventory`, `users`), apply hexagonal architecture recursively — each bounded context is its own hexagon.

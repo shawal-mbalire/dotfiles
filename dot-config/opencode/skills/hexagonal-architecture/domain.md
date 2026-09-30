@@ -143,6 +143,17 @@ def create_document(
 
 **The split prevents jack-of-all-trades functions.** If a function does validation + logic + I/O, extract the validation and logic into pure functions and keep the orchestration thin. Every function should be either a pure function (test by calling) or a pure orchestrator (test by faking ports). Nothing in between.
 
+### Avoid Monadic Pipelines (Cross-Language)
+
+In languages where errors are values (`Result`, `Option`, `Either`), keep error handling as **flat control flow**, never combinator pipelines. Return `Result`/`Option` from functions and propagate one step at a time with `?`; branch with `match`, guard clauses, and early returns. Do not chain `.and_then`, `.ok_or`, `.map_err`, `.transpose`, or `.flatten` to build control flow — every line must state one intent.
+
+- `ok_or`/`ok` discard the underlying error and break the cause-preserving `AppError` chain
+- Inline closures inside chains smuggle logic into data flow — extract a named pure function
+- Nested `Result<Option<T>, E>` plus `transpose`/`flatten` hides a second control flow
+- One `map_err` is allowed only at the adapter boundary, to translate a vendor error into `AppError` while preserving its `cause` — never in domain code
+
+The full treatment lives in the Rust guide: [Avoid Monadic Pipelines](./rust.md#avoid-monadic-pipelines).
+
 ## What Is a Workflow?
 
 A workflow is a **domain operation** — a business action that orchestrates pure functions and ports to achieve a goal. It lives in `domain/workflows/` and is the core of what the app does.
