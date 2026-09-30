@@ -5,6 +5,11 @@
 vim.opt.mouse = ""
 vim.o.shell = "/usr/bin/env bash"
 vim.o.shellcmdflag = "-c"
+vim.opt.encoding = "utf-8"
+vim.opt.fileencoding = "utf-8"
+vim.opt.title = true
+vim.opt.autoindent = true
+vim.opt.smartindent = true
 
 -- Always use cwd as root, never detect project root
 vim.g.root_spec = { "cwd" }

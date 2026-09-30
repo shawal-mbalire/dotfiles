@@ -30,6 +30,7 @@ vim.filetype.add({
 
 vim.treesitter.language.register("cpp", "mql5")
 vim.treesitter.language.register("c", "mql4")
+vim.treesitter.language.register("python", "indie")
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "mql5", "mql4" },
