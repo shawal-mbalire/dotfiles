@@ -18,8 +18,18 @@ frontend *args:
 For verbs that apply to one stack *or* all stacks — `test`, `build`, `fmt`, `lint`, `run`, `deploy`:
 
 ```just
+[positional-arguments]
 test target="all" *args:
-    @if [[ "{{target}}" == "all" ]]; then just backend test {{args}}; just frontend test {{args}}; just mobile test {{args}}; else just {{target}} test {{args}}; fi
+    #!/usr/bin/env python3
+    import sys
+    target = sys.argv[1] if len(sys.argv) > 1 else "all"
+    args = sys.argv[2:]
+    if target == "all":
+        print(f"just backend test {' '.join(args)}")
+        print(f"just frontend test {' '.join(args)}")
+        print(f"just mobile test {' '.join(args)}")
+    else:
+        print(f"just {target} test {' '.join(args)}")
 ```
 
 Rules:
@@ -35,9 +45,9 @@ Rules:
 
 - Space-separated: `just test all` / `just test backend` — not `test-all`, not `test:backend`.
 - Sequential child calls — readable logs, deterministic order; `@` keeps each line silent.
-- One-line `if` control flow assumes `set shell := ["bash", "-euo", "pipefail", "-c"]` at the top of the file.
+- Dispatch logic uses an **inline Python shebang body** (see [SKILL.md](./SKILL.md) — extra logic → shebang); params arrive as `sys.argv[1:]` with `set positional-arguments := true` or the `[positional-arguments]` attribute.
 - `run`/`deploy` take explicit target (no "run everything" default).
-- Validation: unknown target → `just {{target}} …` fails naturally (child router 404s) or add a `case` guard.
+- Validation: unknown target → `just {{target}} …` fails naturally (child router 404s) or add a guard in the shebang body.
 
 ### Bare `just test` → defaults to `all`
 
@@ -130,7 +140,7 @@ build-all:
 1. **Dependency line** (`recipe: dep1`) — runs deps first, then body.
 2. **Explicit `@just other`** in body — full control over order/conditionals.
 
-For cross-stack target-dispatch, always use explicit `just stack verb` in shebang bodies — dependency lines don't compose across `-f` boundaries.
+For cross-stack target-dispatch, always use explicit `just stack verb` inside shebang bodies — dependency lines don't compose across `-f` boundaries.
 
 ## Setup Orchestrator
 
@@ -148,8 +158,18 @@ Each child defines its own `setup` (`npm ci`, `cargo fetch`, `pod install`). Roo
 When dispatching a single external CLI with many verbs:
 
 ```just
+[positional-arguments]
 db *args:
-    @action="${1:-help}"; case "$action" in migrate) echo "migrating...";; seed) echo "seeding...";; *) echo "usage: just db {migrate|seed}"; exit 1;; esac
+    #!/usr/bin/env python3
+    import sys
+    action = sys.argv[1] if len(sys.argv) > 1 else "help"
+    if action == "migrate":
+        print("migrating...")
+    elif action == "seed":
+        print("seeding...")
+    else:
+        print("usage: just db {migrate|seed}")
+        raise SystemExit(1)
 ```
 
-Use sparingly — separate recipes + `--list` usually beat a hand-rolled router. Reach for this only for `kubectl`/`docker`/`terraform`-style external verbs. Requires `set positional-arguments := true` so `$1` captures the first word.
+Use sparingly — separate recipes + `--list` usually beat a hand-rolled router. Reach for this only for `kubectl`/`docker`/`terraform`-style external verbs. Params arrive as `sys.argv[1:]` via the `[positional-arguments]` attribute (or `set positional-arguments := true`).

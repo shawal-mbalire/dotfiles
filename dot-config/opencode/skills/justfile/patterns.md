@@ -62,7 +62,7 @@ cleanup:
 
 ```just
 set shell := ["bash", "-euo", "pipefail", "-c"]   # strict bash everywhere
-set positional-arguments := true                  # $1.. in shebang/body
+set positional-arguments := true                  # $1.. in shebang recipes
 set dotenv-load := true                           # auto-load .env
 set export := true                                # export vars to recipes
 set allow-duplicate-recipes := false              # default: errors on dupes
@@ -76,23 +76,36 @@ set working-directory := justfile_directory()     # default; rarely change
 - **`set export`** — all vars exported (careful with secrets; prefer explicit `export FOO := ...` for those).
 - **`set positional-arguments`** — `$1`, `$2` available alongside `{{param}}`.
 
-## Control Flow on One Line (No Shebangs)
+## Control Flow → Inline Python Shebang (Default)
 
-Keep `if`/`for`/`case` control flow on a **single line** prefixed with `@` — no shebang recipe bodies:
+Keep **trivial** checks as silent one-liners. When a recipe needs real branching, loops, or validation, default to an **inline Python shebang body** — no external script files:
 
 ```just
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set positional-arguments := true    # recipe args → sys.argv[1:]
+
 [private]
 check:
-    @for f in src/*.ts; do npx tsc --noEmit "$f"; done
+    #!/usr/bin/env python3
+    from pathlib import Path
+    for f in sorted(Path("src").glob("*.ts")):
+        print(f"checking {f}")
 
+[positional-arguments]
 sync target="all":
-    @if [[ "{{target}}" == "all" ]]; then echo "all"; else echo "{{target}}"; fi
+    #!/usr/bin/env python3
+    import sys
+    target = sys.argv[1] if len(sys.argv) > 1 else "all"
+    if target == "all":
+        print("syncing everything")
+    else:
+        print(f"syncing {target}")
 ```
 
-- `@` silences just's echo; the shell still sees the full one-liner.
-- `set shell := ["bash", "-euo", "pipefail", "-c"]` (top of file) keeps one-liners strict.
-- `{{interpolation}}` applies before the shell runs the line.
-- Just supports shebang recipes (`#!` on first line), but this skill avoids them — single-line `@` commands only.
+- A body whose first line is `#!` becomes a **shebang recipe** — just runs it with that interpreter instead of the shell.
+- Recipe params arrive as `sys.argv[1:]` — set `set positional-arguments := true` (or add `[positional-arguments]` per recipe).
+- `{{interpolation}}` still applies before the interpreter runs, so you can mix both styles.
+- Shebang bodies are multi-line by design — no `@` prefix, no shell escaping.
 
 ## Shell Completion
 

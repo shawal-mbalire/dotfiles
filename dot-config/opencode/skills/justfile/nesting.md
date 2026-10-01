@@ -120,7 +120,7 @@ just deploy frontend prod
 
 Notes:
 
-- Assumes top-of-file `set shell := ["bash", "-euo", "pipefail", "-c"]` — one-line `if` control flow runs strict bash.
+- Assumes top-of-file `set shell := ["bash", "-euo", "pipefail", "-c"]` for the one-line `@just {{target}} …` dispatches; `target="all"` defaults are handled by the `*args`-style passthrough.
 - Sequential `just stack verb` calls — readable CI logs, deterministic order; `@` keeps every line silent.
 - `run` / `deploy` require an explicit target (no sensible "run all" default).
 - `test` / `build` / `fmt` / `lint` default `target="all"`.
