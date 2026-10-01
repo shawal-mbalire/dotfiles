@@ -9,15 +9,18 @@ default:
 [positional-arguments]
 deploy env target *flags:
     #!/usr/bin/env python3
-    import sys
-    env, target, *flags = sys.argv[1:]
+    import subprocess, sys
 
+    env, target, *flags = sys.argv[1:]
     if env not in ("dev", "staging", "prod"):
         raise SystemExit(f"bad env: {env}")
 
-    print(f"deploying {target} to {env}")
-    for flag in flags:
-        print(f"  flag: {flag}")
+    proc = subprocess.run(["just", target, "deploy", env, *flags],
+                          text=True, capture_output=True)
+    print(proc.stdout, end="")
+    if proc.returncode != 0:
+        print(proc.stderr, file=sys.stderr)
+        raise SystemExit(proc.returncode)
 
 [positional-arguments]
 check-tools:
@@ -31,11 +34,12 @@ check-tools:
 [positional-arguments]
 sync source target:
     #!/usr/bin/env python3
-    import sys
+    import subprocess, sys
+
     source, target = sys.argv[1:3]
     if source == target:
         raise SystemExit("source and target are the same")
-    print(f"syncing {source} -> {target}")
+    raise SystemExit(subprocess.run(["rsync", "-a", "--delete", source, target]).returncode)
 
 [parallel]
 build-all: build-a build-b build-c
@@ -48,15 +52,25 @@ build-c:
     @sleep 0.3 && echo "built c"
 
 [positional-arguments]
-fanout *items:
+schedule *steps:
     #!/usr/bin/env python3
-    import asyncio, sys
+    import subprocess, sys
 
-    async def work(name: str) -> None:
-        await asyncio.sleep(0.2)
-        print(f"done {name}", flush=True)
+    procs = [subprocess.Popen(step, shell=True) for step in sys.argv[1:]]
+    codes = [p.wait() for p in procs]
+    if any(codes):
+        raise SystemExit("one or more steps failed")
 
-    async def main() -> None:
-        await asyncio.gather(*(work(t) for t in sys.argv[1:]))
+[positional-arguments]
+fanout *stacks:
+    #!/usr/bin/env python3
+    import subprocess, sys
+    from concurrent.futures import ThreadPoolExecutor
 
-    asyncio.run(main())
+    def build(stack: str) -> int:
+        return subprocess.run(["just", stack, "build"]).returncode
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        codes = list(pool.map(build, sys.argv[1:]))
+    if any(codes):
+        raise SystemExit("one or more builds failed")

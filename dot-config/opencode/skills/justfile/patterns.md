@@ -78,7 +78,7 @@ set working-directory := justfile_directory()     # default; rarely change
 
 ## Control Flow → Inline Python Shebang (Default)
 
-Keep **trivial** checks as silent one-liners. When a recipe needs real branching, loops, or validation, default to an **inline Python shebang body** — no external script files:
+Keep **trivial** checks as silent one-liners. When a recipe needs real branching, loops, validation — or must run external commands with logic around them — default to an **inline Python shebang body** (no external script files). The shebang body drives external commands via `subprocess`, so sequencing/retries/concurrency are Python logic, not shell glue:
 
 ```just
 set shell := ["bash", "-euo", "pipefail", "-c"]
@@ -102,10 +102,22 @@ sync target="all":
         print(f"syncing {target}")
 ```
 
+```just
+[positional-arguments]
+schedule *steps:
+    #!/usr/bin/env python3
+    import subprocess, sys
+
+    procs = [subprocess.Popen(step, shell=True) for step in sys.argv[1:]]
+    if any(p.wait() for p in procs):
+        raise SystemExit(1)
+```
+
 - A body whose first line is `#!` becomes a **shebang recipe** — just runs it with that interpreter instead of the shell.
 - Recipe params arrive as `sys.argv[1:]` — set `set positional-arguments := true` (or add `[positional-arguments]` per recipe).
 - `{{interpolation}}` still applies before the interpreter runs, so you can mix both styles.
 - Shebang bodies are multi-line by design — no `@` prefix, no shell escaping.
+- External commands run **from Python** via `subprocess.run`/`Popen`; pass through the child's exit code with `raise SystemExit(proc.returncode)`.
 
 ## Shell Completion
 

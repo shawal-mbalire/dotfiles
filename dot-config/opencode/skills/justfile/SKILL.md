@@ -15,7 +15,7 @@ description: Design, write, and refactor justfiles — a make replacement with s
 4. **Just wraps package scripts** — recipes call `npm run …`, `cargo …`, `flutter …`; just is thin glue, not the command owner.
 5. **Cross-stack ops use target-dispatch** — `just test all`, `just build all`, `just fmt all`, `just run backend`, `just deploy frontend prod`. Bare target defaults to `all`.
 6. **Silent single-line commands** — every recipe command line is prefixed with `@` so just never echoes it. One `@`-command per line.
-7. **Python shebang for extra logic** — when a recipe needs more than a trivial one-liner (control flow, validation, string juggling, multi-step ops), use an inline `#!/usr/bin/env python3` shebang recipe body **inside the justfile**. No external script files; the body *is* the logic.
+7. **Python shebang manages processes** — when a recipe needs more than a trivial one-liner (control flow, validation, string juggling, or *running external commands with logic around them*), use an inline `#!/usr/bin/env python3` shebang recipe body **inside the justfile** that drives those commands via `subprocess`. No external script files; the body *is* the process manager.
 
 ## Reference Files
 
@@ -44,11 +44,11 @@ greet who=name:
 
 deploy env target *flags:
     #!/usr/bin/env python3
-    import sys
+    import subprocess, sys
     env, target, *flags = sys.argv[1:]
     if env not in ("dev", "staging", "prod"):
-        sys.exit(f"bad env: {env}")
-    print(f"deploying {target} to {env}")
+        raise SystemExit(f"bad env: {env}")
+    raise SystemExit(subprocess.run(["just", target, "deploy", env, *flags]).returncode)
 ```
 
 Rules that matter:
@@ -81,17 +81,62 @@ check-tools:
 [positional-arguments]
 sync source target:
     #!/usr/bin/env python3
-    import sys
+    import subprocess, sys
     source, target = sys.argv[1:3]
     if source == target:
         raise SystemExit("source and target are the same")
-    # ...logic lives here, not in shell...
+    raise SystemExit(subprocess.run(["rsync", "-a", "--delete", source, target]).returncode)
 ```
 
 - **Shebang recipe**: first body line is `#!/usr/bin/env python3`; just executes the whole body as a Python script.
 - **Params → argv**: add `set positional-arguments := true` at the top (or `[positional-arguments]` per recipe) so recipe args arrive as `sys.argv[1:]`.
 - Keep non-logic recipes as silent one-liners; reserve shebang bodies for recipes that actually need logic.
 - Exit non-zero (`sys.exit(...)` / `raise SystemExit`) to fail the recipe like any failing command.
+
+## Python Owns External Commands (Process Manager)
+
+One-liners (`@npm run dev`) are for "just run it". The moment you need to *schedule* — sequence, gate on conditions, retry, timeout, fan out — the Python shebang body becomes the **process manager**: it drives external commands via `subprocess` instead of shell-side `if`/`for`/`&` glue.
+
+```just
+[positional-arguments]
+deploy env target *flags:
+    #!/usr/bin/env python3
+    import subprocess, sys
+
+    env, target, *flags = sys.argv[1:]
+    if env not in ("dev", "staging", "prod"):
+        raise SystemExit(f"bad env: {env}")
+
+    proc = subprocess.run(["just", target, "deploy", env, *flags],
+                          text=True, capture_output=True)
+    print(proc.stdout, end="")
+    if proc.returncode != 0:
+        print(proc.stderr, file=sys.stderr)
+        raise SystemExit(proc.returncode)
+```
+
+- **`subprocess.run`** — run one command and wait. `check=False` + explicit `returncode` handling keeps control in Python; `check=True` only when failure is unconditional.
+- **`subprocess.Popen`** — spawn and keep the handle, so you can start several processes and `wait()` on them in any order (real scheduling).
+- **`asyncio.create_subprocess_exec` / `ThreadPoolExecutor`** — fan out many children concurrently from one recipe.
+- **Arg lists, not shell strings** — `["git", "commit", "-m", msg]` needs no quoting. Use `shell=True` only for pipes/globs/redirects you can't express as a list.
+- **Pass the child's exit code through** — `raise SystemExit(proc.returncode)` so just reports the real failure.
+- **Capture or stream** — `capture_output=True` to inspect/filter; omit it to stream the child's output straight through.
+
+Scheduling a batch — start them all, then collect:
+
+```just
+[positional-arguments]
+schedule *steps:
+    #!/usr/bin/env python3
+    import subprocess, sys
+
+    procs = [subprocess.Popen(step, shell=True) for step in sys.argv[1:]]
+    codes = [p.wait() for p in procs]
+    if any(codes):
+        raise SystemExit("one or more steps failed")
+```
+
+Sequencing, polling, killing stragglers, retries — all plain Python, no shell `&`/`wait` choreography.
 
 ## Async Processes (Concurrent Work)
 
@@ -124,18 +169,18 @@ When the work is granular (many items, one operation), keep it in the recipe bod
 
 ```just
 [positional-arguments]
-fanout *items:
+fanout *steps:
     #!/usr/bin/env python3
-    import asyncio, sys
+    import subprocess, sys
+    from concurrent.futures import ThreadPoolExecutor
 
-    async def work(name: str) -> None:
-        await asyncio.sleep(0.2)
-        print(f"done {name}", flush=True)
+    def run(step: str) -> int:
+        return subprocess.run(step, shell=True).returncode
 
-    async def main() -> None:
-        await asyncio.gather(*(work(t) for t in sys.argv[1:]))
-
-    asyncio.run(main())
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        codes = list(pool.map(run, sys.argv[1:]))
+    if any(codes):
+        raise SystemExit("one or more steps failed")
 ```
 
 ```just
@@ -151,7 +196,7 @@ fetch *urls:
     print(f"fetched {len(urls)} urls")
 ```
 
-- `asyncio` for I/O-bound concurrency; `ThreadPoolExecutor` for blocking calls; `subprocess.Popen` to spawn external processes.
+- `ThreadPoolExecutor` around `subprocess.run` for concurrent external commands; `asyncio.create_subprocess_exec` for non-blocking I/O-bound fan-out; `subprocess.Popen` to spawn and schedule processes by handle.
 - `flush=True` on prints keeps interleaved output readable.
 - Any non-zero exit (or uncaught exception) fails the recipe like a failing command.
 

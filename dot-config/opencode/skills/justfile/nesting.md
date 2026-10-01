@@ -135,7 +135,7 @@ _each verb *args:
     @just {{verb}} {{args}}
 ```
 
-Usually not worth it — a single `if/else` line per verb is clearer than a clever helper.
+Usually not worth it — a single `if/else` line per verb is clearer than a clever helper. When the dispatch needs real logic (validation, retries, concurrency), drop the shell `if/else` and let Python own the calls — run each `just stack verb` via `subprocess` inside an inline shebang body (see [subcommands.md](./subcommands.md) § 2).
 
 ## Root: Setup Orchestrator
 

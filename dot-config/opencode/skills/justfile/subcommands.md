@@ -21,15 +21,16 @@ For verbs that apply to one stack *or* all stacks — `test`, `build`, `fmt`, `l
 [positional-arguments]
 test target="all" *args:
     #!/usr/bin/env python3
-    import sys
+    import subprocess, sys
+
     target = sys.argv[1] if len(sys.argv) > 1 else "all"
     args = sys.argv[2:]
-    if target == "all":
-        print(f"just backend test {' '.join(args)}")
-        print(f"just frontend test {' '.join(args)}")
-        print(f"just mobile test {' '.join(args)}")
-    else:
-        print(f"just {target} test {' '.join(args)}")
+    stacks = ("backend", "frontend", "mobile") if target == "all" else (target,)
+
+    for stack in stacks:
+        proc = subprocess.run(["just", stack, "test", *args])
+        if proc.returncode != 0:
+            raise SystemExit(proc.returncode)
 ```
 
 Rules:
@@ -45,7 +46,7 @@ Rules:
 
 - Space-separated: `just test all` / `just test backend` — not `test-all`, not `test:backend`.
 - Sequential child calls — readable logs, deterministic order; `@` keeps each line silent.
-- Dispatch logic uses an **inline Python shebang body** (see [SKILL.md](./SKILL.md) — extra logic → shebang); params arrive as `sys.argv[1:]` with `set positional-arguments := true` or the `[positional-arguments]` attribute.
+- Dispatch logic uses an **inline Python shebang body** (see [SKILL.md](./SKILL.md) — Python owns external commands); each `just stack verb` call runs via `subprocess` inside the body, so sequencing and validation stay in Python. Params arrive as `sys.argv[1:]` with `set positional-arguments := true` or the `[positional-arguments]` attribute.
 - `run`/`deploy` take explicit target (no "run everything" default).
 - Validation: unknown target → `just {{target}} …` fails naturally (child router 404s) or add a guard in the shebang body.
 
@@ -161,15 +162,14 @@ When dispatching a single external CLI with many verbs:
 [positional-arguments]
 db *args:
     #!/usr/bin/env python3
-    import sys
+    import subprocess, sys
+
     action = sys.argv[1] if len(sys.argv) > 1 else "help"
-    if action == "migrate":
-        print("migrating...")
-    elif action == "seed":
-        print("seeding...")
-    else:
-        print("usage: just db {migrate|seed}")
-        raise SystemExit(1)
+    if action in ("migrate", "seed"):
+        cmd = ["docker", "exec", "-i", "web", "python", "manage.py", action, *sys.argv[2:]]
+        raise SystemExit(subprocess.run(cmd).returncode)
+    print("usage: just db {migrate|seed}")
+    raise SystemExit(1)
 ```
 
 Use sparingly — separate recipes + `--list` usually beat a hand-rolled router. Reach for this only for `kubectl`/`docker`/`terraform`-style external verbs. Params arrive as `sys.argv[1:]` via the `[positional-arguments]` attribute (or `set positional-arguments := true`).
