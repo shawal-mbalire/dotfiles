@@ -39,8 +39,8 @@ default:
     @just --list
 
 build:
-    npm --prefix {{here}} run build    # anchored, cwd-independent
-    # or simply: npm run build         # cwd is already frontend/
+    @npm --prefix {{here}} run build    # anchored, cwd-independent
+    # or simply: @npm run build         # cwd is already frontend/
 ```
 
 - Prefer relative commands (`npm run build`) — cwd is always the child dir under directory-chdir.
@@ -70,7 +70,7 @@ ci := env_var_or_default("CI", "false")
 api_url := env_var_or_default("API_URL", "http://localhost:3000")
 
 deploy:
-    curl -X POST {{api_url}}/deploy
+    @curl -X POST {{api_url}}/deploy
 ```
 
 - `env_var("X")` — errors if unset (required secrets in CI).
@@ -82,10 +82,10 @@ deploy:
 
 ```just
 bundle entry="src/index.ts":
-    esbuild {{entry}} --bundle --outfile=dist/out.js
+    @esbuild {{entry}} --bundle --outfile=dist/out.js
 
 bundle entry="src/index.ts":
-    esbuild {{quote(entry)}} --bundle
+    @esbuild {{quote(entry)}} --bundle
 ```
 
 - Defaults may be relative — resolved against recipe cwd (child dir).
@@ -97,8 +97,8 @@ bundle entry="src/index.ts":
 root := justfile_directory()
 
 fmt:
-    ruff format {{root}}/backend
-    prettier --write {{root}}/frontend/src
+    @ruff format {{root}}/backend
+    @prettier --write {{root}}/frontend/src
 ```
 
 Root-level cross-stack recipes anchor on `{{root}}` so they work regardless of invocation cwd.

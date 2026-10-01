@@ -87,54 +87,22 @@ Uniform pattern for `test`, `build`, `fmt`, `lint`, `run`, `deploy` — space-se
 ```just
 # Shared shape: target first, defaults to "all", variadic tail for pass-through
 test target="all" *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [[ "{{target}}" == "all" ]]; then
-      just backend test {{args}}
-      just frontend test {{args}}
-      just mobile test {{args}}
-    else
-      just {{target}} test {{args}}
-    fi
+    @if [[ "{{target}}" == "all" ]]; then just backend test {{args}}; just frontend test {{args}}; just mobile test {{args}}; else just {{target}} test {{args}}; fi
 
 build target="all" *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [[ "{{target}}" == "all" ]]; then
-      just backend build {{args}}
-      just frontend build {{args}}
-      just mobile build {{args}}
-    else
-      just {{target}} build {{args}}
-    fi
+    @if [[ "{{target}}" == "all" ]]; then just backend build {{args}}; just frontend build {{args}}; just mobile build {{args}}; else just {{target}} build {{args}}; fi
 
 fmt target="all" *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [[ "{{target}}" == "all" ]]; then
-      just backend fmt {{args}}
-      just frontend fmt {{args}}
-      just mobile fmt {{args}}
-    else
-      just {{target}} fmt {{args}}
-    fi
+    @if [[ "{{target}}" == "all" ]]; then just backend fmt {{args}}; just frontend fmt {{args}}; just mobile fmt {{args}}; else just {{target}} fmt {{args}}; fi
 
 lint target="all" *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [[ "{{target}}" == "all" ]]; then
-      just backend lint {{args}}
-      just frontend lint {{args}}
-      just mobile lint {{args}}
-    else
-      just {{target}} lint {{args}}
-    fi
+    @if [[ "{{target}}" == "all" ]]; then just backend lint {{args}}; just frontend lint {{args}}; just mobile lint {{args}}; else just {{target}} lint {{args}}; fi
 
 run target *args:
-    just {{target}} run {{args}}
+    @just {{target}} run {{args}}
 
 deploy target env *args:
-    just {{target}} deploy {{env}} {{args}}
+    @just {{target}} deploy {{env}} {{args}}
 ```
 
 Invocation:
@@ -152,7 +120,8 @@ just deploy frontend prod
 
 Notes:
 
-- Sequential `just stack verb` lines — readable CI logs, deterministic order.
+- Assumes top-of-file `set shell := ["bash", "-euo", "pipefail", "-c"]` — one-line `if` control flow runs strict bash.
+- Sequential `just stack verb` calls — readable CI logs, deterministic order; `@` keeps every line silent.
 - `run` / `deploy` require an explicit target (no sensible "run all" default).
 - `test` / `build` / `fmt` / `lint` default `target="all"`.
 
@@ -163,14 +132,10 @@ If the `if/else` boilerplate bothers you, extract a private helper:
 ```just
 [private]
 _each verb *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    target="{{args}}"   # first word
-    rest="${@:2}"
-    ...
+    @just {{verb}} {{args}}
 ```
 
-Usually not worth it — four explicit lines per verb is clearer than a clever helper.
+Usually not worth it — a single `if/else` line per verb is clearer than a clever helper.
 
 ## Root: Setup Orchestrator
 
@@ -186,17 +151,17 @@ Each child owns its own install logic:
 ```just
 # backend/justfile
 setup:
-    cargo fetch
+    @cargo fetch
     # or: make deps, pip install, etc.
 
 # frontend/justfile
 setup:
-    npm ci
+    @npm ci
 
 # mobile/justfile
 setup:
-    npm ci
-    cd ios && pod install
+    @npm ci
+    @cd ios && pod install
 ```
 
 - Bare `just setup` at root installs everything, sequential.
@@ -212,22 +177,22 @@ default:
     @just --list
 
 setup:
-    npm ci
+    @npm ci
 
 dev port="3000":
-    npm run dev -- --port {{port}}
+    @npm run dev -- --port {{port}}
 
 build:
-    npm run build
+    @npm run build
 
 test *args:
-    npm test {{args}}
+    @npm test {{args}}
 
 fmt:
-    npm run fmt
+    @npm run fmt
 
 lint:
-    npm run lint
+    @npm run lint
 ```
 
 Key points:

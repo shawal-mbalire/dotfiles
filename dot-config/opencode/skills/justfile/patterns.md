@@ -5,48 +5,48 @@
 ```just
 [private]
 helper:
-    echo "hidden from --list"
+    @echo "hidden from --list"
 
 [group: "frontend"]
 dev:
-    npm run dev
+    @npm run dev
 
 [doc: "Build production bundles"]
 build:
-    npm run build
+    @npm run build
 
 [linux]
 only-linux:
-    echo "runs on linux only"
+    @echo "runs on linux only"
 
 [macos]
 only-macos:
-    echo "runs on macOS only"
+    @echo "runs on macOS only"
 
 [windows]
 only-windows:
-    echo "runs on windows"
+    @echo "runs on windows"
 
 [confirm]
 dangerous:
-    rm -rf build/
+    @rm -rf build/
 
 [confirm("Really delete?")]
 interactive-dangerous:
-    rm -rf build/
+    @rm -rf build/
 
 [no-cd]
 stay-in-invocation-dir:
-    pwd   # stays where `just` was run, not justfile dir
+    @pwd   # stays where `just` was run, not justfile dir
 
 [no-exit-message]
 quiet-fail:
-    false   # suppresses just's exit banner
+    @false   # suppresses just's exit banner
 
 [private]
 [confirm]
 cleanup:
-    rm -rf tmp/
+    @rm -rf tmp/
 ```
 
 - **`[private]`** — hide from `--list`; still callable by name.
@@ -76,22 +76,23 @@ set working-directory := justfile_directory()     # default; rarely change
 - **`set export`** — all vars exported (careful with secrets; prefer explicit `export FOO := ...` for those).
 - **`set positional-arguments`** — `$1`, `$2` available alongside `{{param}}`.
 
-## Shebang Recipes
+## Control Flow on One Line (No Shebangs)
 
-Multiline logic → shebang; body becomes one script:
+Keep `if`/`for`/`case` control flow on a **single line** prefixed with `@` — no shebang recipe bodies:
 
 ```just
 [private]
 check:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for f in src/*.ts; do
-        npx tsc --noEmit "$f"
-    done
+    @for f in src/*.ts; do npx tsc --noEmit "$f"; done
+
+sync target="all":
+    @if [[ "{{target}}" == "all" ]]; then echo "all"; else echo "{{target}}"; fi
 ```
 
-- `#!` on first line switches to shebang mode; `{{interpolation}}` still applies before exec.
-- Prefer `set shell` for one-liners; shebangs for control flow (if/for/case).
+- `@` silences just's echo; the shell still sees the full one-liner.
+- `set shell := ["bash", "-euo", "pipefail", "-c"]` (top of file) keeps one-liners strict.
+- `{{interpolation}}` applies before the shell runs the line.
+- Just supports shebang recipes (`#!` on first line), but this skill avoids them — single-line `@` commands only.
 
 ## Shell Completion
 
@@ -143,8 +144,8 @@ just --unstable --list --groups
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 ci-test:
-    just --summary >/dev/null   # parse check
-    just test all
+    @just --summary >/dev/null   # parse check
+    @just test all
 ```
 
 - CI invokes **explicit names**: `just test all`, `just build all`, `just setup`.
@@ -156,14 +157,7 @@ ci-test:
 ci := env_var_or_default("CI", "false")
 
 test target="all" *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [[ "{{ci}}" == "true" ]]; then
-      # CI branch — coverage, retries, etc.
-      ...
-    else
-      ...
-    fi
+    @if [[ "{{ci}}" == "true" ]]; then just test all --coverage; else just test all; fi
 ```
 
 ### Concurrency

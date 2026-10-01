@@ -14,6 +14,7 @@ description: Design, write, and refactor justfiles — a make replacement with s
 3. **Children are fully self-contained** — no shared import files, no env-var injection from root. Duplicate tiny constants if needed.
 4. **Just wraps package scripts** — recipes call `npm run …`, `cargo …`, `flutter …`; just is thin glue, not the command owner.
 5. **Cross-stack ops use target-dispatch** — `just test all`, `just build all`, `just fmt all`, `just run backend`, `just deploy frontend prod`. Bare target defaults to `all`.
+6. **Silent single-line commands** — every recipe command line is prefixed with `@` so just never echoes it. One `@`-command per line; no shebang recipe bodies.
 
 ## Reference Files
 
@@ -37,14 +38,15 @@ default:
     @just --list
 
 greet who=name:
-    echo "Hello, {{who}}!"
+    @echo "Hello, {{who}}!"
 
 deploy env target *flags:
-    ./deploy.sh {{env}} {{target}} {{flags}}
+    @./deploy.sh {{env}} {{target}} {{flags}}
 ```
 
 Rules that matter:
 
+- `@` before a command line silences just's echo of that line — prefix **every** recipe line.
 - Recipe body lines are concatenated into **one** shell script — not run line-by-line like make.
 - Indentation must be consistent (4 spaces preferred).
 - Variables use `:=` (immediate) or `=` (lazy). Params are `name` or `name=default`.

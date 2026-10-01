@@ -19,15 +19,7 @@ For verbs that apply to one stack *or* all stacks — `test`, `build`, `fmt`, `l
 
 ```just
 test target="all" *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [[ "{{target}}" == "all" ]]; then
-      just backend test {{args}}
-      just frontend test {{args}}
-      just mobile test {{args}}
-    else
-      just {{target}} test {{args}}
-    fi
+    @if [[ "{{target}}" == "all" ]]; then just backend test {{args}}; just frontend test {{args}}; just mobile test {{args}}; else just {{target}} test {{args}}; fi
 ```
 
 Rules:
@@ -42,7 +34,8 @@ Rules:
 | `deploy` | *required* + env | `just deploy frontend prod` |
 
 - Space-separated: `just test all` / `just test backend` — not `test-all`, not `test:backend`.
-- Sequential child calls — readable logs, deterministic order.
+- Sequential child calls — readable logs, deterministic order; `@` keeps each line silent.
+- One-line `if` control flow assumes `set shell := ["bash", "-euo", "pipefail", "-c"]` at the top of the file.
 - `run`/`deploy` take explicit target (no "run everything" default).
 - Validation: unknown target → `just {{target}} …` fails naturally (child router 404s) or add a `case` guard.
 
@@ -57,19 +50,19 @@ One justfile? Keep names short, bucket with groups — never `frontend-dev`:
 ```just
 [group: "frontend"]
 dev:
-    npm --prefix frontend run dev
+    @npm --prefix frontend run dev
 
 [group: "frontend"]
 build:
-    npm --prefix frontend run build
+    @npm --prefix frontend run build
 
 [group: "mobile"]
 run:
-    npm --prefix mobile run ios
+    @npm --prefix mobile run ios
 
 [group: "backend"]
 run:
-    cargo run
+    @cargo run
 ```
 
 If stacks need colliding bare names (`dev` × 3), split into nested justfiles (section 1) instead of hyphenating.
@@ -82,16 +75,16 @@ If stacks need colliding bare names (`dev` × 3), split into nested justfiles (s
 
 ```just
 deploy environment:
-    ./deploy {{environment}}
+    @./deploy {{environment}}
 
 serve port=8080 host="127.0.0.1":
-    python -m http.server {{port}} --bind {{host}}
+    @python -m http.server {{port}} --bind {{host}}
 
 test *args:
-    pytest {{args}}
+    @pytest {{args}}
 
 test env="dev" *args:
-    ENV={{env}} pytest {{args}}
+    @ENV={{env}} pytest {{args}}
 ```
 
 - Params positional; defaults make trailing params optional.
@@ -103,11 +96,11 @@ test env="dev" *args:
 ```just
 [private]
 prepare-env:
-    export FOO=bar
+    @export FOO=bar
 
 [private]
 _check-tools:
-    command -v jq >/dev/null || echo "jq missing"
+    @command -v jq >/dev/null || echo "jq missing"
 ```
 
 `[private]` hides from `--list`; `just prepare-env` still works for scripts/CI.
@@ -118,7 +111,7 @@ _check-tools:
 [doc: "Start the frontend dev server"]
 [group: "frontend"]
 dev:
-    npm run dev
+    @npm run dev
 ```
 
 - `doc:` — help line in `--list`.
@@ -156,14 +149,7 @@ When dispatching a single external CLI with many verbs:
 
 ```just
 db *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    action="${1:-help}"; shift || true
-    case "$action" in
-      migrate) echo "migrating..." ;;
-      seed)    echo "seeding..." ;;
-      *)       echo "usage: just db {migrate|seed}"; exit 1 ;;
-    esac
+    @action="${1:-help}"; case "$action" in migrate) echo "migrating...";; seed) echo "seeding...";; *) echo "usage: just db {migrate|seed}"; exit 1;; esac
 ```
 
-Use sparingly — separate recipes + `--list` usually beat a hand-rolled router. Reach for this only for `kubectl`/`docker`/`terraform`-style external verbs.
+Use sparingly — separate recipes + `--list` usually beat a hand-rolled router. Reach for this only for `kubectl`/`docker`/`terraform`-style external verbs. Requires `set positional-arguments := true` so `$1` captures the first word.
