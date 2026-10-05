@@ -99,9 +99,9 @@ if ($nu.os-info.name == "macos") {
     path add "/home/linuxbrew/.linuxbrew/sbin"
 }
 
+path add ($env.HOME | path join ".opencode/bin")
 path add ($env.HOME | path join ".local/bin")
 path add ($env.HOME | path join ".flutter/bin")
-path add ($env.HOME | path join "flutter/bin")
 path add ($env.HOME | path join ".bun/bin")
 path add ($env.HOME | path join "./google-cloud-sdk/bin")
 

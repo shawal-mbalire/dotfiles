@@ -16,6 +16,7 @@ vim.api.nvim_create_autocmd("ColorScheme", {
 
 vim.filetype.add({
   extension = {
+    indie = "python",
     mq5 = "mql5",
     mq4 = "mql4",
     mqh = function(path, bufnr)
@@ -30,7 +31,7 @@ vim.filetype.add({
 
 vim.treesitter.language.register("cpp", "mql5")
 vim.treesitter.language.register("c", "mql4")
-vim.treesitter.language.register("python", "indie")
+vim.treesitter.language.register("py", "indie")
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "mql5", "mql4" },
