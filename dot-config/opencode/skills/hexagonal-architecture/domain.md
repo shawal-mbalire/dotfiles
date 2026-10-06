@@ -100,9 +100,11 @@ Validating at the door is the **precondition** half of **Design by Contract (DbC
 
 | Contract clause | Where it lives | On failure |
 |-----------------|----------------|------------|
-| **Precondition** — what the caller must provide | Domain workflow / driving boundary | Raise `ValidationError` (`AppError`, `retryable=False`) — caller error; reject before any side effect |
-| **Postcondition** — what the port guarantees on success | Driven port, discharged by the adapter | Raise `ContractViolationError` (`AppError`) — internal/infrastructure failure |
-| **Invariant** — what is always true of a domain object | Domain model / aggregate | Raise `ContractViolationError` — a domain bug |
+| **Precondition** — what the caller must provide | Domain workflow / driving boundary | Return `Failure(ValidationError)` (`AppError`, `retryable=False`) — a caller error on the failure track; reject before any side effect. Never `assert`/raise for external input |
+| **Postcondition** — what the port guarantees on success | Driven port, discharged by the adapter | Expected/operational failure → return `Failure(AppError)`; a backend that returns partial, malformed, or missing data is a **defect** → raise `ContractViolationError` |
+| **Invariant** — what is always true of a domain object | Domain model / aggregate | Raise `ContractViolationError` — a domain bug (a defect, never a value) |
+
+**Expected failures are values; defects raise.** A rejected precondition, a business-rule violation, a not-found, or a transient vendor outage is an outcome the caller can branch on → return it as a `Failure`. A breached invariant or a malformed backend response means the program is broken → raise. See [Railway-Oriented Workflows](./rop.md).
 
 **Write each clause as a pure predicate.** A precondition is a named pure function (`is_valid_amount`); an invariant is a pure function over the aggregate (`is_balanced`). Pure predicates are trivial to test and are reused by the workflow, the adapter, and the contract test.
 
@@ -240,16 +242,21 @@ def create_document(
 
 **The split prevents jack-of-all-trades functions.** If a function does validation + logic + I/O, extract the validation and logic into pure functions and keep the orchestration thin. Every function should be either a pure function (test by calling) or a pure orchestrator (test by faking ports). Nothing in between.
 
-### Avoid Monadic Pipelines (Cross-Language)
+### Bounded ROP, Not Combinator Sprawl
 
-In languages where errors are values (`Result`, `Option`, `Either`), keep error handling as **flat control flow**, never combinator pipelines. Return `Result`/`Option` from functions and propagate one step at a time with `?`; branch with `match`, guard clauses, and early returns. Do not chain `.and_then`, `.ok_or`, `.map_err`, `.transpose`, or `.flatten` to build control flow — every line must state one intent.
+Expected failures are **values**: workflows return a `Result[T]` (`Success` / `Failure(AppError)`) and compose the failure track with a bounded toolkit over named steps ([Railway-Oriented Workflows](./rop.md)). Defects still raise.
 
-- `ok_or`/`ok` discard the underlying error and break the cause-preserving `AppError` chain
-- Inline closures inside chains smuggle logic into data flow — extract a named pure function
-- Nested `Result<Option<T>, E>` plus `transpose`/`flatten` hides a second control flow
-- One `map_err` is allowed only at the adapter boundary, to translate a vendor error into `AppError` while preserving its `cause` — never in domain code
+**Allowed** — the fixed toolkit in `domain/workflows/` and the composition root:
+- `and_then`, `map`, `pipeline`, `recover`
+- Steps are named functions or `functools.partial`s
 
-The full treatment lives in the Rust guide: [Avoid Monadic Pipelines](./rust.md#avoid-monadic-pipelines).
+**Banned** — the surviving half of [Rule 33](./SKILL.md#architecture-rules):
+- Error-translation combinators (`.map_err`, `.ok_or`, `.unwrap_or_else`, `.transpose`, `.flatten`) used to build control flow — they discard the underlying error and break the cause-preserving `AppError` chain
+- Inline closures inside chains smuggle logic into data flow — extract a named pure step
+- Nesting `Result[Option[T]]` to model two failure kinds at once
+- Catching a `Failure` mid-workflow and continuing without an explicit `recover`
+
+Where the language has a native `?` operator, that plus `match` is the whole toolkit — no `and_then`/`pipeline` helper is needed.
 
 ## What Is a Workflow?
 
@@ -298,6 +305,7 @@ def process_payment(order: Order, gateway: PaymentGateway,
 - It takes ports as arguments (never adapters, never config, never framework objects)
 - It orchestrates pure functions and port calls
 - It contains business logic (validation, rules, decisions)
+- It returns a `Result` — expected failures ride the failure track (`Failure(AppError)`), defects raise ([Railway-Oriented Workflows](./rop.md))
 - It has no knowledge of databases, APIs, files, or frameworks
 - It is testable by faking the ports
 

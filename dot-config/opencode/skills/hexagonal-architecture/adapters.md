@@ -85,7 +85,7 @@ fn save(&self, account: &Account) -> Result<(), DomainError> {
 }
 ```
 
-**Boundary translation.** The driving adapter maps a precondition failure (`ValidationError`) to a **caller** error (HTTP 4xx, non-zero CLI exit) and a postcondition/invariant failure (`ContractViolationError`) to an **internal** error (HTTP 5xx, alert). Never surface a raw stack trace, and never let a contract violation silently degrade into a default value.
+**Boundary translation.** The driving adapter `match`es the workflow's `Result`: `Failure(ValidationError)` → a **caller** error (HTTP 4xx, non-zero CLI exit); an operational `Failure(AppError)` → rendered by class; a raised `ContractViolationError` (a defect) → an **internal** error (HTTP 5xx, alert). Never surface a raw stack trace, and never let a contract violation silently degrade into a default value. See [Railway-Oriented Workflows](./rop.md).
 
 ## Persistence (Adapter-as-ORM)
 
@@ -110,7 +110,7 @@ Relational persistence goes through a **`*Repository` port** implemented by a **
 | Dart/Flutter | `sqlite3` / `sqflite` |
 | C++ | `sqlite3` / `duckdb` C++ API |
 
-Full example: [Python, SQL repository adapter](./python.md#sql-repository-adapter-python).
+The shape is language-neutral: one `*Repository` port, SQL owned by the adapter, pure injected mappers, parameterized queries only.
 
 ## Reusable Adapters
 

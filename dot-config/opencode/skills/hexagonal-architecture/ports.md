@@ -91,9 +91,10 @@ A port is a **contract**, not just a signature. Document — in the port's docst
 
 **Rules:**
 
-- **Preconditions belong to the caller.** They guard the *driving* boundary — required fields present, ranges valid, legal state transitions. The workflow validates them before any side effect and rejects with `ValidationError` (a client/caller error). A driven port may *state* "id must be non-empty" as a documented precondition, but the workflow enforces it.
-- **Postconditions belong to the adapter.** They are the guarantee the domain relies on: `save` succeeds **and** a subsequent `find_by_id` returns the persisted aggregate; a gateway returns a fully-populated domain result; a store returns the value it was given. If a real backend violates a postcondition, the adapter raises `ContractViolationError` (internal/infrastructure) — it must never return partial, malformed, or `None`-because-broken data.
+- **Preconditions belong to the caller.** They guard the *driving* boundary — required fields present, ranges valid, legal state transitions. The workflow validates them before any side effect and returns `Failure(ValidationError)` (a caller error) on the failure track. A driven port may *state* "id must be non-empty" as a documented precondition, but the workflow enforces it.
+- **Postconditions belong to the adapter.** They are the guarantee the domain relies on: `save` succeeds **and** a subsequent `find_by_id` returns the persisted aggregate; a gateway returns a fully-populated domain result; a store returns the value it was given. A transient/operational failure is returned as `Failure(AppError)`; a backend that returns partial, malformed, or `None`-because-broken data is a **defect**, so the adapter raises `ContractViolationError` — it must never smuggle corrupt data onto the success track.
 - **Invariants belong to the returned model.** Anything a port hands back must satisfy the domain model's invariants; the adapter builds it through the model's factory or verifies it with the model's pure predicate before returning.
+- **Return shape follows the failure taxonomy.** Expected failures → `Result[T]` (`Failure(AppError)`); defects → raise. A lookup that can legitimately miss returns `Result[T | None]` where `Success(None)` is a valid not-found ([Railway-Oriented Workflows](./rop.md)).
 - **Write each clause as a pure predicate.** Reused by the workflow, the adapter, and the contract test — no prose-only contracts.
 - The port's **contract test** encodes all three (see [Contract Tests for Ports](./testing.md#contract-tests-for-ports)).
 
@@ -112,7 +113,7 @@ class Repository(Protocol[T, IdT]):
         ...
 ```
 
-**Error vocabulary.** Preconditions raise `ValidationError` (`retryable=False`); postcondition and invariant violations raise `ContractViolationError` (internal — a broken driver, a misbehaving vendor, a mapper bug). Both are `AppError` subclasses and cross the port unchanged; the driving adapter renders them differently (caller error → 4xx, internal → 5xx). See [Discharging Port Postconditions](./adapters.md#discharging-port-postconditions).
+**Error vocabulary.** A failed precondition is an expected outcome: return `Failure(ValidationError)` (`retryable=False`). An operational failure (timeout, outage, rate limit) returns `Failure(AppError)` with `retryable=True`. A postcondition or invariant violation is a **defect**: raise `ContractViolationError` (a broken driver, a misbehaving vendor, a mapper bug) — never a value. All are `AppError` subclasses; expected ones ride the failure track unchanged, and the driving adapter renders by class (`match` on `Success`/`Failure`, then caller error → 4xx, internal → 5xx). See [Discharging Port Postconditions](./adapters.md#discharging-port-postconditions) and [Railway-Oriented Workflows](./rop.md).
 
 ## Gateway Ports (External Services)
 

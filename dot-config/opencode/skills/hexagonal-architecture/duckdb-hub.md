@@ -116,4 +116,49 @@ GROUP BY 1, 2;
 7. **Prod uses real backing services** — the composition root decides; no code changes.
 8. **DuckDB is dev/local insight, not prod shared state** — for prod multi-process coordination use Postgres or DuckLake, not a bare file.
 
-Full schema, adapters, hub protocol, escape hatch, and tests: see [python.md](./python.md#local-first-backing-services-duckdb-hub-python).
+## Reference Schema & Hub Protocol
+
+The tables the hub owns (observability rows + consumer cursors):
+
+```sql
+CREATE SEQUENCE IF NOT EXISTS event_seq;
+
+CREATE TABLE IF NOT EXISTS logs (
+    ts         TIMESTAMP NOT NULL,
+    level      TEXT      NOT NULL,
+    service    TEXT      NOT NULL,
+    request_id TEXT,
+    message    TEXT      NOT NULL,
+    fields     JSON
+);
+
+CREATE TABLE IF NOT EXISTS metrics (
+    ts     TIMESTAMP NOT NULL,
+    name   TEXT      NOT NULL,
+    value  DOUBLE    NOT NULL,
+    labels JSON
+);
+
+CREATE TABLE IF NOT EXISTS events (
+    seq     BIGINT    NOT NULL,   -- monotonic cursor
+    ts      TIMESTAMP NOT NULL,
+    topic   TEXT      NOT NULL,
+    payload JSON      NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS event_cursors (
+    topic    TEXT   NOT NULL,
+    consumer TEXT   NOT NULL,
+    last_seq BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (topic, consumer)
+);
+
+CREATE OR REPLACE VIEW slow_requests AS
+SELECT service, request_id,
+       date_diff('millisecond', min(ts), max(ts)) AS duration_ms
+FROM logs
+WHERE level = 'INFO'
+GROUP BY service, request_id;
+```
+
+Clients and the hub speak **newline-delimited JSON over a Unix socket**. Ops: `append_logs`, `append_metrics`, `append_events`, `poll_events`, `load_cursor`, `save_cursor`, `query`, and the admin-only `execute`. Every op is handled by the single writer — no client ever opens the database file.

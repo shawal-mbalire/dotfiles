@@ -17,6 +17,7 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 | Port taxonomy, port design, gateway ports, standard ports, **port contracts (pre/postconditions)** | [ports.md](./ports.md) |
 | Adapter portability, persistence (adapter-as-ORM), **postcondition discharge** | [adapters.md](./adapters.md) |
 | Pure functions, pure orchestrators, jack-of-all-trades split, **preconditions & invariants (DbC)** | [domain.md](./domain.md) |
+| Railway-oriented workflows, `Result`, bounded ROP toolkit, the failure track | [rop.md](./rop.md) |
 | Lifecycle, TimePort, LifetimePort | [lifecycle.md](./lifecycle.md) |
 | Logging, diagnostics, developer debugging | [observability.md](./observability.md) |
 | Local-first DuckDB hub (dev backing services) | [duckdb-hub.md](./duckdb-hub.md) |
@@ -24,7 +25,6 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 | Entry points, justfile, workspace logs, terminal output | [dx.md](./dx.md) |
 | Directory structure, nested hexagons, multi-language | [structures.md](./structures.md) |
 | Porting to unsupported languages | [transfer-learning.md](./transfer-learning.md) |
-| Language guides | [python.md](./python.md), [typescript.md](./typescript.md), [flutter.md](./flutter.md), [rust.md](./rust.md), [cpp.md](./cpp.md), [embedded.md](./embedded.md) |
 
 ## Core Principles
 
@@ -38,7 +38,7 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 8. **TimePort everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
 9. **LifetimePort for graceful exits** — Every long-running process (and any component that owns a resource) gets a `LifetimePort` to detect exit reasons (crash, user exit, error, normal) and run cleanup. No resource left behind.
 10. **Ports only when they make sense** — A port is a boundary, not a badge. Add one only when it earns its place (see [Port Taxonomy](./ports.md#port-taxonomy-when-to-add-a-port)); pure logic, pure transforms, and adapter-private concerns stay out.
-11. **Fail Fast** — When a system encounters an invalid state, missing dependency, or unrecoverable error, halt immediately and report. Never swallow, never silently degrade, never continue execution in a corrupt state. In dev, fail fast to surface wiring and logic bugs instantly. In prod, fail safe (resilience) but never fail silent.
+11. **Fail Fast on Defects, Fail on the Railway for Expected Outcomes** — Invalid *system* state, a missing dependency, or an unrecoverable error halts immediately and reports. Never swallow, never silently degrade, never continue in a corrupt state. But an expected *domain* outcome — a rejected input, a business rule, a not-found, a transient vendor failure — is not invalid state: return it as a `Failure` on the failure track ([Railway-Oriented Workflows](./rop.md)). Defects raise; expected failures are values. In dev, fail fast to surface wiring and logic bugs instantly. In prod, fail safe (resilience) but never fail silent.
 12. **Reads like pseudocode** — Workflows and entry points must read like pseudocode: each line is one intent, no implementation details leak through. A workflow reads like a high-level algorithm (validate → create → persist → log). An entry point reads like a shell script (load config → create adapters → wire → start). If you can't read the code top-to-bottom and describe what it does without understanding the plumbing, it's too detailed — extract the details into pure functions or adapters.
 13. **Every function pure by default** — Every function that can be pure (same input → same output, no side effects) MUST be pure. If a function mixes logic with I/O, split it: extract the logic into a pure function, keep the I/O thin. This applies everywhere — domain, adapters, tests. No exceptions for "convenience." The only impure functions are the thin I/O methods in adapters, workflow orchestrators (which call ports but contain no inline logic), and the wiring in the composition root.
 
@@ -132,7 +132,7 @@ Domain is stateless **across processes** — pure functions and workflows produc
 
 If multiple instances run concurrently, they share no in-process state. All shared state goes through backing services (databases, caches, message queues) via driven adapters.
 
-**Deep dives:** [Port taxonomy, port design, and gateway ports](./ports.md) · [Adapter portability and persistence](./adapters.md) · [Pure domain functions](./domain.md)
+**Deep dives:** [Port taxonomy, port design, and gateway ports](./ports.md) · [Adapter portability and persistence](./adapters.md) · [Pure domain functions](./domain.md) · [Railway-oriented workflows](./rop.md)
 
 ### 4. Main Entry (Composition Root)
 
@@ -293,7 +293,7 @@ These refine the [Core Principles](#core-principles) with concrete, checkable ru
 30. **Transferable Adapters, Standard Ports** — Every adapter and every *standard/generic* port (`Repository[T]`, `CachePort`, …) must be copy-pasteable into another project unmodified. Standard ports contain no app-specific types — only domain primitives, generics, and standard port vocabulary. Domain-specific ports (a `*Gateway`, a `DocumentRepository` alias that names `Document`) necessarily speak domain models and are **not** required to be portable on their own; the adapter beneath them still is. Adapters depend only on standard ports + their driver — never on app models, sibling adapters, or project-specific code. Before adding a port or adapter from a collection, verify it compiles and passes its contract test in the target project with zero changes.
 31. **Two Kinds of Functions** — Every function in the system is one of two kinds. Pure functions: same input → same output, no side effects, no port calls — trivial to test by calling and checking. Pure orchestrators: coordinate pure functions and port calls, no business logic inline — testable by faking ports. If a function does both (logic + side effects), split it. If a function is too large, extract the logic into pure functions and keep the orchestration thin. This prevents jack-of-all-trades functions and keeps every function testable at the lowest tier. See [Pure Functions and Pure Orchestrators](./structures.md#pure-functions-and-pure-orchestrators).
 32. **Workflows Read Like Pseudocode; Entry Points Read Like Shell Scripts** — A workflow orchestrates pure functions and ports with each line expressing one intent: validate → create → persist → log. An entry point reads like a shell script: load config → create adapters → wire → start. No implementation details leak into either. If you can't read it top-to-bottom and describe what it does, extract the details. See [Workflows vs Entry Points](./structures.md#workflows-vs-entry-points).
-33. **No Monadic Pipelines** — Return `Result`/`Option` and use `?` for straight-line propagation, but never build control flow out of chained combinators (`.and_then`, `.ok_or`, `.transpose`, `.flatten`, `.unwrap_or_else`). Every line states one intent: `match`, guard clauses, and early returns for branching; a single `map_err` at the adapter boundary for error translation (preserving `cause`). This matters most in Rust, where `Result`/`Option` make combinator chains the default temptation. See [Avoid Monadic Pipelines](./rust.md#avoid-monadic-pipelines).
+33. **Bounded ROP, No Ad-Hoc Combinators** — Workflows return `Result[T]` (`Success` / `Failure(AppError)`); expected failures ride the failure track and the driving adapter renders both tracks in one `match`. Compose the track with a **fixed toolkit only** — `and_then` / `map` / `pipeline` / `recover` over **named steps** ([Railway-Oriented Workflows](./rop.md)). Never use error-*translation* combinators (`.map_err`, `.ok_or`, `.unwrap_or_else`) to build control flow, never nest `Result[Option[T]]` gymnastics, and never bury logic in inline lambdas. Where the language has a native `?` operator, that plus `match` is the entire toolkit.
 34. **Design by Contract at the Boundaries** — State each port's **preconditions** (what callers must provide), **postconditions** (what the port guarantees on success), and each model's **invariants** (what is always true). Enforce preconditions at the driving boundary with explicit `ValidationError` raises *before* any side effect — never `assert` for external input (it compiles out under `-O`/release); reserve `assert` for internal invariants. Driven adapters discharge postconditions and raise `ContractViolationError` (internal) when a backend returns partial, malformed, or missing data. Write every clause as a pure predicate and encode all three in the port's contract test. See [Validate at the Door](./domain.md#validate-at-the-door-fail-fast-in-domain) and [Port Contracts](./ports.md#port-contracts-preconditions-and-postconditions).
 
 ## 12FA Compliance
@@ -400,7 +400,10 @@ Building a new feature?
 ├─ Use single files for modules with < 3 files (errors.py, not errors/__init__.py)
 ├─ Add capabilities as files under domain/, infra/, adapters/, tests/ — never a new root folder
 │  └─ Use the [File Placement](./structures.md#where-does-a-new-file-go) decision tree
-├─ Implement Workflows as pure functions (same input → same output)
+├─ Implement Workflows as pure orchestrators (same input → same output, ports faked)
+├─ Return Result[T] from workflows — expected failures ride the Failure track, defects raise
+├─ Compose the failure track with and_then/map/pipeline over named steps — never map_err/ok_or chains
+├─ Wrap every expected failure in Failure(AppError) — never a bare string or vendor object
 ├─ Create infra/ modules for cross-cutting concerns
 ├─ Provisioning resources? Declare them as IaC under infra/; otherwise keep infra/ config-only
 ├─ Persist through a *Repository port whose adapter writes SQL and maps rows to domain models
@@ -411,9 +414,9 @@ Building a new feature?
 ├─ Write integration tests for real Adapters
 ├─ Wire everything in the entry point (main, app, index)
 ├─ Run the port's contract test against every adapter (local and copied-in)
-├─ Return/raise AppError everywhere (code, context, cause, origin, correlation_id)
-├─ Write each port contract as pure predicates — preconditions (ValidationError), postconditions + invariants (ContractViolationError)
-├─ No monadic pipelines — Result/Option + `?` only; branch with match/guards/early returns; one map_err at the adapter boundary (Rule 33)
+├─ Return Failure(AppError) for expected failures; raise for defects (code, context, cause, origin, correlation_id)
+├─ Write each port contract as pure predicates — preconditions return Failure(ValidationError); postconditions + invariants raise ContractViolationError
+├─ Bounded ROP only — and_then/map/pipeline/recover over named steps; never map_err/ok_or chains or logic in lambdas (Rule 33)
 ├─ Register each new code in the error registry (errors-check must pass)
 ├─ Install a crash/panic handler and breadcrumb buffer in the composition root
 ├─ Add a fault-injection test for every driven adapter's failure paths
@@ -423,7 +426,7 @@ Building a new feature?
 ├─ Model-check / bounded-verify the critical core (TLA+, Kani, CBMC, Dafny)
 ├─ Put risky behavior behind a FeatureFlagPort; plan canary + rollback
 ├─ Validate all adapters at startup — crash immediately if any fail
-├─ Domain workflows validate inputs as their first action — no invalid state propagates
+├─ Domain workflows validate inputs as their first action — return Failure(ValidationError) before any side effect
 ├─ Adapters verify port postconditions — never return partial/default-on-violation data
 ├─ Retry only transient errors; non-transient failures fail fast
 ├─ Event consumers have max retry count — poison pills go to dead letter queue
@@ -446,13 +449,6 @@ Multiple bounded contexts?
 └─ Tests organized by context: tests/unit/<context>/
 ```
 
-## Multi-Stack Implementations
+## Porting to Other Languages
 
-See language-specific guides for full code examples:
-
-- [Python](./python.md) — Backend, FastAPI
-- [TypeScript](./typescript.md) — React, Angular, Node.js
-- [Flutter/Dart](./flutter.md) — Mobile apps
-- [Rust](./rust.md) — Tauri desktop, systems programming
-- [C++](./cpp.md) — Desktop, systems, game engines
-- [Embedded](./embedded.md) — MicroPython + C++ on ESP32, STM32, Arduino
+The architecture is language-agnostic — only the syntax changes. Map the domain / port / adapter vocabulary onto your language's idioms (classes vs structs, interfaces vs protocols, exceptions vs result types) using [Transfer Learning](./transfer-learning.md).

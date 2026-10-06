@@ -94,13 +94,14 @@ class EmptyContentError(ValidationError):
 
 **Rules:**
 
-- **Uniform across layers** — workflows raise `AppError` subclasses; adapters translate vendor errors into `AppError` at the boundary. Nothing returns a raw SDK error, a bare string, or `None`-on-failure.
+- **Uniform across layers** — expected failures cross every layer as `Failure(AppError)`: workflows return them on the failure track; adapters translate vendor errors into an `AppError` and return it in a `Failure`. Defects still raise. Nothing returns a raw SDK error, a bare string, or `None`-on-failure. See [Railway-Oriented Workflows](./rop.md).
+- **Failure payload is always `AppError`** — never a bare string or a vendor object, or the `code`/`cause`/`origin`/`correlation_id` chain is lost before the boundary can render it.
 - **Preserve causality** — always keep the original: Python `raise ... from e`, Rust `#[source]`, Go `%w`, TS `new AppError(msg, { cause })`. A lost cause is a bug.
 - **`origin` is filled at the boundary** — the driving/driven adapter sets layer + `module.function:line` and the `correlation_id`; the domain never knows file locations.
 - **Context is structured and redacted** — `{"document_id": ..., "operation": "save", "adapter": "postgres"}`; never secrets or PII.
 - **One renderer** — `render(error)` for logs, CLI, and HTTP (map `code` → status). Log the full cause chain once, at the boundary.
 - **Error-code registry** — every `code` maps to meaning, owner, retryable, and a runbook. `just errors-check` fails CI on unknown or duplicate codes. The codes in the examples (`DOC-002`, `DOM-001`, `STO-002`, …) are illustrative; every code that ships must be registered here.
-- **Contract families** — `ValidationError` signals a caller error (precondition; `retryable=False`); `ContractViolationError` signals an internal/infrastructure breach (postcondition or invariant). Both are `AppError` subclasses, so they cross ports unchanged and render by class, not by string matching. Language guides name the concrete type idiomatically — `DomainError` in Rust and C++ — but it is the same one uniform error shape.
+- **Contract families** — `ValidationError` signals a caller error (precondition; `retryable=False`); `ContractViolationError` signals an internal/infrastructure breach (postcondition or invariant). Both are `AppError` subclasses, so they cross ports unchanged and render by class, not by string matching. Ports and examples may name the concrete type idiomatically (a `DomainError` wrapper, say), but it is always this one uniform error shape.
 
 ```
 # errors.toml
@@ -139,7 +140,18 @@ The rule "never return `None`-on-failure" has a nuance: `None` is legitimate for
 | `get_user("unknown-email")` for auth | **No** | Auth failure — raise `AuthorizationError`, don't return `None` |
 | `save(entity)` fails due to constraint violation | **No** | Operation failed — raise `ConflictError`, don't return `None` |
 
-**Rule:** If the operation *should* have succeeded but didn't (infrastructure error, constraint violation, timeout), raise an `AppError`. Return `None` only when "nothing found" is the expected, valid outcome of a lookup.
+**Rule:** If the operation *should* have succeeded but didn't (infrastructure error, constraint violation, timeout), return `Failure(AppError)` (or raise, if it is a defect). `Success(None)` is only when "nothing found" is the expected, valid outcome of a lookup.
+
+```python
+# ROP shape: not-found and backend-failure are different tracks
+def find_by_id(self, entity_id: str) -> Result[Document | None]:
+    row = ...                                   # backend lookup
+    if row is None:
+        return Success(None)                    # valid not-found
+    if not self._ok(row):
+        raise ContractViolationError("STO-003", "corrupt row")   # defect
+    return Success(self._from_row(row))
+```
 
 ## Test Directory Structure
 
@@ -260,20 +272,31 @@ Happy-path correctness is half the job; the other half is behaving correctly whe
 
 ```python
 # tests/unit/test_create_document_faults.py
+from domain.result import Success, Failure
+
 def test_save_failure_surfaces_storage_error():
-    repo = FailingRepo(fail_with=TimeoutError("backend timed out"))
-    with pytest.raises(AppError) as exc:
-        create_document("Hello", repo, FakeLogger(), FakeTime())
-    err = exc.value
-    assert err.code == "STO-001"                # right class
-    assert err.retryable is True                # right policy
-    assert isinstance(err.cause, TimeoutError)  # cause preserved
+    repo = FailingRepo(fail_with=TimeoutError("backend timed out"))  # returns Failure(...)
+    result = create_document("Hello", repo, FakeLogger(), FakeTime())
+
+    assert isinstance(result, Failure)           # expected failure = a value
+    err = result.error
+    assert err.code == "STO-001"                 # right class
+    assert err.retryable is True                 # right policy
+    assert isinstance(err.cause, TimeoutError)   # cause preserved
     assert err.context["operation"] == "save"
+
+def test_save_contract_violation_is_a_defect():
+    # A backend that persists nothing is a defect, not a value: it must raise.
+    with pytest.raises(ContractViolationError):
+        create_document("Hello", CorruptRepo(), FakeLogger(), FakeTime())
 
 def test_observability_survives_sink_failure():
     # logging/metrics must not raise even when their sink is down
-    create_document("Hello", FakeRepo(), FailingLogger(), FakeTime())  # must not raise
+    result = create_document("Hello", FakeRepo(), FailingLogger(), FakeTime())
+    assert isinstance(result, Success)
 ```
+
+Expected failures assert on `Failure`; **defects are asserted with `pytest.raises` / `expect(...).rejects.toThrow` / `#[should_panic]`.** A fault-injection test must never accept a defect as a value — that is the failure track leaking into the success track.
 
 Standard fault set per driven adapter: connection refused, timeout, malformed payload, partial write, duplicate key, auth failure. Assert the `code`, `origin`, `retryable`, and that the failure was logged with the same `correlation_id`.
 

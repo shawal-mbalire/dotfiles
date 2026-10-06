@@ -157,9 +157,9 @@ Every function in the system is one of two kinds:
 | Kind | What it does | How to test |
 |------|-------------|-------------|
 | **Pure function** | Same input → same output, no side effects, no port calls | Call it, check the return value |
-| **Pure orchestrator** | Coordinates pure functions and port calls, no inline logic | Fake the ports, verify calls |
+| **Pure orchestrator** | Coordinates pure functions and port calls, no inline logic; returns a `Result` — expected failures on the failure track, defects raised | Fake the ports, assert on `Success`/`Failure` |
 
-If a function does both (logic + side effects), split it. If it's too large (>30 lines), extract the logic into pure functions.
+If a function does both (logic + side effects), split it. If it's too large (>30 lines), extract the logic into pure functions. The failure track is part of the contract: a workflow returns `Result[T]`, never a mix of returned values and expected exceptions. See [Railway-Oriented Workflows](./rop.md).
 
 ### When to Split a Function
 
@@ -198,7 +198,7 @@ def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) 
 
 **The test:** Read the function aloud. If you stumble on implementation details (SQL, JSON, connection strings), those details belong in a pure function or an adapter — not in the workflow or entry point.
 
-**Monadic pipelines break this rule.** In `Result`/`Option`-based languages, combinator chains (`.and_then`, `.ok_or`, `.map_err`, `.transpose`, `.unwrap_or_else`) collapse several intents into one dense expression and swallow error causes. Rewrite them as `?`, `match`, guard clauses, and early returns so each line states one intent. See [Avoid Monadic Pipelines](./rust.md#avoid-monadic-pipelines).
+**Combinator sprawl breaks this rule.** Error-*translation* chains (`.ok_or`, `.map_err`, `.transpose`, `.flatten`, `.unwrap_or_else`) collapse several intents into one dense expression and swallow error causes; logic hidden in inline lambdas smuggles business rules into data flow. Rewrite those as `?`, `match`, guard clauses, and early returns. The **bounded ROP toolkit** — `and_then`/`map`/`pipeline`/`recover` over *named* steps — is allowed and reads clearly; it is the only sanctioned chain. See [Railway-Oriented Workflows](./rop.md).
 
 ## Nested Hexagonal Architecture
 
