@@ -699,6 +699,8 @@ alias oc = opencode
 # Git
 alias ghs = gh auth status --active
 alias gha = gh auth switch
+alias loc = git ls-files | lines | each { |file| { file: $file, lines: (open --raw $file | lines | length) } } | sort-by lines -r | take 10
+alias gs  = git status
 alias lg = lazygit
 alias tc = tuicr
 alias tm = tmux
