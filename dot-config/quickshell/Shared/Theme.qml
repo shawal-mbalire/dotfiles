@@ -38,10 +38,12 @@ QtObject {
   readonly property int fontSize: 15
   readonly property int fontWeight: 1000
 
+  // Shape — 5px structural radius (see AGENTS.md §3). Pills/circles stay full-round.
+  readonly property int radius: 5
+  readonly property int radiusSm: 3
+  readonly property int radiusLg: 8
+
   // Spacing
-  readonly property int radius: 10
-  readonly property int radiusSm: 6
-  readonly property int radiusLg: 14
   readonly property int spacing: 8
   readonly property int spacingSm: 4
   readonly property int spacingLg: 12

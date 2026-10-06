@@ -1,4 +1,6 @@
+// Quickshell reference: https://quickshell.org/docs/v0.3.0/types/Quickshell.Services.SystemTray/
 import "../Shared"
+import "../Domain/Constants"
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -14,8 +16,12 @@ RowLayout {
     Item {
       id: trayItem
       required property SystemTrayItem modelData
-      implicitWidth: 20
-      implicitHeight: 20
+
+      // Bluetooth/network applets are hidden: the bar has dedicated widgets.
+      readonly property bool suppressed: TrayPolicy.isSuppressed(modelData.id, modelData.title)
+      visible: !suppressed
+      implicitWidth: suppressed ? 0 : 20
+      implicitHeight: suppressed ? 0 : 20
 
       Image {
         id: trayIcon

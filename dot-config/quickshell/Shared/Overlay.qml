@@ -1,3 +1,4 @@
+// Quickshell reference: https://quickshell.org/docs/v0.3.0/types/Quickshell.Wayland/
 import Quickshell
 import Quickshell.Wayland
 import QtQuick

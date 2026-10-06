@@ -1,3 +1,4 @@
+// Quickshell reference: https://quickshell.org/docs/v0.3.0/types/Quickshell/
 import "../Shared"
 import Quickshell
 import QtQuick
