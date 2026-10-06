@@ -147,12 +147,12 @@ test-contract:
 test-fault:
     vitest run tests/fault
 
-verify: lint typecheck adapters-check errors-check test test-contract test-fault test-e2e
+verify: check test-contract test-integration test-fault test-e2e
 
 replay id:
     tsx tools/replay.ts {{id}}
 
-check: lint typecheck adapters-check errors-check test
+check: lint typecheck adapters-check errors-check test-unit
 
 clean:
     rm -rf dist node_modules .vitest
@@ -405,12 +405,12 @@ export const config = {
 import { Logger } from "../domain/ports/Logger";
 
 export class ConsoleLogger implements Logger {
-  info(message: string): void {
-    console.log(`[INFO] ${message}`);
+  info(message: string, fields?: Record<string, unknown>): void {
+    console.log(`[INFO] ${message}`, fields ?? "");
   }
 
-  error(message: string): void {
-    console.error(`[ERROR] ${message}`);
+  error(message: string, fields?: Record<string, unknown>): void {
+    console.error(`[ERROR] ${message}`, fields ?? "");
   }
 }
 
@@ -1378,17 +1378,17 @@ export class FakeCartRepository implements CartRepository {
 }
 
 export class FakeLogger implements Logger {
-  public messages: { level: string; message: string }[] = [];
+  public messages: { level: string; message: string; fields?: Record<string, unknown> }[] = [];
   public infoCount = 0;
   public errorCount = 0;
 
-  info(message: string): void {
-    this.messages.push({ level: "info", message });
+  info(message: string, fields?: Record<string, unknown>): void {
+    this.messages.push({ level: "info", message, fields });
     this.infoCount++;
   }
 
-  error(message: string): void {
-    this.messages.push({ level: "error", message });
+  error(message: string, fields?: Record<string, unknown>): void {
+    this.messages.push({ level: "error", message, fields });
     this.errorCount++;
   }
 }

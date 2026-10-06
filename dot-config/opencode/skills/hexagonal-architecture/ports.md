@@ -1,6 +1,6 @@
 # Ports
 
-#### Port Taxonomy: When to Add a Port
+## Port Taxonomy: When to Add a Port
 
 A port is a boundary, not a badge. Create one only when it earns its place.
 
@@ -39,7 +39,7 @@ A port is a boundary, not a badge. Create one only when it earns its place.
 - **Auth, search, hardware** are usually a `*Gateway` (or a Repository for an index). Do not invent new archetypes for them.
 - The concrete ports, methods, and tiers are in [Standard Ports for Any Language](#standard-ports-for-any-language).
 
-#### Port Design for Pluggability
+## Port Design for Pluggability
 
 Ports define contracts that adapters must fulfill. Well-designed ports make swapping adapters trivial.
 
@@ -69,6 +69,7 @@ Port: DocumentRepository
 # Generic — one adapter serves any entity
 Port: Repository[T]
   save(entity: T) -> void
+  save_all(entities: list[T]) -> void   # one atomic unit of work — commit all or none
   find_by_id(id: str) -> T | none
   find_all() -> list[T]
   delete(id: str) -> void
@@ -84,7 +85,36 @@ repo = SqlRepository(connection, table="documents",
                      to_row=document_to_row, from_row=row_to_document)
 ```
 
-#### Gateway Ports (External Services)
+## Port Contracts: Preconditions and Postconditions
+
+A port is a **contract**, not just a signature. Document — in the port's docstring **and** in its contract test — what callers must provide (**preconditions**) and what the port guarantees on success (**postconditions**). An adapter is only accepted when it discharges the postconditions; a caller is only correct when it satisfies the preconditions.
+
+**Rules:**
+
+- **Preconditions belong to the caller.** They guard the *driving* boundary — required fields present, ranges valid, legal state transitions. The workflow validates them before any side effect and rejects with `ValidationError` (a client/caller error). A driven port may *state* "id must be non-empty" as a documented precondition, but the workflow enforces it.
+- **Postconditions belong to the adapter.** They are the guarantee the domain relies on: `save` succeeds **and** a subsequent `find_by_id` returns the persisted aggregate; a gateway returns a fully-populated domain result; a store returns the value it was given. If a real backend violates a postcondition, the adapter raises `ContractViolationError` (internal/infrastructure) — it must never return partial, malformed, or `None`-because-broken data.
+- **Invariants belong to the returned model.** Anything a port hands back must satisfy the domain model's invariants; the adapter builds it through the model's factory or verifies it with the model's pure predicate before returning.
+- **Write each clause as a pure predicate.** Reused by the workflow, the adapter, and the contract test — no prose-only contracts.
+- The port's **contract test** encodes all three (see [Contract Tests for Ports](./testing.md#contract-tests-for-ports)).
+
+```python
+# domain/ports/repository.py — the contract in prose, plus a shared pure predicate
+class Repository(Protocol[T, IdT]):
+    def save(self, entity: T) -> None:
+        """Pre:  entity satisfies its invariants.
+        Post: find_by_id(id_of(entity)) returns an entity equal to it."""
+        ...
+
+    def find_by_id(self, entity_id: IdT) -> T | None:
+        """Pre:  entity_id is non-empty.
+        Post: a fully-populated entity that satisfies its invariants, or None if absent —
+              never a partial record, and never None because the backend failed."""
+        ...
+```
+
+**Error vocabulary.** Preconditions raise `ValidationError` (`retryable=False`); postcondition and invariant violations raise `ContractViolationError` (internal — a broken driver, a misbehaving vendor, a mapper bug). Both are `AppError` subclasses and cross the port unchanged; the driving adapter renders them differently (caller error → 4xx, internal → 5xx). See [Discharging Port Postconditions](./adapters.md#discharging-port-postconditions).
+
+## Gateway Ports (External Services)
 
 A **Gateway port** models access to one external system's API — payments, shipping, identity, email, maps, a third-party REST/gRPC/SOAP service, a hardware endpoint. It is the driven-port counterpart to `*Repository`: `Repository` is persistence, `Gateway` is a remote capability. One port per external system (`PaymentGateway`, `ShippingGateway`), never one generic "ApiClient".
 
@@ -177,11 +207,11 @@ gateway = StripeGateway(StripeGatewayConfig.from_environment(), lifetime,
 
 The domain, port, and workflow are identical in every column — only `Transport` and the adapter wiring in the composition root differ.
 
-#### Standard Ports for Any Language
+## Standard Ports for Any Language
 
 These are the concrete ports and methods per archetype. **Tier** is the default posture, not a mandate: **Baseline** ports earn their place in almost every non-trivial process; **Conditional** ports are added only when their trigger fires (apply the [Port Taxonomy](#port-taxonomy-when-to-add-a-port) test). Embedded and other minimal targets may omit any of them.
 
-#### Python: Protocol vs ABC for Ports
+### Python: Protocol vs ABC for Ports
 
 Python offers two mechanisms for defining port contracts: `typing.Protocol` (structural subtyping) and `abc.ABC` (nominal subtyping). Use `Protocol` unless you need runtime type checking.
 
@@ -197,14 +227,14 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable  # optional: enables isinstance() checks
 class LoggerPort(Protocol):
-    def info(self, message: str) -> None: ...
-    def error(self, message: str) -> None: ...
+    def info(self, message: str, **fields: object) -> None: ...
+    def error(self, message: str, **fields: object) -> None: ...
 
 # Any class with matching methods satisfies LoggerPort — no inheritance required
 class ConsoleLogger:  # no "implements LoggerPort" needed
-    def info(self, message: str) -> None:
+    def info(self, message: str, **fields: object) -> None:
         print(f"[INFO] {message}")
-    def error(self, message: str) -> None:
+    def error(self, message: str, **fields: object) -> None:
         print(f"[ERROR] {message}")
 
 def log_something(logger: LoggerPort) -> None:
@@ -220,16 +250,16 @@ from abc import ABC, abstractmethod
 
 class LoggerPort(ABC):
     @abstractmethod
-    def info(self, message: str) -> None: ...
+    def info(self, message: str, **fields: object) -> None: ...
 
     @abstractmethod
-    def error(self, message: str) -> None: ...
+    def error(self, message: str, **fields: object) -> None: ...
 
 # Must explicitly inherit
 class ConsoleLogger(LoggerPort):  # required: "implements LoggerPort"
-    def info(self, message: str) -> None:
+    def info(self, message: str, **fields: object) -> None:
         print(f"[INFO] {message}")
-    def error(self, message: str) -> None:
+    def error(self, message: str, **fields: object) -> None:
         print(f"[ERROR] {message}")
 ```
 
@@ -239,8 +269,8 @@ class ConsoleLogger(LoggerPort):  # required: "implements LoggerPort"
 |------|------|----------|-----------------|
 | `TimePort` | Baseline | measuring duration or driving poll loops | `nowMs()`, `elapsedMs(start)`, `sleepMs(ms)` |
 | `LifetimePort` | Baseline | long-running process, or one that owns resources needing cleanup | `registerCleanup(handler)`, `onExit(handler)`, `getExitReason()`, `isShuttingDown()` |
-| `LoggerPort` | Conditional | the system emits structured logs | `info(message, **fields)`, `error(message, **fields)` |
-| `Repository[T, IdT]` | Conditional | persisting domain aggregates | `save(entity)`, `findById(id)`, `findAll()`, `delete(id)` |
+| `LoggerPort` | Conditional | the system emits structured logs | `info(message, fields*)`, `error(message, fields*)` |
+| `Repository[T, IdT]` | Conditional | persisting domain aggregates | `save(entity)`, `saveAll(entities)` (atomic), `findById(id)`, `findAll()`, `delete(id)` |
 | `*Gateway` | Conditional | calling an external service/API | domain-specific capabilities (`charge`, `trackShipment`); transport in adapter config |
 | `*Checker` | Conditional | read-only external validation | domain-specific |
 | `MetricsPort` | Conditional | emitting counters, gauges, timings | `counter(name, value, labels)`, `gauge(...)`, `timing(...)` |
@@ -256,6 +286,10 @@ class ConsoleLogger(LoggerPort):  # required: "implements LoggerPort"
 
 `*Repository` ports are aliases of the generic `Repository[T, IdT]` (e.g. `DocumentRepository = Repository[Document, str]`). Adapters target the generic contract and receive pure mappers, so one adapter serves every aggregate. Domain-specific ports remain valid for readability.
 
+`save_all(entities)` is an **atomic unit of work**: the adapter opens one transaction and commits all of them or none. Workflows must never orchestrate transactions themselves (transactions are adapter-private — see [Port Taxonomy](#port-taxonomy-when-to-add-a-port)); when several aggregates change together, call one `save_all` rather than several independent `save` calls.
+
 `*Gateway` ports wrap one external system each and stay protocol-neutral — the wire transport (`HTTP`, `GRPC`, `GRAPHQL`, `WEBSOCKET`, `MQTT`, `TCP`) is declared by the adapter's injected config, never by the port signature (see [Gateway Ports](#gateway-ports-external-services)). A `*Checker` is a thin read-only gateway used purely for validation (e.g. stock, credit, address); promote it to a full `*Gateway` once it performs more than a single check.
+
+Method names in the table above are shown in camelCase for language neutrality — use the host language's convention (`now_ms`/`find_by_id` in Python, `nowMs`/`findById` in TypeScript/Java/Kotlin, `now_ms`/`find_by_id` in Rust, …). `fields*` means optional structured log fields, spelled idiomatically (`**fields` in Python, `fields?` in TypeScript, a `data`/`context` map in Rust/C++/Dart).
 
 The dev DuckDB hub supplies local implementations of `LoggerPort`, `MetricsPort`, `EventPublisherPort`, and `EventConsumerPort`; prod swaps them in the composition root (see [Local-First Backing Services](./duckdb-hub.md#local-first-backing-services-duckdb-hub)).

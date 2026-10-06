@@ -103,10 +103,10 @@ from abc import ABC, abstractmethod
 
 class LoggerPort(ABC):
     @abstractmethod
-    def info(self, message: str) -> None: ...
+    def info(self, message: str, **fields: object) -> None: ...
 
     @abstractmethod
-    def error(self, message: str) -> None: ...
+    def error(self, message: str, **fields: object) -> None: ...
 
 # domain/ports/timer_port.py
 from abc import ABC, abstractmethod
@@ -225,11 +225,11 @@ class EmbeddedConfig:
 from domain.ports.logger_port import LoggerPort
 
 class SerialLogger(LoggerPort):
-    def info(self, message: str) -> None:
-        print(f"[INFO] {message}")
+    def info(self, message: str, **fields: object) -> None:
+        print(f"[INFO] {message}", fields)
 
-    def error(self, message: str) -> None:
-        print(f"[ERROR] {message}")
+    def error(self, message: str, **fields: object) -> None:
+        print(f"[ERROR] {message}", fields)
 
 # adapters/sensor_mappings.py (Pure helpers — no hardware, trivial to test)
 from domain.models.device_state import IrrigationState

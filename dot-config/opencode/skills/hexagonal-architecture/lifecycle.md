@@ -79,7 +79,7 @@ Domain workflows complete or abort during shutdown — they have no cleanup to d
 
 Every project includes a `TimePort` for measuring process duration and driving poll loops. This makes performance visible and debugging easy across all layers.
 
-### Domain Port
+### TimePort Interface
 
 ```python
 # domain/ports/time_port.py (Python)
@@ -144,7 +144,7 @@ class MockTimeAdapter:
         self._current_ms += ms
 ```
 
-### Usage in Workflows
+### TimePort in Workflows
 
 ```python
 # domain/workflows/create_document.py
@@ -177,7 +177,7 @@ def create_document(
 
 ## LifetimePort
 
-Every workflow gets a `LifetimePort` so it can detect why it's ending and clean up properly. No resource left behind, no matter the exit reason.
+Every long-running process and every component that owns a resource (an adapter, a poll loop, a driver) gets a `LifetimePort` so it can detect why it's ending and clean up properly. Pure workflows own nothing — the adapters they call register their own cleanup. No resource left behind, no matter the exit reason.
 
 ### Exit Reasons
 
@@ -190,7 +190,7 @@ class ExitReason:
     SHUTDOWN = "shutdown"       # Graceful shutdown requested
 ```
 
-### Domain Port
+### LifetimePort Interface
 
 ```python
 # domain/ports/lifetime_port.py (Python)
@@ -233,10 +233,10 @@ pub trait LifetimePort: Send + Sync {
 }
 ```
 
-### Usage in Workflows
+### LifetimePort in a Long-Running Component
 
 ```python
-# domain/workflows/data_collector.py
+# domain/workflows/data_collector.py — a long-lived workflow instance that owns a transient buffer
 from domain.ports.lifetime_port import LifetimePort
 from domain.ports.time_port import TimePort
 from domain.ports.logger import LoggerPort

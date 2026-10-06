@@ -93,12 +93,12 @@ test-contract:
 test-fault:
     cargo test fault
 
-verify: lint typecheck adapters-check errors-check test test-contract test-fault
+verify: check test-contract test-integration test-fault test-e2e
 
 replay id:
     cargo run --bin replay -- {{id}}
 
-check: lint typecheck adapters-check errors-check test
+check: lint typecheck adapters-check errors-check test-unit
 
 clean:
     cargo clean
@@ -1280,6 +1280,20 @@ impl DomainError {
             correlation_id: correlation_id.into(),
             retryable: true,
             remediation: "Retry with backoff; check the database".into(),
+        }
+    }
+
+    /// Construct a diagnostic error for a contract violation (invariant or postcondition).
+    pub fn contract(code: &'static str, message: impl Into<String>) -> Self {
+        DomainError::Diagnostic {
+            code,
+            message: message.into(),
+            context: BTreeMap::new(),
+            cause: None,
+            origin: String::new(),
+            correlation_id: String::new(),
+            retryable: false,
+            remediation: "Investigate the contract violation; do not retry blindly".into(),
         }
     }
 

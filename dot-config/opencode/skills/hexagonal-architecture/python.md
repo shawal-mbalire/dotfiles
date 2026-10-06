@@ -146,8 +146,8 @@ update:
     uv lock --upgrade && uv sync
 
 # Combined gates
-check: lint typecheck adapters-check errors-check test
-verify: check test-contract test-fault test-e2e
+check: lint typecheck adapters-check errors-check test-unit
+verify: check test-contract test-integration test-fault test-e2e
 verify-hard: verify sanitizers
 verify-plus: verify test-property mutation
 ```
@@ -409,11 +409,11 @@ class ConsoleLogger(LoggerPort):
         self.logger.addHandler(handler)
         self.logger.propagate = False
 
-    def info(self, message: str) -> None:
-        self.logger.info(message)
+    def info(self, message: str, **fields: object) -> None:
+        self.logger.info(message, extra=fields)
 
-    def error(self, message: str) -> None:
-        self.logger.error(message)
+    def error(self, message: str, **fields: object) -> None:
+        self.logger.error(message, extra=fields)
 
 # adapters/rich_logger.py
 import logging
@@ -435,11 +435,11 @@ class RichLogger(LoggerPort):
         handler.setFormatter(logging.Formatter("%(message)s"))
         self._logger.addHandler(handler)
 
-    def info(self, message: str) -> None:
-        self._logger.info(message)
+    def info(self, message: str, **fields: object) -> None:
+        self._logger.info(message, extra=fields)
 
-    def error(self, message: str) -> None:
-        self._logger.error(message)
+    def error(self, message: str, **fields: object) -> None:
+        self._logger.error(message, extra=fields)
 
 # adapters/system_time.py
 import time
@@ -452,18 +452,25 @@ class SystemTimeAdapter(TimePort):
     def elapsed_ms(self, start_ms: int) -> int:
         return self.now_ms() - start_ms
 
+    def sleep_ms(self, ms: int) -> None:
+        time.sleep(ms / 1000.0)
+
 # adapters/mock_time.py (for testing)
 from domain.ports.time_port import TimePort
 
 class MockTimeAdapter(TimePort):
     def __init__(self) -> None:
         self._current_ms = 0
+        self._slept_ms = 0
 
     def now_ms(self) -> int:
         return self._current_ms
 
     def elapsed_ms(self, start_ms: int) -> int:
         return self._current_ms - start_ms
+
+    def sleep_ms(self, ms: int) -> None:
+        self._slept_ms += ms   # deterministic — no real waiting in tests
 
     def advance_ms(self, ms: int) -> None:
         self._current_ms += ms
@@ -1389,10 +1396,10 @@ from abc import ABC, abstractmethod
 
 class LoggerPort(ABC):
     @abstractmethod
-    def info(self, message: str) -> None: ...
+    def info(self, message: str, **fields: object) -> None: ...
 
     @abstractmethod
-    def error(self, message: str) -> None: ...
+    def error(self, message: str, **fields: object) -> None: ...
 
 # domain/models/irrigation_state.py
 class IrrigationState:
@@ -1430,11 +1437,11 @@ class EmbeddedConfig:
 from domain.ports.logger_port import LoggerPort
 
 class SerialLogger(LoggerPort):
-    def info(self, message: str) -> None:
-        print(f"[INFO] {message}")
+    def info(self, message: str, **fields: object) -> None:
+        print(f"[INFO] {message}", fields)
 
-    def error(self, message: str) -> None:
-        print(f"[ERROR] {message}")
+    def error(self, message: str, **fields: object) -> None:
+        print(f"[ERROR] {message}", fields)
 
 # adapters/esp32_relay_adapter.py (Driven Adapter)
 from machine import Pin

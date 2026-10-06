@@ -90,7 +90,7 @@ lint:
 errors-check:
     dart run tools/check_error_codes.dart   # registry: no unknown or duplicate codes
 
-verify: lint test errors-check
+verify: lint test-unit test-integration errors-check
 
 format:
     dart format .

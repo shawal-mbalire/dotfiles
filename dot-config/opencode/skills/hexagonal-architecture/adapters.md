@@ -1,6 +1,6 @@
 # Adapters
 
-#### Adapter Design for Reusability and Transferability
+## Adapter Design for Reusability and Transferability
 
 Write each adapter so **only its file(s) move** to another project. It must work there unmodified — it targets standard ports and knows nothing about your app.
 
@@ -23,9 +23,71 @@ adapters/<backend>/
 └── <backend>_config.py      # frozen config struct (constructor-injected)
 ```
 
-**Anti-patterns:** `os.getenv` inside the adapter; importing `domain.models`; returning SDK objects or raw rows; hardcoded table/collection names; module-level connections; swallowing errors.
+**Anti-patterns:** `os.getenv` inside the adapter; importing `domain.models`; returning SDK objects or raw rows; hardcoded table/collection names; module-level connections; swallowing errors; returning data that violates the port's postconditions.
 
-#### Persistence (Adapter-as-ORM)
+## Discharging Port Postconditions
+
+An adapter's job is not merely to call the vendor and return *something* — it must return data that satisfies the **port's postconditions and the model's invariants**. A vendor response that is empty, partial, or malformed is a contract violation, not a valid value.
+
+**Rules:**
+
+- Verify the postcondition before returning: the saved entity now has its generated id; the API payload has every required field; the balance matches the expected arithmetic.
+- On violation, raise `ContractViolationError` (`AppError`) with the `cause` preserved — never return a partial object, a default, or `None`-because-broken.
+- Build returned values through the domain model's factory (or a pure mapper plus an invariant check) so invariants hold at the boundary.
+- Keep the check in a **pure function** (`assert_account_postcondition`) so it is testable without I/O.
+
+```python
+# adapters/postgres/account_repository.py (PORTABLE)
+class AccountRepositoryAdapter:
+    def save(self, account: Account) -> None:
+        try:
+            row = self._execute(self._config.upsert_sql, self._to_row(account))
+        except DriverError as e:
+            raise StorageUnavailableError(cause=e, retryable=True,
+                context={"operation": "save", "adapter": "postgres"}) from e
+        # Postcondition: the backend acknowledged a row carrying our id.
+        if row is None or row["id"] != account.id:
+            raise ContractViolationError(
+                code="STO-002", message="save did not persist the entity",
+                context={"operation": "save", "adapter": "postgres", "id": account.id},
+            )
+
+    def find_by_id(self, entity_id: str) -> Account | None:
+        row = self._execute(self._config.select_sql, (entity_id,)).fetchone()
+        if row is None:
+            return None                              # valid "not found" — not a failure
+        account = self._from_row(row)                # pure mapper
+        if not Account.is_balanced(account):         # invariant guard at the boundary
+            raise ContractViolationError(code="STO-003", message="corrupt account row",
+                context={"adapter": "postgres", "id": entity_id})
+        return account
+```
+
+```typescript
+// adapters/postgres/AccountRepository.ts
+save(account: Account): void {
+  const row = this.execute(this.config.upsertSql, this.toRow(account));
+  if (!row || row.id !== account.id) {
+    throw new ContractViolationError("STO-002", "save did not persist the entity", { id: account.id });
+  }
+}
+```
+
+```rust
+// adapters/postgres/account_repository.rs
+fn save(&self, account: &Account) -> Result<(), DomainError> {
+    let row = self.execute(&self.config.upsert_sql, self.to_row(account))
+        .map_err(|e| DomainError::storage_unavailable(e, "adapter.postgres.save", ""))?;  // one map_err at the boundary
+    match row {
+        Some(r) if r.id == account.id => Ok(()),
+        _ => Err(DomainError::contract("STO-002", "save did not persist the entity")),
+    }
+}
+```
+
+**Boundary translation.** The driving adapter maps a precondition failure (`ValidationError`) to a **caller** error (HTTP 4xx, non-zero CLI exit) and a postcondition/invariant failure (`ContractViolationError`) to an **internal** error (HTTP 5xx, alert). Never surface a raw stack trace, and never let a contract violation silently degrade into a default value.
+
+## Persistence (Adapter-as-ORM)
 
 Relational persistence goes through a **`*Repository` port** implemented by a **SQL adapter**. There is no ORM layer: the adapter owns its SQL and its row → domain mapping, so the adapter *is* the ORM. Use the database driver directly (or a thin query builder) — never an ORM.
 
@@ -50,7 +112,7 @@ Relational persistence goes through a **`*Repository` port** implemented by a **
 
 Full example: [Python, SQL repository adapter](./python.md#sql-repository-adapter-python).
 
-#### Reusable Adapters
+## Reusable Adapters
 
 The unit of reuse is **the adapter file**. If you can copy it into another project and it compiles/runs unmodified, it is reusable. Adapters in a personal collection are written to this standard.
 
@@ -92,7 +154,7 @@ class BadRepository:
 
 **Before adding an adapter from your collection, verify:** it imports no app code, reads no env vars, names no domain model, and passes the port's contract test (below). If any check fails, fix the adapter — not the target project.
 
-#### Decorator / Middleware Pattern for Cross-Cutting Concerns
+## Decorator / Middleware Pattern for Cross-Cutting Concerns
 
 When multiple adapters need the same behavior (retry, caching, circuit breaking, metrics, logging), use the **Decorator pattern** — wrap a port implementation with another that implements the same port. Each decorator adds one concern and delegates to the wrapped adapter.
 
@@ -252,7 +314,7 @@ def make_document_repository(connection, config, time, metrics) -> Repository[Do
 
 **Anti-patterns:** Putting retry/caching logic inside the base adapter (violates single responsibility), using decorators for concerns that belong in the domain (business rules), stacking too many decorators (performance overhead).
 
-#### Retry Anti-Pattern: When NOT to Retry
+## Retry Anti-Pattern: When NOT to Retry
 
 Retry is for **transient, infrastructure-level failures** only. Retrying non-transient errors delays the inevitable, wastes resources, and hides the real problem from the caller.
 
@@ -265,14 +327,15 @@ Retry is for **transient, infrastructure-level failures** only. Retrying non-tra
 | `RateLimitedError` | Yes (with backoff) | Temporary rate limit, will lift |
 | `ConnectionRefusedError` | Yes | Server not ready yet |
 | `ValidationError` | **No** | Client sent bad data — retrying won't fix it |
+| `ContractViolationError` | **No** | Internal breach (bad postcondition/invariant) — alert and fix the bug, do not retry |
 | `NotFoundError` | **No** | Entity doesn't exist — retrying won't create it |
 | `AuthorizationError` | **No** | Credentials are wrong — retrying won't fix them |
 | `ConflictError` | **No** | Optimistic lock conflict — retry the whole operation, not the same call |
 | `AppError(retryable=False)` | **No** | Business rule violation — caller must fix input |
 
-**Rule:** The `retryable` field on `AppError` is the contract. If `retryable=False`, the retry decorator must propagate immediately. Never retry errors that represent invalid input, missing resources, or authorization failures.
+**Rule:** The `retryable` field on `AppError` is the contract. If `retryable=False`, the retry decorator must propagate immediately. Never retry errors that represent invalid input, missing resources, authorization failures, or contract violations. If a vendor can fail transiently, map that to a retryable gateway error *before* the postcondition check — a postcondition violation itself is not retryable.
 
-#### Event Consumer Fail Fast
+## Event Consumer Fail Fast
 
 Event consumers must handle poison pills (messages that always fail processing) without infinite retries or silent drops.
 

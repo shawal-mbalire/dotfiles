@@ -14,13 +14,13 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 
 | Topic | File |
 |-------|------|
-| Port taxonomy, port design, gateway ports, standard ports | [ports.md](./ports.md) |
-| Adapter portability and persistence (adapter-as-ORM) | [adapters.md](./adapters.md) |
-| Pure functions, pure orchestrators, jack-of-all-trades split | [domain.md](./domain.md) |
+| Port taxonomy, port design, gateway ports, standard ports, **port contracts (pre/postconditions)** | [ports.md](./ports.md) |
+| Adapter portability, persistence (adapter-as-ORM), **postcondition discharge** | [adapters.md](./adapters.md) |
+| Pure functions, pure orchestrators, jack-of-all-trades split, **preconditions & invariants (DbC)** | [domain.md](./domain.md) |
 | Lifecycle, TimePort, LifetimePort | [lifecycle.md](./lifecycle.md) |
 | Logging, diagnostics, developer debugging | [observability.md](./observability.md) |
 | Local-first DuckDB hub (dev backing services) | [duckdb-hub.md](./duckdb-hub.md) |
-| Testing strategy and confidence gates | [testing.md](./testing.md) |
+| Testing strategy, confidence gates, **executable contract tests** | [testing.md](./testing.md) |
 | Entry points, justfile, workspace logs, terminal output | [dx.md](./dx.md) |
 | Directory structure, nested hexagons, multi-language | [structures.md](./structures.md) |
 | Porting to unsupported languages | [transfer-learning.md](./transfer-learning.md) |
@@ -36,11 +36,11 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 6. **Files over folders** — Prefer single files when a directory would contain fewer than 3 files. `domain/errors.py` beats `domain/errors/__init__.py` with one file inside
 7. **Portable adapters** — Write each adapter so its file(s) copy to any project: depend only on standard ports + external libraries, hold zero app imports, constructor-inject a frozen config struct, translate vendor errors to port errors, and take row↔model mappers so the adapter is aggregate-agnostic.
 8. **TimePort everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
-9. **LifetimePort for graceful exits** — Every workflow gets a `LifetimePort` to detect exit reasons (crash, user exit, error, normal) and run cleanup. No resource left behind.
+9. **LifetimePort for graceful exits** — Every long-running process (and any component that owns a resource) gets a `LifetimePort` to detect exit reasons (crash, user exit, error, normal) and run cleanup. No resource left behind.
 10. **Ports only when they make sense** — A port is a boundary, not a badge. Add one only when it earns its place (see [Port Taxonomy](./ports.md#port-taxonomy-when-to-add-a-port)); pure logic, pure transforms, and adapter-private concerns stay out.
 11. **Fail Fast** — When a system encounters an invalid state, missing dependency, or unrecoverable error, halt immediately and report. Never swallow, never silently degrade, never continue execution in a corrupt state. In dev, fail fast to surface wiring and logic bugs instantly. In prod, fail safe (resilience) but never fail silent.
 12. **Reads like pseudocode** — Workflows and entry points must read like pseudocode: each line is one intent, no implementation details leak through. A workflow reads like a high-level algorithm (validate → create → persist → log). An entry point reads like a shell script (load config → create adapters → wire → start). If you can't read the code top-to-bottom and describe what it does without understanding the plumbing, it's too detailed — extract the details into pure functions or adapters.
-13. **Every function pure by default** — Every function that can be pure (same input → same output, no side effects) MUST be pure. If a function mixes logic with I/O, split it: extract the logic into a pure function, keep the I/O thin. This applies everywhere — domain, adapters, tests. No exceptions for "convenience." The only impure functions are the thin I/O methods in adapters and the wiring in the composition root.
+13. **Every function pure by default** — Every function that can be pure (same input → same output, no side effects) MUST be pure. If a function mixes logic with I/O, split it: extract the logic into a pure function, keep the I/O thin. This applies everywhere — domain, adapters, tests. No exceptions for "convenience." The only impure functions are the thin I/O methods in adapters, workflow orchestrators (which call ports but contain no inline logic), and the wiring in the composition root.
 
 **The split:** Domain = what the app does (architecture). Adapters = how it connects (implementation).
 
@@ -122,11 +122,12 @@ If the application needs cloud resources, managed databases, queues, networks, c
 
 ### State Management
 
-Domain is stateless — pure functions and workflows that produce results from inputs. All mutable state lives in adapters or backing services.
+Domain is stateless **across processes** — pure functions and workflows produce results from their inputs. A workflow object may hold transient state scoped to its own lifetime (e.g. an in-flight buffer), but it must never hold state shared between concurrent instances or across processes. Shared mutable state lives in adapters or backing services.
 
 - **Connection pools** — adapter concern, created at startup, released at shutdown
 - **In-memory caches** — adapter concern, never accessed by domain
-- **Request-scoped state** — passed as arguments, never stored on domain objects
+- **Buffers and accumulators** — may live on a workflow or adapter instance for its lifetime; flush via `LifetimePort`; never shared between instances
+- **Request-scoped state** — passed as arguments or held per-instance for the duration of one operation
 - **Session/auth state** — decoded at the adapter boundary, injected as domain models
 
 If multiple instances run concurrently, they share no in-process state. All shared state goes through backing services (databases, caches, message queues) via driven adapters.
@@ -149,7 +150,7 @@ The composition root is where everything comes together. It reads config from `i
 - Doing I/O before wiring is complete
 - Creating a new root folder for the entry point
 
-**Entry points are root-level files.** A project has exactly four root directories — `domain/`, `infra/`, `adapters/`, `tests/`. Wiring lives in the entry file or a root helper; config lives in `infra/config`:
+**Entry points are root-level files.** A single project (one hexagon) has exactly four root directories — `domain/`, `infra/`, `adapters/`, `tests/`. A multi-project workspace adds a shared contracts folder and one folder per project at the workspace root, but each project still has the same four (see [Multi-Language Projects](./structures.md#multi-language-projects)). Wiring lives in the entry file or a root helper; config lives in `infra/config`:
 
 ```
 main.py            # Entry point — wires adapters, starts the driving adapter
@@ -217,7 +218,7 @@ node_modules/
 The domain is pure — it scales by running more processes, not by adding threads inside the domain. Each process runs its own composition root with its own adapter wiring.
 
 ```
-Process 1:  composition_root → domain + adapters → handle requests
+Process 1:  composition root → domain + adapters → handle requests
 Process 2:  composition root → domain + adapters → handle requests
 Process N:  composition root → domain + adapters → handle requests
 ```
@@ -249,6 +250,7 @@ User ← Driving Adapter ← Convert to DTO/Response ← Domain Model ← Result
 | Events    | `EventPublisherPort` | `infra/config` | DuckDB hub (dev), Kafka/RabbitMQ/MQTT (prod)                |
 | Events    | `EventConsumerPort`  | `infra/config` | DuckDB hub (dev), Kafka/RabbitMQ/MQTT (prod)                |
 | Time      | `TimePort`           | `infra/config` | System clock, high-res timer, mock clock adapter            |
+| Randomness | `RandomPort`        | `infra/config` | System RNG (prod), seeded mock (dev/test)                   |
 | Tracing   | `TracerPort`         | `infra/config` | DuckDB spans (dev), OpenTelemetry (prod)                    |
 | Diagnostics | `AppError` + `ErrorReporterPort` | `infra/config` | DuckDB `diagnostics` table (dev), Sentry (prod) |
 | Feature flags | `FeatureFlagPort` | `infra/config` | Local flags file (dev), LaunchDarkly/Unleash (prod) |
@@ -274,7 +276,7 @@ These refine the [Core Principles](#core-principles) with concrete, checkable ru
 13. **TimePort Everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
 14. **Pure Functions Everywhere** — Every function that can be pure MUST be pure: same input → same output, no side effects. This applies to domain, adapter helpers, and test utilities alike. I/O is the adapter's job only. Testing becomes trivial: call function, check result.
 15. **Light Justfile for DX** — The root justfile is a thin command index: each recipe is one line delegating to a program (e.g. `cli.py`), never inline logic. It defines `root := justfile_directory()`, and recipes `cd` into the project dir. All task output is colored and structured via `PresenterPort` (rich panels/tables), auto-degrading on non-TTY/`NO_COLOR`.
-16. **LifetimePort for Graceful Exits** — Every workflow registers cleanup via LifetimePort. No resource left behind, no matter the exit reason (crash, user exit, normal, timeout).
+16. **LifetimePort for Graceful Exits** — Every long-running process and every resource-owning component (usually an adapter) registers cleanup via LifetimePort. No resource left behind, no matter the exit reason (crash, user exit, normal, timeout).
 17. **Infrastructure as Code Only When Needed** — `infra/` always holds config; it holds IaC (tool-agnostic) only when the app provisions real resources. Never mix runtime config and provisioning in one file.
 18. **Adapter-as-ORM** — Persist through `*Repository` ports implemented by SQL adapters. The adapter owns its SQL and maps rows to domain models via pure functions; no ORM layer, and never leak a DB row through a port.
 19. **Uniform Diagnostics** — Every failure is an `AppError` with a registry-backed `code`, structured `context`, a preserved `cause`, an `origin` (layer + location), and a `correlation_id`. Never swallow, never return a raw SDK error.
@@ -286,12 +288,13 @@ These refine the [Core Principles](#core-principles) with concrete, checkable ru
 25. **Gateway Ports for External Services** — Wrap each external system behind a `*Gateway` port that exposes domain capabilities only. The networking protocol lives in the adapter's frozen config, never in the port signature; swap transports per environment without touching the domain or workflows.
 26. **Ports Only When They Make Sense** — Add a port only when the [Port Taxonomy](./ports.md#port-taxonomy-when-to-add-a-port) test fires (real external dependency, substitution/test need, ≥2 implementations, or required determinism). Never create a port for pure logic, a pure transform, or an adapter-private concern.
 27. **Fail Fast at Every Boundary** — Invalid state must never propagate. Domain workflows validate inputs as their first action. The composition root validates all adapters before starting the driving adapter. Adapters translate vendor errors to `AppError` at the boundary — never return `None`-on-failure, raw SDK errors, or bare strings. Retry only transient errors; non-transient failures (validation, auth, not-found) fail immediately. In dev/test, observability failures panic. In prod, they fall back to stderr. Event consumers have a maximum retry count per message — after exhausting retries, move to a dead letter queue and alert.
-28. **File Placement** — A project has exactly four root directories (`domain/`, `infra/`, `adapters/`, `tests/`) plus root-level entry points. Every new file goes into one of these. No fifth root directory, ever. The decision tree: Is it an entry point? → root file. Is it a port/interface? → `domain/ports/`. Is it a model? → `domain/models/`. Is it workflow orchestration? → `domain/workflows/`. Is it an error type? → `domain/errors/`. Is it a portable adapter implementing a port? → `adapters/<backend>/`. Is it a decorator wrapping a port? → `adapters/decorators/`. Is it config or infra-as-code? → `infra/`. Is it a test? → `tests/`. If it doesn't fit, it's not a new file — it belongs inside an existing one. See [File Placement](./structures.md#where-does-a-new-file-go).
+28. **File Placement** — A single project (one hexagon) has exactly four root directories (`domain/`, `infra/`, `adapters/`, `tests/`) plus root-level entry points. Every new file goes into one of these. No fifth root directory within a project, ever. (A multi-project workspace adds a shared contracts folder and one folder per project at the workspace root; each project still keeps the four.) The decision tree: Is it an entry point? → root file. Is it a port/interface? → `domain/ports/`. Is it a model? → `domain/models/`. Is it workflow orchestration? → `domain/workflows/`. Is it an error type? → `domain/errors/`. Is it a portable adapter implementing a port? → `adapters/<backend>/`. Is it a decorator wrapping a port? → `adapters/decorators/`. Is it config or infra-as-code? → `infra/`. Is it a test? → `tests/`. If it doesn't fit, it's not a new file — it belongs inside an existing one. See [File Placement](./structures.md#where-does-a-new-file-go).
 29. **Domain, Port, or Adapter** — Every piece of code is one of three things. Domain = pure business logic, no side effects, imports nothing outside itself. Port = an interface (Protocol/ABC/Trait) the domain defines to declare what it needs (e.g., "I need a logger"). Adapter = an implementation of a port that talks to the outside world (e.g., GCloudLogger, JsonLogger — both implement LoggerPort). The domain never knows which adapter it's using; the composition root wires the right one. If it has side effects, it's an adapter. If it's an interface the domain defines, it's a port. If it's pure logic with no external dependency, it's domain. See [Domain, Port, or Adapter?](./structures.md#domain-port-or-adapter).
-30. **Transferable Ports and Adapters** — Every port and adapter must be copy-pasteable into another project unmodified. Ports contain no app-specific types — only domain primitives and standard port vocabulary. Adapters depend only on standard ports + their driver — never on app models, sibling adapters, or project-specific code. Before adding a port or adapter from a collection, verify it compiles and passes its contract test in the target project with zero changes.
-31. **Two Kinds of Functions** — Every function in the system is one of two kinds. Pure functions: same input → same output, no side effects, no port calls — trivial to test by calling and checking. Pure orchestrators: coordinate pure functions and port calls, no business logic inline — testable by faking ports. If a function does both (logic + side effects), split it. If a function is too large, extract the logic into pure functions and keep the orchestration thin. This prevents jack-of-all-tradess and keeps every function testable at the lowest tier. See [Pure Functions and Pure Orchestrators](./structures.md#pure-functions-and-pure-orchestrators).
+30. **Transferable Adapters, Standard Ports** — Every adapter and every *standard/generic* port (`Repository[T]`, `CachePort`, …) must be copy-pasteable into another project unmodified. Standard ports contain no app-specific types — only domain primitives, generics, and standard port vocabulary. Domain-specific ports (a `*Gateway`, a `DocumentRepository` alias that names `Document`) necessarily speak domain models and are **not** required to be portable on their own; the adapter beneath them still is. Adapters depend only on standard ports + their driver — never on app models, sibling adapters, or project-specific code. Before adding a port or adapter from a collection, verify it compiles and passes its contract test in the target project with zero changes.
+31. **Two Kinds of Functions** — Every function in the system is one of two kinds. Pure functions: same input → same output, no side effects, no port calls — trivial to test by calling and checking. Pure orchestrators: coordinate pure functions and port calls, no business logic inline — testable by faking ports. If a function does both (logic + side effects), split it. If a function is too large, extract the logic into pure functions and keep the orchestration thin. This prevents jack-of-all-trades functions and keeps every function testable at the lowest tier. See [Pure Functions and Pure Orchestrators](./structures.md#pure-functions-and-pure-orchestrators).
 32. **Workflows Read Like Pseudocode; Entry Points Read Like Shell Scripts** — A workflow orchestrates pure functions and ports with each line expressing one intent: validate → create → persist → log. An entry point reads like a shell script: load config → create adapters → wire → start. No implementation details leak into either. If you can't read it top-to-bottom and describe what it does, extract the details. See [Workflows vs Entry Points](./structures.md#workflows-vs-entry-points).
 33. **No Monadic Pipelines** — Return `Result`/`Option` and use `?` for straight-line propagation, but never build control flow out of chained combinators (`.and_then`, `.ok_or`, `.transpose`, `.flatten`, `.unwrap_or_else`). Every line states one intent: `match`, guard clauses, and early returns for branching; a single `map_err` at the adapter boundary for error translation (preserving `cause`). This matters most in Rust, where `Result`/`Option` make combinator chains the default temptation. See [Avoid Monadic Pipelines](./rust.md#avoid-monadic-pipelines).
+34. **Design by Contract at the Boundaries** — State each port's **preconditions** (what callers must provide), **postconditions** (what the port guarantees on success), and each model's **invariants** (what is always true). Enforce preconditions at the driving boundary with explicit `ValidationError` raises *before* any side effect — never `assert` for external input (it compiles out under `-O`/release); reserve `assert` for internal invariants. Driven adapters discharge postconditions and raise `ContractViolationError` (internal) when a backend returns partial, malformed, or missing data. Write every clause as a pure predicate and encode all three in the port's contract test. See [Validate at the Door](./domain.md#validate-at-the-door-fail-fast-in-domain) and [Port Contracts](./ports.md#port-contracts-preconditions-and-postconditions).
 
 ## 12FA Compliance
 
@@ -409,6 +412,7 @@ Building a new feature?
 ├─ Wire everything in the entry point (main, app, index)
 ├─ Run the port's contract test against every adapter (local and copied-in)
 ├─ Return/raise AppError everywhere (code, context, cause, origin, correlation_id)
+├─ Write each port contract as pure predicates — preconditions (ValidationError), postconditions + invariants (ContractViolationError)
 ├─ No monadic pipelines — Result/Option + `?` only; branch with match/guards/early returns; one map_err at the adapter boundary (Rule 33)
 ├─ Register each new code in the error registry (errors-check must pass)
 ├─ Install a crash/panic handler and breadcrumb buffer in the composition root
@@ -420,6 +424,7 @@ Building a new feature?
 ├─ Put risky behavior behind a FeatureFlagPort; plan canary + rollback
 ├─ Validate all adapters at startup — crash immediately if any fail
 ├─ Domain workflows validate inputs as their first action — no invalid state propagates
+├─ Adapters verify port postconditions — never return partial/default-on-violation data
 ├─ Retry only transient errors; non-transient failures fail fast
 ├─ Event consumers have max retry count — poison pills go to dead letter queue
 ├─ In dev/test, observability failures panic; in prod, fall back to stderr
@@ -453,6 +458,8 @@ See language-specific guides for full code examples:
 - [Embedded](./embedded.md) — MicroPython + C++ on ESP32, STM32, Arduino
 
 ## External References
+
+These are the original design notes. They predate several rules here — they say "use cases" where this skill says "workflows", and show an ORM-style adapter that this skill replaces with adapter-as-ORM (Rule 18). Where they disagree, this skill is authoritative.
 
 - <https://github.com/shawal-mbalire/shawal_stack/blob/main/hexagonal_architecture.md>
 - <https://github.com/shawal-mbalire/shawal_stack/blob/main/architecture-diagram.md>

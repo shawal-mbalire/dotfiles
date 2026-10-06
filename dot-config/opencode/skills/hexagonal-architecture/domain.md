@@ -36,6 +36,8 @@ def create_document(
     logger: LoggerPort,
     time: TimePort,
 ) -> Document:
+    start = time.now_ms()
+
     # Pure logic: validation
     if not content.strip():
         raise EmptyContentError()
@@ -92,6 +94,102 @@ def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) 
 - [ ] Validate domain model invariants when constructing models (e.g., `Document.create()` validates internally)
 - [ ] Fail with enough context to diagnose: what was invalid, what was expected
 
+## Design by Contract in the Domain
+
+Validating at the door is the **precondition** half of **Design by Contract (DbC)**. A contract has three clauses, and each belongs at a specific place in the hexagon:
+
+| Contract clause | Where it lives | On failure |
+|-----------------|----------------|------------|
+| **Precondition** — what the caller must provide | Domain workflow / driving boundary | Raise `ValidationError` (`AppError`, `retryable=False`) — caller error; reject before any side effect |
+| **Postcondition** — what the port guarantees on success | Driven port, discharged by the adapter | Raise `ContractViolationError` (`AppError`) — internal/infrastructure failure |
+| **Invariant** — what is always true of a domain object | Domain model / aggregate | Raise `ContractViolationError` — a domain bug |
+
+**Write each clause as a pure predicate.** A precondition is a named pure function (`is_valid_amount`); an invariant is a pure function over the aggregate (`is_balanced`). Pure predicates are trivial to test and are reused by the workflow, the adapter, and the contract test.
+
+**Preconditions use explicit raises, never `assert`.** `assert` is compiled out under `python -O` and in release builds, so a check on external input must not rely on it. Reserve `assert` for **internal invariants** that should only fire on a programming error (dev/test).
+
+```python
+# domain/models/account.py — an invariant as a pure predicate, enforced on every construction
+@dataclass(frozen=True)
+class Account:
+    id: str
+    balance: Decimal
+
+    @staticmethod
+    def is_balanced(account: "Account") -> bool:
+        return account.balance >= Decimal("0")          # pure predicate
+
+    @classmethod
+    def create(cls, id: str, balance: Decimal) -> "Account":
+        account = cls(id=id, balance=balance)
+        if not cls.is_balanced(account):                # enforce the invariant
+            raise ContractViolationError(
+                code="DOM-001", message="Account balance cannot be negative",
+                context={"account_id": id},
+            )
+        return account
+
+# domain/workflows/transfer.py — a precondition, checked before any side effect
+def is_transferable(amount: Decimal, src: Account) -> bool:
+    """Pure precondition predicate: positive and covered by the source balance."""
+    return amount > 0 and amount <= src.balance
+
+def transfer(amount: Decimal, src: Account, dst: Account,
+             repo: AccountRepository, logger: LoggerPort) -> None:
+    # 1. Precondition — caller error, one named pure predicate, explicit raise (never `assert`)
+    if not is_transferable(amount, src):
+        raise ValidationError(
+            code="DOM-002", message="Transfer amount must be positive and available",
+            context={"amount": str(amount), "balance": str(src.balance)}, retryable=False,
+        )
+    # 2. Build the next state through the model factory (invariants enforced)
+    src_after = Account.create(src.id, src.balance - amount)
+    dst_after = Account.create(dst.id, dst.balance + amount)
+    assert src_after.balance + dst_after.balance == src.balance + dst.balance  # dev-only sanity check
+    # 3. Persist as one unit of work — the adapter owns the transaction and commits
+    #    both accounts atomically; never issue two independent saves from a workflow.
+    repo.save_all([src_after, dst_after])
+    logger.info("transfer_complete", amount=str(amount))
+```
+
+```typescript
+// domain/models/Account.ts
+export class Account {
+  private constructor(public readonly id: string, public readonly balance: Decimal) {}
+
+  static isBalanced(account: Account): boolean {          // pure invariant predicate
+    return account.balance.greaterThanOrEqualTo(0);
+  }
+
+  static create(id: string, balance: Decimal): Account {
+    const account = new Account(id, balance);
+    if (!Account.isBalanced(account)) {
+      throw new ContractViolationError("DOM-001", "Account balance cannot be negative", { id });
+    }
+    return account;
+  }
+}
+```
+
+```rust
+// domain/src/models/account.rs
+impl Account {
+    fn is_balanced(&self) -> bool { self.balance >= Decimal::ZERO }   // pure invariant
+
+    pub fn create(id: String, balance: Decimal) -> Result<Account, DomainError> {
+        let account = Account { id, balance };
+        if !account.is_balanced() {                                   // enforce it
+            return Err(DomainError::contract("DOM-001", "account balance cannot be negative"));
+        }
+        Ok(account)
+    }
+}
+```
+
+**`assert` is a dev-only sanity check.** In Rust use `debug_assert!` and in C++ `assert` only in debug builds; for an invariant that must also hold in production — value conservation, a ledger balance — raise `ContractViolationError` explicitly instead of asserting.
+
+The workflow validation checklist above **is** the precondition list. Put invariants in the model's constructor/factory so every path that builds the object is protected, and let the adapter discharge the port's postconditions (see [Discharging Port Postconditions](./adapters.md#discharging-port-postconditions)).
+
 ## Pure Function Testing Pattern
 
 ```python
@@ -114,9 +212,8 @@ Every function in the system is one of two kinds. Know which one you're writing.
 **Pure functions** — logic only, no port calls. Same input → same output. Trivial to test.
 
 ```python
-def calculate_total(items: list[CartItem], tax_rate: float) -> float:
-    subtotal = sum(item.price * item.quantity for item in items)
-    return subtotal * (1 + tax_rate)
+def calculate_total(cart: Cart, tax_rate: float) -> float:
+    return cart.subtotal * (1 + tax_rate)
 
 def validate_content(content: str) -> None:
     if not content.strip():
@@ -165,6 +262,7 @@ A workflow is a **domain operation** — a business action that orchestrates pur
 def create_document(content: str, repo: DocumentRepository,
                     logger: LoggerPort, time: TimePort) -> Document:
     """Create a document: validate, persist, log, return."""
+    start = time.now_ms()
     validate_content(content)
     doc = Document.create(content=content)
     repo.save(doc)
@@ -294,7 +392,7 @@ pub fn save_document(
 
 **Use classes when:**
 - The workflow has multiple related operations (CRUD lifecycle)
-- Shared state or configuration between operations
+- Transient state scoped to the workflow's own lifetime is useful (e.g. an in-flight buffer) — never state shared across instances or processes
 - Language convention favors classes (TypeScript, C++)
 - Need to register lifecycle hooks (e.g., `LifetimePort`)
 
@@ -342,9 +440,11 @@ class DataCollector:
 | Aspect | Free Functions | Classes |
 |--------|---------------|---------|
 | Testing | Trivial — call function, check result | Create instance, call methods |
-| State | Stateless (pure) | Can hold state between calls |
+| State | Stateless (pure) | Transient, instance-scoped — never shared across instances/processes |
 | Complexity | Simple workflows | Complex workflows with shared deps |
 | Python idiom | Preferred for single operations | Used for lifecycle-bound workflows |
 | TypeScript idiom | Less common | Preferred — constructor injection |
 | Rust idiom | Preferred (traits for abstraction) | Used for stateful services |
 | C++ idiom | Free functions with reference params | Classes for RAII/lifecycle |
+
+**Transient state is allowed; shared state is not.** A workflow instance may hold state for the duration of a single operation or its own lifetime (a buffer, an accumulator, a cursor). What is forbidden is *shared* mutable state: state visible to other instances, other requests, or other processes. When state must outlive the instance or be shared, it belongs in an adapter or backing service, and any buffered state must be flushed via `LifetimePort` on exit. See [State Management](./SKILL.md#state-management).

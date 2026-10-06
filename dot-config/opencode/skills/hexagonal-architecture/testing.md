@@ -75,7 +75,18 @@ class AppError(Exception):
     retryable: bool = False
     remediation: str = ""           # one-line hint on how to fix
 
-class EmptyContentError(AppError):
+# Contract families — subclass these, never the base directly.
+class ValidationError(AppError):
+    """Precondition failure: the caller supplied invalid input (a client error)."""
+    def __init__(self, code, message, **kw):
+        super().__init__(code=code, message=message, retryable=False, **kw)
+
+class ContractViolationError(AppError):
+    """Postcondition or invariant breach: an internal/infrastructure failure."""
+    def __init__(self, code, message, **kw):
+        super().__init__(code=code, message=message, **kw)
+
+class EmptyContentError(ValidationError):
     def __init__(self, message="Document content cannot be empty", **kw):
         super().__init__(code="DOC-001", message=message,
                          remediation="Provide non-empty content", **kw)
@@ -88,7 +99,8 @@ class EmptyContentError(AppError):
 - **`origin` is filled at the boundary** — the driving/driven adapter sets layer + `module.function:line` and the `correlation_id`; the domain never knows file locations.
 - **Context is structured and redacted** — `{"document_id": ..., "operation": "save", "adapter": "postgres"}`; never secrets or PII.
 - **One renderer** — `render(error)` for logs, CLI, and HTTP (map `code` → status). Log the full cause chain once, at the boundary.
-- **Error-code registry** — every `code` maps to meaning, owner, retryable, and a runbook. `just errors-check` fails CI on unknown or duplicate codes.
+- **Error-code registry** — every `code` maps to meaning, owner, retryable, and a runbook. `just errors-check` fails CI on unknown or duplicate codes. The codes in the examples (`DOC-002`, `DOM-001`, `STO-002`, …) are illustrative; every code that ships must be registered here.
+- **Contract families** — `ValidationError` signals a caller error (precondition; `retryable=False`); `ContractViolationError` signals an internal/infrastructure breach (postcondition or invariant). Both are `AppError` subclasses, so they cross ports unchanged and render by class, not by string matching. Language guides name the concrete type idiomatically — `DomainError` in Rust and C++ — but it is the same one uniform error shape.
 
 ```
 # errors.toml
@@ -115,7 +127,7 @@ except DriverError as e:
     ) from e
 ```
 
-#### Optional Returns vs Errors: When `None` Is Acceptable
+## Optional Returns vs Errors: When `None` Is Acceptable
 
 The rule "never return `None`-on-failure" has a nuance: `None` is legitimate for **"not found" semantics** — the operation succeeded, but the entity doesn't exist. `None` is the anti-pattern when used as a substitute for error reporting.
 
@@ -212,6 +224,36 @@ def test_delete_removes(repository):
 - **Fakes run it too** (minus persistence-specific cases) so fake and real behavior cannot drift.
 - A copied-in adapter is only accepted once the contract suite passes in the target project.
 
+**Contracts are executable — the DbC clauses are the test cases.** The suite asserts all three: preconditions reject, postconditions hold, invariants are preserved.
+
+```python
+# Precondition: invalid input is rejected with the right code, before any side effect.
+def test_save_rejects_blank_id(repository, counting_backend):
+    with pytest.raises(ValidationError) as exc:
+        repository.save(make_entity(id=""))          # documented precondition
+    assert exc.value.code == "DOC-002"
+    assert exc.value.retryable is False
+    assert counting_backend.writes == 0              # nothing was persisted
+
+# Postcondition: the round-trip guarantee, not merely "no exception".
+def test_save_postcondition_round_trips(repository):
+    entity = make_entity("id-1")
+    repository.save(entity)
+    stored = repository.find_by_id("id-1")
+    assert stored == entity                          # postcondition
+    assert stored is not None                        # never a partial record
+
+# Invariant: every value a port returns satisfies the model's pure predicate.
+def test_find_never_returns_invalid_aggregate(repository):
+    repository.save(make_entity("id-1"))
+    assert Account.is_balanced(repository.find_by_id("id-1"))
+```
+
+- **Precondition tests** prove invalid input is rejected *before* a side effect (assert the counting fake wrote nothing).
+- **Postcondition tests** prove the guarantee, not just the absence of an exception.
+- **Invariant hooks** run the model's pure predicate over every value a port returns.
+- **Mutation testing** mutates the predicate (flip `>=` to `>`); if the suite still passes, the contract is not really tested.
+
 ## Fault Injection
 
 Happy-path correctness is half the job; the other half is behaving correctly when a dependency fails. Inject failures through fakes and assert both the outcome and the diagnostic.
@@ -234,6 +276,8 @@ def test_observability_survives_sink_failure():
 ```
 
 Standard fault set per driven adapter: connection refused, timeout, malformed payload, partial write, duplicate key, auth failure. Assert the `code`, `origin`, `retryable`, and that the failure was logged with the same `correlation_id`.
+
+Also inject **postcondition violations** — a `save` that returns without persisting, a gateway payload missing a required field — and assert they surface as `ContractViolationError` with the `cause` preserved, never as a silent default or a `None`.
 
 ## Static & Runtime Hardening
 
@@ -284,10 +328,11 @@ from hypothesis import given, strategies as st
 def test_encode_decode_round_trips(documents):
     assert [decode(encode(d)) for d in documents] == documents
 
-@given(st.integers(min_value=0), st.integers(min_value=0))
-def test_total_is_order_independent(price, qty):
-    cart = Cart(items=[CartItem(price=price, quantity=qty)])
-    assert calculate_total(cart) == calculate_total(cart.reversed())
+@given(st.lists(st.tuples(st.integers(min_value=0), st.integers(min_value=1))))
+def test_total_is_order_independent(items):
+    cart = Cart(items=[CartItem(price=p, quantity=q) for p, q in items])
+    reversed_cart = Cart(items=list(reversed(cart.items)))
+    assert calculate_total(cart, tax_rate=0.0) == calculate_total(reversed_cart, tax_rate=0.0)
 ```
 
 A failing property prints the **minimal** counterexample — that is the "exactly how it failed" you want. Add each discovered counterexample as a regression example test.

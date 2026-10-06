@@ -2,7 +2,7 @@
 
 ## Directory Structure
 
-Every project has exactly **four root directories** — `domain/`, `infra/`, `adapters/`, `tests/`. Entry points (`main.py`, `migrate.py`, …) are root-level files. Never add a root folder for a new capability; put it under an existing dir.
+Every single project (one hexagon) has exactly **four root directories** — `domain/`, `infra/`, `adapters/`, `tests/`. Entry points (`main.py`, `migrate.py`, …) are root-level files. Never add a root folder for a new capability; put it under an existing dir. A multi-project workspace adds a shared contracts folder and one folder per project at the workspace root, but each project still has the same four (see [Multi-Language Projects](#multi-language-projects)).
 
 ```
 project/
@@ -29,7 +29,7 @@ project/
 
 ## Where Does a New File Go?
 
-Every new file must land in one of the four root directories or at the root as an entry point. No fifth root directory, ever.
+Every new file must land in one of the four root directories or at the root as an entry point. No fifth root directory within a project, ever.
 
 | You're adding... | It goes in... | Example |
 |------------------|---------------|---------|
@@ -38,7 +38,7 @@ Every new file must land in one of the four root directories or at the root as a
 | Domain model | `domain/models/` | `document.py`, `user.py`, `money.py` |
 | Workflow (orchestration) | `domain/workflows/` | `create_document.py`, `process_payment.py` |
 | Business error | `domain/errors/` | `empty_content_error.py` |
-| Business constant | `domain/constants.py` | `tax_rates.py` |
+| Business constant | `domain/constants.py` | `TAX_RATE` defined in `constants.py` |
 | Adapter (implements a port) | `adapters/<backend>/` | `adapters/stripe/gateway.py` |
 | Adapter decorator (retry, cache) | `adapters/decorators/` | `retry_repository.py` |
 | Adapter mapping (row ↔ domain) | `adapters/<backend>/` | `postgres_mappings.py` |
@@ -124,9 +124,11 @@ Am I writing code that does a business thing?
 
 ## Transferable Ports and Adapters
 
-Every port and adapter must be **copy-pasteable** into another project with zero modifications.
+Every **adapter** and every **standard/generic port** (`Repository[T]`, `CachePort`, …) must be **copy-pasteable** into another project with zero modifications.
 
-**Port rules:**
+**Scope:** domain-specific ports — a `PaymentGateway`, a `DocumentRepository` alias that names `Document` — necessarily speak domain models and are **not** required to be portable on their own. The adapter beneath them still is, because it receives injected mappers and never names a domain model.
+
+**Standard-port rules:**
 - Accept and return only domain primitives, generics, or standard port vocabulary types
 - Never import app models — use `T` (generics) instead
 - Never import adapters, drivers, or third-party libraries

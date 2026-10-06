@@ -23,9 +23,11 @@ class TracerPort(Protocol):
     def end_span(self, span_id: str) -> None: ...
 ```
 
-### Observability Must Not Break the App
+### Observability Must Not Break the App (Prod)
 
-- A failed log/metric/event write is **swallowed** (last-resort `stderr`), never propagated into a workflow.
+In prod, observability must never take down the serving path. In dev/test the opposite is true — failures panic so wiring bugs surface immediately (see the posture table below).
+
+- **In prod only**, a failed log/metric/event write is swallowed (last-resort `stderr`), never propagated into a workflow. In dev/test it panics.
 - Buffers are bounded with **drop-oldest**; expose a `dropped_records` counter so loss is visible.
 - If the prod observability backend is down, the app keeps serving.
 

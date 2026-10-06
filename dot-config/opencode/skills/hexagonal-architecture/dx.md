@@ -121,8 +121,8 @@ update:
     uv lock --upgrade && uv sync
 
 # Combined gates
-check: lint typecheck adapters-check errors-check test
-verify: check test-contract test-fault test-e2e
+check: lint typecheck adapters-check errors-check test-unit
+verify: check test-contract test-integration test-fault test-e2e
 verify-hard: verify sanitizers
 verify-plus: verify test-property mutation
 ```

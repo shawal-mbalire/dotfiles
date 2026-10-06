@@ -82,21 +82,45 @@ struct CreateDocumentRequest {
 
 // domain/errors/domain_error.h
 #pragma once
+#include <map>
+#include <source_location>
 #include <stdexcept>
 #include <string>
 
-class DomainError : public std::runtime_error {
+// domain/errors/app_error.h — the uniform diagnostic error (same shape across languages)
+class AppError : public std::runtime_error {
 public:
-    explicit DomainError(const std::string& msg) : std::runtime_error(msg) {}
+    AppError(std::string code, std::string message,
+             std::map<std::string, std::string> context = {},
+             std::string origin = "", bool retryable = false)
+        : std::runtime_error(message),
+          code_(std::move(code)), context_(std::move(context)),
+          origin_(std::move(origin)), retryable_(retryable) {}
+
+    const std::string& code() const noexcept { return code_; }
+    const std::map<std::string, std::string>& context() const noexcept { return context_; }
+    const std::string& origin() const noexcept { return origin_; }
+    bool retryable() const noexcept { return retryable_; }
+
+    static std::string origin_here(
+        const std::source_location& loc = std::source_location::current()) {
+        return std::string(loc.file_name()) + ":" + std::to_string(loc.line());
+    }
+
+private:
+    std::string code_;
+    std::map<std::string, std::string> context_;
+    std::string origin_;
+    bool retryable_;
 };
 
 // domain/errors/empty_content_error.h
 #pragma once
-#include "domain_error.h"
+#include "app_error.h"
 
-class EmptyContentError : public DomainError {
+class EmptyContentError : public AppError {
 public:
-    EmptyContentError() : DomainError("Document content cannot be empty") {}
+    EmptyContentError() : AppError("DOC-001", "Document content cannot be empty") {}
 };
 
 // domain/ports/repository.h
@@ -478,7 +502,7 @@ Document create_document(
         throw EmptyContentError();
     }
     if (content.length() > MAX_CONTENT_LENGTH) {
-        throw DomainError("Content exceeds maximum length");
+        throw AppError("DOM-003", "Content exceeds maximum length");
     }
     // ...
 }
@@ -921,39 +945,8 @@ private:
 ### Uniform Error + Source Location
 
 ```cpp
-// domain/errors/app_error.h
-#pragma once
-#include <map>
-#include <source_location>
-#include <stdexcept>
-#include <string>
-
-class AppError : public std::runtime_error {
-public:
-    AppError(std::string code, std::string message,
-             std::map<std::string, std::string> context = {},
-             std::string origin = "", bool retryable = false)
-        : std::runtime_error(message),
-          code_(std::move(code)), context_(std::move(context)),
-          origin_(std::move(origin)), retryable_(retryable) {}
-
-    const std::string& code() const noexcept { return code_; }
-    const std::map<std::string, std::string>& context() const noexcept { return context_; }
-    const std::string& origin() const noexcept { return origin_; }
-    bool retryable() const noexcept { return retryable_; }
-
-    // Filled at the boundary: layer + file:line
-    static std::string origin_here(
-        const std::source_location& loc = std::source_location::current()) {
-        return std::string(loc.file_name()) + ":" + std::to_string(loc.line());
-    }
-
-private:
-    std::string code_;
-    std::map<std::string, std::string> context_;
-    std::string origin_;
-    bool retryable_;
-};
+// domain/errors/app_error.h — defined once in the code example above; the same shape in every language.
+// A violation carries code, message, context, origin, and retryable — nothing else crosses a port.
 ```
 
 ```cpp
@@ -1394,7 +1387,7 @@ errors-check:
     ./{{BUILD_DIR}}/check_error_codes
 
 # Full gate before merge
-verify: lint test errors-check
+verify: lint test-unit test-integration test-e2e errors-check
 ```
 
 ## conanfile.py
