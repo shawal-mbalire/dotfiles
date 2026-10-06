@@ -1,3 +1,4 @@
+import "../Shared"
 import Quickshell
 import Quickshell.Services.Pipewire
 import QtQuick
@@ -24,11 +25,11 @@ RowLayout {
 
   Text {
     text: root.icon
-    color: colorYellow
+    color: Theme.yellow
     font {
-      family: themeNerdFont
-      pixelSize: themeFontSize
-      weight: themeFontWeight
+      family: Theme.nerdFont
+      pixelSize: Theme.fontSize
+      weight: Theme.fontWeight
     }
   }
   Text {
@@ -37,11 +38,11 @@ RowLayout {
       if (root.muted) return "Muted"
       return root.volume + "%"
     }
-    color: root.muted ? colorOverlay1 : colorText
+    color: root.muted ? Theme.overlay1 : Theme.text
     font {
-      family: themeFont
-      pixelSize: themeFontSize
-      weight: themeFontWeight
+      family: Theme.font
+      pixelSize: Theme.fontSize
+      weight: Theme.fontWeight
     }
   }
 

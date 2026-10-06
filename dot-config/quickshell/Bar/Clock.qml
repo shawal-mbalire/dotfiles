@@ -1,3 +1,4 @@
+import "../Shared"
 import Quickshell
 import QtQuick
 import QtQuick.Layouts
@@ -13,22 +14,22 @@ RowLayout {
 
   Text {
     text: Qt.formatDateTime(clock.date, "MMM d")
-    color: colorOverlay0
+    color: Theme.overlay0
     font {
-      family: themeFont
-      pixelSize: themeFontSize
-      weight: themeFontWeight
+      family: Theme.font
+      pixelSize: Theme.fontSize
+      weight: Theme.fontWeight
     }
     Layout.alignment: Qt.AlignVCenter
   }
 
   Text {
     text: Qt.formatDateTime(clock.date, "hh:mm")
-    color: colorText
+    color: Theme.text
     font {
-      family: themeFont
-      pixelSize: themeFontSize
-      weight: themeFontWeight
+      family: Theme.font
+      pixelSize: Theme.fontSize
+      weight: Theme.fontWeight
     }
     Layout.alignment: Qt.AlignVCenter
   }

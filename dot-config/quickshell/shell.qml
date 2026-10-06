@@ -3,40 +3,67 @@ import Quickshell.Io
 import QtQuick.Layouts
 import QtQuick
 
+import "Bar"
+import "Menus"
+import "Shared"
+import "ControlCenter"
+//
+
 ShellRoot {
-  // Catppuccin Mocha
-  property color colorRosewater: "#f5e0dc"
-  property color colorFlamingo: "#f2cdcd"
-  property color colorPink: "#f5c2e7"
-  property color colorMauve: "#cba6f7"
-  property color colorRed: "#f38ba8"
-  property color colorMaroon: "#eba0ac"
-  property color colorPeach: "#fab387"
-  property color colorYellow: "#f9e2af"
-  property color colorGreen: "#a6e3a1"
-  property color colorTeal: "#94e2d5"
-  property color colorSky: "#89dceb"
-  property color colorSapphire: "#74c7ec"
-  property color colorBlue: "#89b4fa"
-  property color colorLavender: "#b4befe"
-  property color colorText: "#cdd6f4"
-  property color colorSubtext1: "#bac2de"
-  property color colorSubtext0: "#a6adc8"
-  property color colorOverlay2: "#9399b2"
-  property color colorOverlay1: "#7f849c"
-  property color colorOverlay0: "#6c7086"
-  property color colorSurface2: "#585b70"
-  property color colorSurface1: "#45475a"
-  property color colorSurface0: "#313244"
-  property color colorBase: "#1e1e2e"
-  property color colorMantle: "#181825"
-  property color colorCrust: "#11111b"
-  property string themeFont: "Comfortaa"
-  property string themeNerdFont: "Hack Nerd Font"
-  property int themeFontSize: 15
-  property int themeFontWeight: 1000
+  id: root
 
   property bool barVisible: true
+  property bool menuVisible: false
+  property bool clipboardVisible: false
+  property bool controlCenterVisible: false
+
+  // One handler per target, declared once here. Handlers used to live inside
+  // the per-screen Variants, which registered duplicate targets (Quickshell
+  // keeps only the first and warns about the rest).
+  IpcHandler {
+    target: "bar"
+    function toggle(): void { root.barVisible = !root.barVisible }
+  }
+
+  IpcHandler {
+    target: "menu"
+    function toggle(): void { root.menuVisible = !root.menuVisible }
+  }
+
+  IpcHandler {
+    target: "clipboard"
+    function toggle(): void { root.clipboardVisible = !root.clipboardVisible }
+  }
+
+  IpcHandler {
+    target: "controlCenter"
+    function toggle(): void { root.controlCenterVisible = !root.controlCenterVisible }
+  }
+
+  function applyThemeLine(line) {
+    if (line.indexOf("prefer-dark") >= 0) Theme.darkMode = true
+    else if (line.indexOf("prefer-light") >= 0) Theme.darkMode = false
+  }
+
+  Process {
+    id: themeReadProc
+    command: ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"]
+    running: false
+    stdout: SplitParser {
+      onRead: data => root.applyThemeLine(data)
+    }
+    Component.onCompleted: running = true
+  }
+
+  // Keeps the shell in sync when the scheme changes outside the control center.
+  Process {
+    id: themeWatchProc
+    command: ["gsettings", "monitor", "org.gnome.desktop.interface", "color-scheme"]
+    running: true
+    stdout: SplitParser {
+      onRead: data => root.applyThemeLine(data)
+    }
+  }
 
   Variants {
     model: Quickshell.screens
@@ -53,38 +80,70 @@ ShellRoot {
       }
 
       implicitHeight: 30
-      color: colorMantle
+      color: Theme.mantle
 
-      RowLayout {
+      Item {
         anchors.fill: parent
         anchors.leftMargin: 14
         anchors.rightMargin: 14
 
-        Workspaces {}
-        Item { Layout.fillWidth: true }
+        RowLayout {
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: 6
 
-        Clock {}
-        Item { Layout.fillWidth: true }
+          Workspaces {}
+          SystemTray {}
+        }
+
+        Clock {
+          anchors.centerIn: parent
+        }
 
         RowLayout {
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
           spacing: 20
 
           Gammastep {}
           Network {}
+          Bluetooth {}
           Volume {}
           Brightness {}
           Battery {}
         }
       }
-
-      IpcHandler {
-        target: "bar"
-        function toggle(): void { barVisible = !barVisible }
-      }
     }
   }
 
-  Clipboard {}
-  ControlCenter {}
-  Menu {}
+  Notifications {}
+
+  Variants {
+    model: Quickshell.screens
+
+    Menu {
+      visible: root.menuVisible
+      onCloseRequested: root.menuVisible = false
+    }
+  }
+
+  Variants {
+    model: Quickshell.screens
+
+    Clipboard {
+      visible: root.clipboardVisible
+      onCloseRequested: root.clipboardVisible = false
+    }
+  }
+
+  Variants {
+    model: Quickshell.screens
+
+    ControlCenter {
+      visible: root.controlCenterVisible
+      onCloseRequested: root.controlCenterVisible = false
+    }
+  }
+
+  Wallpapers {}
 }

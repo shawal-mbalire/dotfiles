@@ -1,0 +1,13 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+default:
+    @just run
+
+# Run qs under a timeout and print only ERROR lines.
+run:
+    #!/usr/bin/env bash
+    export NO_COLOR=1 QT_QPA_PLATFORM=wayland WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-$(cd "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" 2>/dev/null && ls -d wayland-* 2>/dev/null | grep -v '\.lock$' | head -n1)}"
+
+    out="$(timeout 4 qs 2>&1 || true)"
+
+    printf '%s\n' "${out}" | grep -E 'ERROR' || true

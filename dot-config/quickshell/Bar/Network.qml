@@ -1,3 +1,4 @@
+import "../Shared"
 import Quickshell
 import Quickshell.Networking
 import QtQuick
@@ -24,11 +25,11 @@ RowLayout {
 
   Text {
     text: root.icon
-    color: Networking.wifiEnabled ? colorPink : colorOverlay0
+    color: Networking.wifiEnabled ? Theme.pink : Theme.overlay0
     font {
-      family: themeNerdFont
-      pixelSize: themeFontSize
-      weight: themeFontWeight
+      family: Theme.nerdFont
+      pixelSize: Theme.fontSize
+      weight: Theme.fontWeight
     }
   }
   Text {
@@ -37,11 +38,11 @@ RowLayout {
       if (!root.active) return "Disconnected"
       return root.active.name
     }
-    color: Networking.wifiEnabled ? colorPink : colorOverlay0
+    color: Networking.wifiEnabled ? Theme.pink : Theme.overlay0
     font {
-      family: themeFont
-      pixelSize: themeFontSize
-      weight: themeFontWeight
+      family: Theme.font
+      pixelSize: Theme.fontSize
+      weight: Theme.fontWeight
     }
   }
 }
