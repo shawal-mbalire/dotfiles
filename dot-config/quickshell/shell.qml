@@ -1,25 +1,51 @@
+// Composition root: create one adapter per capability, inject them as ports,
+// start the driving surface. No business logic lives here.
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
-import QtQuick.Layouts
 import QtQuick
+import QtQuick.Layouts
 
 import "Bar"
 import "Menus"
 import "Shared"
 import "ControlCenter"
-//
+import "adapters/driven/pipewire"
+import "adapters/driven/upower"
+import "adapters/driven/bluetooth"
+import "adapters/driven/brightness"
+import "adapters/driven/network"
+import "adapters/driven/gammastep"
+import "adapters/driven/wl-clipboard"
+import "adapters/driven/desktop-entries"
 
 ShellRoot {
   id: root
 
-  property bool barVisible: true
-  property bool menuVisible: false
-  property bool clipboardVisible: false
-  property bool controlCenterVisible: false
+  // ── Driven adapters (one instance each, shared by every screen) ──────────
+  PipewireAudioAdapter { id: audio }
+  UPowerBatteryAdapter { id: battery }
+  BluezBluetoothAdapter { id: bluetooth }
+  SysfsBrightnessAdapter { id: brightness; device: "intel_backlight" }
+  NetworkingWifiAdapter { id: network }
+  GammastepNightLightAdapter { id: nightLight; temperature: 16000 }
+  WlClipboardAdapter { id: clipboard; maxItems: 50; storePath: Quickshell.statePath("clipboard.json") }
+  DesktopEntriesLaunchAdapter { id: launcher; terminalCommand: ["kitty", "-e"] }
 
-  // One handler per target, declared once here. Handlers used to live inside
-  // the per-screen Variants, which registered duplicate targets (Quickshell
-  // keeps only the first and warns about the rest).
+  // ── Visibility state, toggled over IPC ───────────────────────────────────
+  property bool barVisible: true
+
+  // Each overlay opens on the focused monitor and stays mounted until its
+  // exit animation has finished.
+  OverlaySlot { id: menuSlot }
+  OverlaySlot { id: clipboardSlot }
+  OverlaySlot { id: controlCenterSlot }
+
+  function focusedScreen() {
+    const name = Hyprland.focusedMonitor?.name
+    return Quickshell.screens.find(s => s.name === name) ?? Quickshell.screens[0]
+  }
+
   IpcHandler {
     target: "bar"
     function toggle(): void { root.barVisible = !root.barVisible }
@@ -27,51 +53,52 @@ ShellRoot {
 
   IpcHandler {
     target: "menu"
-    function toggle(): void { root.menuVisible = !root.menuVisible }
+    function toggle(): void { menuSlot.toggle(root.focusedScreen()) }
   }
 
   IpcHandler {
     target: "clipboard"
-    function toggle(): void { root.clipboardVisible = !root.clipboardVisible }
+    function toggle(): void { clipboardSlot.toggle(root.focusedScreen()) }
   }
 
   IpcHandler {
     target: "controlCenter"
-    function toggle(): void { root.controlCenterVisible = !root.controlCenterVisible }
+    function toggle(): void { controlCenterSlot.toggle(root.focusedScreen()) }
   }
 
+  // ── Colour scheme sync with GNOME settings ───────────────────────────────
   function applyThemeLine(line) {
     if (line.indexOf("prefer-dark") >= 0) Theme.darkMode = true
     else if (line.indexOf("prefer-light") >= 0) Theme.darkMode = false
   }
 
-  Process {
-    id: themeReadProc
-    command: ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"]
-    running: false
-    stdout: SplitParser {
-      onRead: data => root.applyThemeLine(data)
-    }
-    Component.onCompleted: running = true
+  function setDarkMode(enabled) {
+    Theme.darkMode = enabled
+    Quickshell.execDetached(["gsettings", "set", "org.gnome.desktop.interface", "color-scheme",
+                             enabled ? "prefer-dark" : "prefer-light"])
   }
 
-  // Keeps the shell in sync when the scheme changes outside the control center.
   Process {
-    id: themeWatchProc
+    command: ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"]
+    running: true
+    stdout: SplitParser { onRead: data => root.applyThemeLine(data) }
+  }
+
+  Process {
     command: ["gsettings", "monitor", "org.gnome.desktop.interface", "color-scheme"]
     running: true
-    stdout: SplitParser {
-      onRead: data => root.applyThemeLine(data)
-    }
+    stdout: SplitParser { onRead: data => root.applyThemeLine(data) }
+    onExited: exitCode => console.warn("[theme] gsettings monitor exited with", exitCode)
   }
 
+  // ── Bar, one per screen ──────────────────────────────────────────────────
   Variants {
     model: Quickshell.screens
 
     PanelWindow {
       required property var modelData
       screen: modelData
-      visible: barVisible
+      visible: root.barVisible
 
       anchors {
         top: true
@@ -105,43 +132,62 @@ ShellRoot {
           anchors.verticalCenter: parent.verticalCenter
           spacing: 20
 
-          Gammastep {}
-          Network {}
-          Bluetooth {}
-          Volume {}
-          Brightness {}
-          Battery {}
+          Gammastep { nightLightPort: nightLight }
+          Network { networkPort: network }
+          Bluetooth { bluetoothPort: bluetooth }
+          Volume { audioPort: audio }
+          Brightness { brightnessPort: brightness }
+          Battery { batteryPort: battery }
         }
       }
     }
   }
 
-  Notifications {}
+  // ── Notification popups (single daemon) ──────────────────────────────────
+  Notifications { id: notifications }
 
-  Variants {
-    model: Quickshell.screens
+  // ── Overlays: created on open, destroyed after their exit animation ──────
+  LazyLoader {
+    active: menuSlot.mounted
 
     Menu {
-      visible: root.menuVisible
-      onCloseRequested: root.menuVisible = false
+      screen: menuSlot.screen
+      open: menuSlot.open
+      launchPort: launcher
+      onCloseRequested: menuSlot.close()
+      onClosed: menuSlot.unmount()
     }
   }
 
-  Variants {
-    model: Quickshell.screens
+  LazyLoader {
+    active: clipboardSlot.mounted
 
     Clipboard {
-      visible: root.clipboardVisible
-      onCloseRequested: root.clipboardVisible = false
+      screen: clipboardSlot.screen
+      open: clipboardSlot.open
+      clipboardPort: clipboard
+      onCloseRequested: clipboardSlot.close()
+      onClosed: clipboardSlot.unmount()
     }
   }
 
-  Variants {
-    model: Quickshell.screens
+  LazyLoader {
+    active: controlCenterSlot.mounted
 
     ControlCenter {
-      visible: root.controlCenterVisible
-      onCloseRequested: root.controlCenterVisible = false
+      screen: controlCenterSlot.screen
+      open: controlCenterSlot.open
+      audioPort: audio
+      brightnessPort: brightness
+      batteryPort: battery
+      networkPort: network
+      bluetoothPort: bluetooth
+      nightLightPort: nightLight
+      notificationHistory: notifications.history
+      onCloseRequested: controlCenterSlot.close()
+      onClosed: controlCenterSlot.unmount()
+      onDarkModeRequested: enabled => root.setDarkMode(enabled)
+      onClearNotificationsRequested: notifications.clearHistory()
     }
   }
 

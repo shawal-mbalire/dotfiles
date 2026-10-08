@@ -18,6 +18,13 @@ ColumnLayout {
 
   readonly property real span: Math.max(1, maxValue - minValue)
   readonly property real ratio: Math.max(0, Math.min(1, (value - minValue) / span))
+  // Eases toward `ratio` for external changes (media keys), but tracks the
+  // pointer exactly while dragging.
+  property real shownRatio: ratio
+  Behavior on shownRatio {
+    enabled: !trackArea.pressed
+    NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easeOut }
+  }
 
   spacing: Theme.spacingSm
 
@@ -72,7 +79,7 @@ ColumnLayout {
 
     Rectangle {
       anchors.verticalCenter: parent.verticalCenter
-      width: parent.width * root.ratio
+      width: parent.width * root.shownRatio
       height: 6
       radius: 3
       color: root.barColor
@@ -80,7 +87,7 @@ ColumnLayout {
 
     Rectangle {
       id: handle
-      x: track.width * root.ratio - width / 2
+      x: track.width * root.shownRatio - width / 2
       anchors.verticalCenter: parent.verticalCenter
       width: 16
       height: 16
@@ -90,7 +97,7 @@ ColumnLayout {
       border.width: 2
 
       Behavior on color { ColorAnimation { duration: 100 } }
-      Behavior on scale { NumberAnimation { duration: 100 } }
+      Behavior on scale { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easeEmphasized } }
     }
 
     MouseArea {

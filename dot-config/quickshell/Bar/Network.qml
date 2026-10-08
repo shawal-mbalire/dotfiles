@@ -1,6 +1,5 @@
 import "../Shared"
-import Quickshell
-import Quickshell.Networking
+import "../domain/ports"
 import QtQuick
 import QtQuick.Layouts
 
@@ -8,41 +7,32 @@ RowLayout {
   id: root
   spacing: 6
 
-  property var wifiDevice: Networking.devices.values.find(device => device.type === DeviceType.Wifi)
-  property var active: wifiDevice ? wifiDevice.networks.values.find(network => network.connected) : null
+  required property NetworkPort networkPort
 
-  readonly property real signal: active ? active.signalStrength : 0
+  readonly property bool wifiEnabled: networkPort.wifiEnabled
+  readonly property real strength: networkPort.strength
 
   readonly property string icon: {
-    if (!Networking.wifiEnabled) return String.fromCodePoint(0xf05aa)
-    if (!active) return String.fromCodePoint(0xf092d)
-    let tier = signal >= 0.75 ? 4
-              :signal >= 0.50 ? 3
-              :signal >= 0.25 ? 2
-              : 1
-    return String.fromCodePoint(0xf091f + (tier-1)*3)
+    if (!wifiEnabled) return String.fromCodePoint(0xF05AA)
+    if (!networkPort.connected) return String.fromCodePoint(0xF092D)
+    const tier = strength >= 0.75 ? 4
+               : strength >= 0.50 ? 3
+               : strength >= 0.25 ? 2
+               : 1
+    return String.fromCodePoint(0xF091F + (tier - 1) * 3)
   }
 
   Text {
     text: root.icon
-    color: Networking.wifiEnabled ? Theme.pink : Theme.overlay0
-    font {
-      family: Theme.nerdFont
-      pixelSize: Theme.fontSize
-      weight: Theme.fontWeight
-    }
+    color: root.wifiEnabled ? Theme.pink : Theme.overlay0
+    font { family: Theme.nerdFont; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
   }
+
   Text {
-    text: {
-      if (!Networking.wifiEnabled) return "off"
-      if (!root.active) return "Disconnected"
-      return root.active.name
-    }
-    color: Networking.wifiEnabled ? Theme.pink : Theme.overlay0
-    font {
-      family: Theme.font
-      pixelSize: Theme.fontSize
-      weight: Theme.fontWeight
-    }
+    text: !root.wifiEnabled ? "off" : root.networkPort.connected ? root.networkPort.ssid : "Disconnected"
+    color: root.wifiEnabled ? Theme.pink : Theme.overlay0
+    font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
+    elide: Text.ElideRight
+    Layout.maximumWidth: 160
   }
 }

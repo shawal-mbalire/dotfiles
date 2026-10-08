@@ -1,143 +1,181 @@
 import "../Shared"
+import "../domain/ports"
+import "../domain/models/clipboard.js" as Clip
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import QtQuick.Layouts
 
+// View only: history lives in the ClipboardPort adapter, so it survives this
+// overlay being destroyed on close and is shared across screens.
+//   Enter / click      copy and close
+//   Delete / right-click  remove the entry
+//   Up/Down, Tab, Ctrl+J/K  move
 Overlay {
   id: root
-  required property var modelData
+
+  required property ClipboardPort clipboardPort
 
   title: "Clipboard"
   shellNamespace: "quickshell:clipboard"
-  implicitWidth: 340
-  implicitHeight: 400
-  screen: modelData
+  implicitWidth: 420
+  implicitHeight: 460
 
-  property var history: []
-  property int maxItems: 20
-  property double ignoreUntil: 0
-  property string lastClip: ""
-  property string loadState: "loading"
-  property int failStreak: 0
+  WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
-  // Never kill an in-flight wl-paste. Restarting it every tick made it time out
-  // before it could return any data, which is why history stayed empty.
-  Timer {
-    interval: 500
-    running: true
-    repeat: true
-    onTriggered: if (!clipReadProc.running) clipReadProc.running = true
+  property int selectedIndex: 0
+  readonly property var results: {
+    const q = input.text.trim().toLowerCase()
+    const all = clipboardPort.history
+    return q === "" ? all : all.filter(t => t.toLowerCase().includes(q))
   }
 
-  Process {
-    id: clipReadProc
-    command: ["wl-paste", "-n"]
-    running: false
-    stdout: StdioCollector {
-      id: clipOut
-      onStreamFinished: {
-        if (Date.now() < root.ignoreUntil) return
-        const text = clipOut.text
-        if (text === root.lastClip) return
-        root.lastClip = text
-        if (!root.isUsableText(text)) return
-        root.addToHistory(text)
-        root.loadState = "ready"
-        root.failStreak = 0
-      }
-    }
-    onExited: exitCode => {
-      if (exitCode === 0) {
-        root.failStreak = 0
-        if (root.history.length > 0) root.loadState = "ready"
-      } else {
-        root.failStreak++
-        if (root.failStreak >= 3) root.loadState = "unavailable"
-      }
-    }
-  }
-
-  // Reject binary/image payloads (wl-paste will happily hand over a PNG) and
-  // absurdly large blobs. Tab, LF and CR are the only control chars text needs.
-  function isUsableText(text) {
-    if (!text || text.trim() === "") return false
-    if (text.length > 200000) return false
-    for (let i = 0; i < text.length; i++) {
-      const c = text.charCodeAt(i)
-      if (c < 32 && c !== 9 && c !== 10 && c !== 13) return false
-    }
-    return true
-  }
-
-  function addToHistory(text) {
-    let next = root.history.filter(t => t !== text)
-    next.unshift(text)
-    if (next.length > root.maxItems) next = next.slice(0, root.maxItems)
-    root.history = next
-  }
-
-  Process {
-    id: copyProc
-    command: ["bash", "-c", ""]
-    running: false
-    onExited: root.closeRequested()
-  }
-
-  function copyAndHide(text) {
-    // Record what we are about to write so the follow-up poll treats it as
-    // already-known instead of re-adding it.
-    root.lastClip = text
-    root.ignoreUntil = Date.now() + 800
-    copyProc.command = ["bash", "-c", "printf '%s' '" + text.replace(/'/g, "'\\''") + "' | wl-copy"]
-    copyProc.running = false
-    copyProc.running = true
-  }
-
-  onVisibleChanged: if (visible && !clipReadProc.running) clipReadProc.running = true
+  onResultsChanged: selectedIndex = Math.max(0, Math.min(selectedIndex, results.length - 1))
 
   readonly property string statusText: {
-    if (loadState === "unavailable") return "wl-paste not available"
-    if (loadState === "loading") return "Reading clipboard..."
+    if (clipboardPort.state === "unavailable") return "Clipboard watcher is not running (is wl-clipboard installed?)"
+    if (clipboardPort.history.length > 0) return "No matches"
     return "Nothing copied yet"
   }
 
-  Shortcut {
-    sequence: "Escape"
-    onActivated: root.closeRequested()
+  function move(delta) {
+    if (results.length === 0) return
+    selectedIndex = (selectedIndex + delta + results.length) % results.length
+    list.positionViewAtIndex(selectedIndex, ListView.Contain)
+  }
+
+  function pick(index) {
+    const text = results[index]
+    if (text === undefined) return
+    clipboardPort.copy(text)
+    closeRequested()
+  }
+
+  function removeAt(index) {
+    const text = results[index]
+    if (text !== undefined) clipboardPort.remove(text)
   }
 
   ColumnLayout {
     anchors.fill: parent
     anchors.margins: Theme.paddingLg
-    spacing: Theme.spacingLg
+    spacing: Theme.spacing
 
-    Text {
-      text: "Clipboard"
-      color: Theme.text
-      font { family: Theme.font; pixelSize: 14; weight: 800 }
-      Layout.bottomMargin: Theme.spacingSm
+    Rectangle {
+      Layout.fillWidth: true
+      Layout.preferredHeight: 40
+      radius: Theme.radius
+      color: Theme.surface0
+      border.color: input.activeFocus ? Theme.blue : Theme.surface1
+      border.width: 1
+
+      Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
+
+      RowLayout {
+        anchors.fill: parent
+        anchors.leftMargin: Theme.padding
+        anchors.rightMargin: Theme.padding
+        spacing: Theme.spacing
+
+        Text {
+          text: String.fromCodePoint(0xF014C)
+          color: Theme.overlay1
+          font { family: Theme.nerdFont; pixelSize: 16 }
+        }
+
+        TextInput {
+          id: input
+          Layout.fillWidth: true
+          color: Theme.text
+          selectionColor: Theme.blue
+          selectedTextColor: Theme.crust
+          font { family: Theme.font; pixelSize: 14; weight: 600 }
+          clip: true
+          focus: true
+          Component.onCompleted: forceActiveFocus()
+
+          Keys.onPressed: event => {
+            const ctrl = event.modifiers & Qt.ControlModifier
+            if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || (ctrl && event.key === Qt.Key_J)) root.move(1)
+            else if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab || (ctrl && event.key === Qt.Key_K)) root.move(-1)
+            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.pick(root.selectedIndex)
+            else if (event.key === Qt.Key_Delete) root.removeAt(root.selectedIndex)
+            else if (event.key === Qt.Key_Escape) root.closeRequested()
+            else return
+            event.accepted = true
+          }
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: input.text === ""
+            text: "Search clipboard…"
+            color: Theme.overlay0
+            font: input.font
+          }
+        }
+
+        Text {
+          visible: root.clipboardPort.history.length > 0
+          text: "Clear"
+          color: clearHover.hovered ? Theme.red : Theme.overlay0
+          font { family: Theme.font; pixelSize: 11; weight: 700 }
+
+          Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+          HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }
+          TapHandler { onTapped: root.clipboardPort.clear() }
+        }
+      }
     }
 
     ListView {
+      id: list
       Layout.fillWidth: true
       Layout.fillHeight: true
-      visible: root.history.length > 0
       clip: true
-      model: root.history
+      spacing: 2
+      boundsBehavior: Flickable.StopAtBounds
+      currentIndex: root.selectedIndex
 
-      delegate: Rectangle {
+      highlightFollowsCurrentItem: true
+      highlightMoveDuration: Theme.animFast
+      highlightMoveVelocity: -1
+      highlight: Rectangle {
+        radius: Theme.radiusSm
+        color: Theme.surface1
+      }
+
+      add: Transition {
+        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.animNormal; easing.type: Theme.easeOut }
+        NumberAnimation { property: "x"; from: -12; to: 0; duration: Theme.animNormal; easing.type: Theme.easeOut }
+      }
+      remove: Transition {
+        NumberAnimation { property: "opacity"; to: 0; duration: Theme.animFast; easing.type: Theme.easeIn }
+        NumberAnimation { property: "x"; to: 24; duration: Theme.animFast; easing.type: Theme.easeIn }
+      }
+      displaced: Transition {
+        NumberAnimation { properties: "x,y"; duration: Theme.animNormal; easing.type: Theme.easeOut }
+        NumberAnimation { property: "opacity"; to: 1; duration: Theme.animFast }
+      }
+
+      // Diffed by value, so filtering and new copies animate instead of
+      // rebuilding the whole list.
+      model: ScriptModel { values: root.results }
+
+      delegate: Item {
+        id: row
         required property string modelData
         required property int index
-        height: 36
-        radius: Theme.radiusSm
-        color: clipMouse.containsMouse ? Theme.surface1 : Theme.surface0
+
+        width: ListView.view.width
+        height: 40
 
         Text {
           anchors.fill: parent
-          anchors.margins: Theme.paddingSm
-          text: modelData
+          anchors.leftMargin: Theme.padding
+          anchors.rightMargin: Theme.padding
+          text: Clip.preview(row.modelData)
+          textFormat: Text.PlainText
           color: Theme.text
           font { family: Theme.font; pixelSize: 12; weight: 600 }
           elide: Text.ElideRight
@@ -145,11 +183,15 @@ Overlay {
         }
 
         MouseArea {
-          id: clipMouse
           anchors.fill: parent
           hoverEnabled: true
+          acceptedButtons: Qt.LeftButton | Qt.RightButton
           cursorShape: Qt.PointingHandCursor
-          onClicked: root.copyAndHide(modelData)
+          onEntered: root.selectedIndex = row.index
+          onClicked: mouse => {
+            if (mouse.button === Qt.RightButton) root.removeAt(row.index)
+            else root.pick(row.index)
+          }
         }
       }
     }
@@ -157,15 +199,25 @@ Overlay {
     Item {
       Layout.fillWidth: true
       Layout.fillHeight: true
-      visible: root.history.length === 0
+      visible: root.results.length === 0
 
       Text {
         anchors.centerIn: parent
+        width: parent.width
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.Wrap
         text: root.statusText
         color: Theme.overlay0
         font { family: Theme.font; pixelSize: 12; weight: 600 }
-        horizontalAlignment: Text.AlignHCenter
       }
+    }
+
+    Text {
+      Layout.fillWidth: true
+      horizontalAlignment: Text.AlignHCenter
+      text: "Enter copy · Del remove · Esc close"
+      color: Theme.overlay0
+      font { family: Theme.font; pixelSize: 10; weight: 600 }
     }
   }
 }

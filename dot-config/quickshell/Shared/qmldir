@@ -1,7 +1,8 @@
 module shared
 singleton Theme 1.0 Theme.qml
-singleton NotificationBridge 1.0 NotificationBridge.qml
 Card 1.0 Card.qml
 Pill 1.0 Pill.qml
 Slider 1.0 Slider.qml
 Overlay 1.0 Overlay.qml
+DismissGrab 1.0 DismissGrab.qml
+OverlaySlot 1.0 OverlaySlot.qml

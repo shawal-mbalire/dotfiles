@@ -1,6 +1,5 @@
 import "../Shared"
-import Quickshell
-import Quickshell.Io
+import "../domain/ports"
 import QtQuick
 import QtQuick.Layouts
 
@@ -8,11 +7,12 @@ RowLayout {
   id: root
   spacing: 7
 
-  readonly property string device: "intel_backlight"
+  required property BrightnessPort brightnessPort
+  property int scrollStep: 5
 
-  readonly property int maxBrightness: parseInt(maxFile.text()) || 0
-  readonly property real percent: maxBrightness > 0 ? (parseInt(curFile.text()) || 0) / maxBrightness : 0
-  readonly property int brightness: Math.round(percent * 100)
+  readonly property int brightness: brightnessPort.percent
+
+  visible: brightnessPort.available
 
   readonly property string icon: {
     if (brightness === 0) return String.fromCodePoint(0xF00DA)
@@ -21,46 +21,23 @@ RowLayout {
     return String.fromCodePoint(0xF00E0)
   }
 
-  FileView {
-    id: curFile
-    path: `/sys/class/backlight/${root.device}/brightness`
-  }
-
-  FileView {
-    id: maxFile
-    path: `/sys/class/backlight/${root.device}/max_brightness`
-  }
-
-  // sysfs does not support inotify, so watchChanges never fires here — poll instead.
-  Timer {
-    interval: 500
-    running: true
-    repeat: true
-    onTriggered: curFile.reload()
-  }
-
-  Component.onCompleted: {
-    curFile.reload()
-    maxFile.reload()
-  }
-
   Text {
     text: root.icon
     color: root.brightness === 0 ? Theme.overlay0 : Theme.yellow
-    font {
-      family: Theme.nerdFont
-      pixelSize: Theme.fontSize
-      weight: Theme.fontWeight
-    }
+    font { family: Theme.nerdFont; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
   }
 
   Text {
     text: root.brightness + "%"
     color: Theme.text
-    font {
-      family: Theme.font
-      pixelSize: Theme.fontSize
-      weight: Theme.fontWeight
+    font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
+  }
+
+  // Scroll to adjust.
+  WheelHandler {
+    onWheel: event => {
+      const step = event.angleDelta.y > 0 ? root.scrollStep : -root.scrollStep
+      root.brightnessPort.setPercent(Math.max(0, Math.min(100, root.brightness + step)))
     }
   }
 }

@@ -48,4 +48,12 @@ QtObject {
   readonly property int padding: 12
   readonly property int paddingSm: 8
   readonly property int paddingLg: 16
+
+  // Motion
+  readonly property int animFast: 120
+  readonly property int animNormal: 200
+  readonly property int animSlow: 320
+  readonly property int easeOut: Easing.OutCubic
+  readonly property int easeIn: Easing.InCubic
+  readonly property int easeEmphasized: Easing.OutBack
 }

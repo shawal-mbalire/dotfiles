@@ -1,6 +1,5 @@
 import "../Shared"
-import Quickshell
-import Quickshell.Services.Pipewire
+import "../domain/ports"
 import QtQuick
 import QtQuick.Layouts
 
@@ -8,45 +7,47 @@ RowLayout {
   id: root
   spacing: 7
 
-  property var sink: Pipewire.defaultAudioSink
+  required property AudioPort audioPort
+  property int scrollStep: 5
+  property int scrollMax: 100
 
-  readonly property bool ready: sink && sink.ready
-  readonly property bool muted: ready && sink.audio.muted
-  readonly property int volume: ready ? Math.round(sink.audio.volume * 100) : 0
+  readonly property bool ready: audioPort.ready
+  readonly property bool muted: audioPort.muted
+  readonly property int volume: audioPort.volume
 
   readonly property string icon: {
-    if (!ready) return String.fromCodePoint(0xf0581)
-    if (muted) return String.fromCodePoint(0xf075f)
-    if (volume === 0) return String.fromCodePoint(0xf0581)
-    if (volume < 34) return String.fromCodePoint(0xf057f)
-    if (volume < 67) return String.fromCodePoint(0xf0580)
-    return String.fromCodePoint(0xf057e)
+    if (!ready) return String.fromCodePoint(0xF0581)
+    if (muted) return String.fromCodePoint(0xF075F)
+    if (volume === 0) return String.fromCodePoint(0xF0581)
+    if (volume < 34) return String.fromCodePoint(0xF057F)
+    if (volume < 67) return String.fromCodePoint(0xF0580)
+    return String.fromCodePoint(0xF057E)
   }
 
   Text {
     text: root.icon
-    color: Theme.yellow
-    font {
-      family: Theme.nerdFont
-      pixelSize: Theme.fontSize
-      weight: Theme.fontWeight
-    }
-  }
-  Text {
-    text: {
-      if (!root.ready) return "_"
-      if (root.muted) return "Muted"
-      return root.volume + "%"
-    }
-    color: root.muted ? Theme.overlay1 : Theme.text
-    font {
-      family: Theme.font
-      pixelSize: Theme.fontSize
-      weight: Theme.fontWeight
-    }
+    color: root.muted ? Theme.overlay1 : Theme.yellow
+    font { family: Theme.nerdFont; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
   }
 
-  PwObjectTracker {
-    objects: [root.sink]
+  Text {
+    text: !root.ready ? "_" : root.muted ? "Muted" : root.volume + "%"
+    color: root.muted ? Theme.overlay1 : Theme.text
+    font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
+  }
+
+  // Click toggles mute, scroll adjusts (capped at 100% from the bar; the
+  // control center slider can go higher).
+  TapHandler {
+    cursorShape: Qt.PointingHandCursor
+    onTapped: root.audioPort.setMuted(!root.muted)
+  }
+
+  WheelHandler {
+    onWheel: event => {
+      const step = event.angleDelta.y > 0 ? root.scrollStep : -root.scrollStep
+      const target = Math.max(0, Math.min(Math.max(root.scrollMax, root.volume), root.volume + step))
+      root.audioPort.setVolume(target)
+    }
   }
 }

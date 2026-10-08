@@ -11,3 +11,12 @@ run:
     out="$(timeout 4 qs 2>&1 || true)"
 
     printf '%s\n' "${out}" | grep -E 'ERROR' || true
+
+# Run the QtQuickTest suites (needs qmltestrunner from qt6-qtdeclarative/qttools).
+test:
+    qmltestrunner -input tests/unit
+
+# Lint every QML file, then run all test tiers.
+verify:
+    qmllint -I . $(git ls-files --cached --others --exclude-standard '*.qml')
+    @just test

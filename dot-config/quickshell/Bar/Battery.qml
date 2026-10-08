@@ -1,6 +1,5 @@
 import "../Shared"
-import Quickshell
-import Quickshell.Services.UPower
+import "../domain/ports"
 import QtQuick
 import QtQuick.Layouts
 
@@ -8,12 +7,12 @@ RowLayout {
   id: root
   spacing: 5
 
-  property var battery: UPower.displayDevice
-  property bool charging: battery.state === UPowerDeviceState.Charging
-  readonly property int level: Math.round(battery.percentage * 100)
-  readonly property bool available: battery !== null && battery.ready && battery.isLaptopBattery
+  required property BatteryPort batteryPort
 
-  visible: available
+  readonly property int level: batteryPort.level
+  readonly property bool charging: batteryPort.charging
+
+  visible: batteryPort.present
 
   readonly property string icon: {
     if (charging) return String.fromCodePoint(0xF0084)
@@ -28,22 +27,14 @@ RowLayout {
          : root.level <= 15 ? Theme.red
          : root.level <= 30 ? Theme.peach
          : Theme.green
-    font {
-      family: Theme.nerdFont
-      pixelSize: 17
-      weight: Theme.fontWeight
-    }
+    font { family: Theme.nerdFont; pixelSize: 17; weight: Theme.fontWeight }
     Layout.alignment: Qt.AlignVCenter
   }
 
   Text {
     text: root.level + "%"
     color: Theme.text
-    font {
-      family: Theme.font
-      pixelSize: Theme.fontSize
-      weight: Theme.fontWeight
-    }
+    font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
     Layout.alignment: Qt.AlignVCenter
   }
 }

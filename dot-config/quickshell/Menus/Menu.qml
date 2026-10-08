@@ -1,269 +1,211 @@
 import "../Shared"
+import "../domain/ports"
+import "../domain/models/appSearch.js" as AppSearch
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Widgets
 import QtQuick
 import QtQuick.Layouts
 
+// Created on demand by shell.qml (LazyLoader) and destroyed on close, so every
+// open starts from a clean query with no reset bookkeeping.
 Overlay {
   id: root
-  required property var modelData
+
+  required property LaunchPort launchPort
 
   title: "Menu"
   shellNamespace: "quickshell:menu"
-  implicitWidth: 420
-  implicitHeight: 400
-  screen: modelData
+  implicitWidth: 460
+  implicitHeight: 440
 
   WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
-  property string searchText: ""
-  property var filtered: []
-  property var allApps: []
-  property var pendingApps: []
   property int selectedIndex: 0
-  property string loadState: "idle"   // idle | loading | ready | empty | timeout
-  property double lastPublish: 0
+  readonly property var results: AppSearch.filter(launchPort.apps, input.text)
 
-  // Emitting names/Exec lines as <name><US><exec> keeps values with | or
-  // quotes intact. Missing directories are skipped instead of aborting find,
-  // and -maxdepth 1 keeps flatpak/FUSE trees from stalling the scan.
-  readonly property string appScanScript: `
-for d in /usr/share/applications /usr/local/share/applications "$HOME/.local/share/applications" /var/lib/flatpak/exports/share/applications "$HOME/.local/share/flatpak/exports/share/applications"; do
-  [ -d "$d" ] || continue
-  find "$d" -maxdepth 1 -type f -name '*.desktop' 2>/dev/null
-done | sort -u | head -400 | while IFS= read -r f; do
-  awk '/^\\[Desktop Entry\\]/{g=1;next} /^\\[/{g=0} g&&/^Name=/&&n==""{n=substr($0,6)} g&&/^Exec=/&&e==""{e=substr($0,6)} g&&/^(Hidden|NoDisplay)=true/{s=1} END{if(!s&&n!=""&&e!="") printf "%s%c%s\\n", n, 29, e}' "$f"
-done
-`
+  onResultsChanged: selectedIndex = 0
 
-  Process {
-    id: listApps
-    command: ["bash", "-c", root.appScanScript]
-    running: false
-    stdout: SplitParser {
-      onRead: data => root.absorb(data)
-    }
-    onExited: root.finishLoad()
+  function move(delta) {
+    if (results.length === 0) return
+    selectedIndex = (selectedIndex + delta + results.length) % results.length
+    list.positionViewAtIndex(selectedIndex, ListView.Contain)
   }
 
-  // Safety net: if the scan hangs (slow/unavailable mount) publish whatever
-  // arrived so the list is never silently blank.
-  Timer {
-    id: safetyTimer
-    interval: 4000
-    running: root.loadState === "loading"
-    repeat: false
-    onTriggered: {
-      if (root.loadState !== "loading") return
-      root.publish()
-      root.loadState = root.allApps.length > 0 ? "ready" : "timeout"
-    }
-  }
-
-  function startLoad() {
-    if (listApps.running) return
-    if (allApps.length > 0) {
-      loadState = "ready"
-      applyFilter()
-      return
-    }
-    pendingApps = []
-    allApps = []
-    filtered = []
-    lastPublish = 0
-    selectedIndex = 0
-    loadState = "loading"
-    listApps.running = true
-  }
-
-  function absorb(line) {
-    const text = line.replace(/\r$/, "")
-    const sep = String.fromCharCode(29)
-    const i = text.indexOf(sep)
-    if (i <= 0) return
-    const name = text.slice(0, i).trim()
-    const exec = text.slice(i + 1).trim()
-    if (!name || !exec) return
-    pendingApps.push({ name: name, exec: exec })
-    const now = Date.now()
-    if (now - lastPublish > 200) {
-      lastPublish = now
-      publish()
-    }
-  }
-
-  function publish() {
-    allApps = pendingApps.slice()
-    applyFilter()
-  }
-
-  function finishLoad() {
-    lastPublish = 0
-    publish()
-    loadState = allApps.length > 0 ? "ready" : "empty"
-  }
-
-  function applyFilter() {
-    const q = searchText.toLowerCase()
-    filtered = q === "" ? allApps.slice() : allApps.filter(a => a.name.toLowerCase().includes(q))
-    if (selectedIndex >= filtered.length) selectedIndex = Math.max(0, filtered.length - 1)
-  }
-
-  // Desktop Entry Exec parsing. Field codes are dropped and the line is
-  // tokenised in QML so it never has to travel through a shell.
-  function stripFieldCodes(s) {
-    let out = ""
-    for (let i = 0; i < s.length; i++) {
-      if (s[i] === "%") {
-        if (s[i + 1] === "%") { out += "%"; i++ }
-        else i++
-        continue
-      }
-      out += s[i]
-    }
-    return out
-  }
-
-  function tokenizeExec(exec) {
-    const raw = []
-    let cur = ""
-    let inQuote = false
-    let has = false
-    for (let i = 0; i < exec.length; i++) {
-      const c = exec[i]
-      if (inQuote) {
-        if (c === "\\" && i + 1 < exec.length) { cur += exec[++i]; has = true; continue }
-        if (c === '"') { inQuote = false; continue }
-        cur += c
-        has = true
-        continue
-      }
-      if (c === '"') { inQuote = true; has = true; continue }
-      if (c === " " || c === "\t") {
-        if (has) { raw.push(cur); cur = ""; has = false }
-        continue
-      }
-      cur += c
-      has = true
-    }
-    if (has) raw.push(cur)
-
-    const argv = []
-    for (let i = 0; i < raw.length; i++) {
-      const token = stripFieldCodes(raw[i]).trim()
-      if (token.length > 0) argv.push(token)
-    }
-    return argv
-  }
-
-  function launchSelected() {
-    if (filtered.length === 0) return
-    const idx = Math.max(0, Math.min(selectedIndex, filtered.length - 1))
-    const argv = tokenizeExec(filtered[idx].exec)
-    if (argv.length === 0) return
-    Quickshell.execDetached(argv)
-    root.searchText = ""
-    root.closeRequested()
-  }
-
-  Component.onCompleted: startLoad()
-
-  onVisibleChanged: {
-    if (!visible) return
-    input.text = ""
-    searchText = ""
-    selectedIndex = 0
-    startLoad()
-    focusTimer.restart()
-  }
-
-  Timer {
-    id: focusTimer
-    interval: 50
-    onTriggered: input.forceActiveFocus()
-  }
-
-  readonly property string statusText: {
-    if (loadState === "loading") return "Loading applications…"
-    if (loadState === "timeout") return "App scan timed out"
-    if (loadState === "empty") return "No applications found"
-    return "No matches"
+  function launch(index) {
+    const app = results[index]
+    if (!app) return
+    if (launchPort.launch(app.id)) closeRequested()
   }
 
   ColumnLayout {
     anchors.fill: parent
     anchors.margins: Theme.paddingLg
-    spacing: Theme.spacingLg
+    spacing: Theme.spacing
 
     Rectangle {
       Layout.fillWidth: true
-      Layout.preferredHeight: 36
-      radius: Theme.radiusSm
+      Layout.preferredHeight: 40
+      radius: Theme.radius
       color: Theme.surface0
+      border.color: input.activeFocus ? Theme.blue : Theme.surface1
+      border.width: 1
 
-      TextInput {
-        id: input
+      RowLayout {
         anchors.fill: parent
-        anchors.margins: Theme.paddingSm
-        color: Theme.text
-        selectionColor: Theme.blue
-        font { family: Theme.font; pixelSize: 14; weight: 600 }
-        clip: true
-        focus: true
-
-        onTextChanged: {
-          root.searchText = text
-          root.applyFilter()
-        }
-
-        Keys.onDownPressed: root.selectedIndex = Math.min(root.selectedIndex + 1, Math.max(0, root.filtered.length - 1))
-        Keys.onUpPressed: root.selectedIndex = Math.max(root.selectedIndex - 1, 0)
-        Keys.onReturnPressed: root.launchSelected()
-        Keys.onEscapePressed: root.closeRequested()
+        anchors.leftMargin: Theme.padding
+        anchors.rightMargin: Theme.padding
+        spacing: Theme.spacing
 
         Text {
-          visible: input.text === "" && !input.activeFocus
-          text: "Search apps..."
+          text: String.fromCodePoint(0xF0349)
+          color: Theme.overlay1
+          font { family: Theme.nerdFont; pixelSize: 16 }
+        }
+
+        TextInput {
+          id: input
+          Layout.fillWidth: true
+          color: Theme.text
+          selectionColor: Theme.blue
+          selectedTextColor: Theme.crust
+          font { family: Theme.font; pixelSize: 14; weight: 600 }
+          clip: true
+          focus: true
+          Component.onCompleted: forceActiveFocus()
+
+          Keys.onPressed: event => {
+            const ctrl = event.modifiers & Qt.ControlModifier
+            if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || (ctrl && event.key === Qt.Key_J)) root.move(1)
+            else if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab || (ctrl && event.key === Qt.Key_K)) root.move(-1)
+            else if (event.key === Qt.Key_PageDown) root.move(5)
+            else if (event.key === Qt.Key_PageUp) root.move(-5)
+            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.launch(root.selectedIndex)
+            else if (event.key === Qt.Key_Escape) root.closeRequested()
+            else return
+            event.accepted = true
+          }
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: input.text === ""
+            text: "Search apps…"
+            color: Theme.overlay0
+            font: input.font
+          }
+        }
+
+        Text {
+          text: root.results.length
           color: Theme.overlay0
-          font: input.font
-          anchors.verticalCenter: parent.verticalCenter
+          font { family: Theme.font; pixelSize: 11; weight: 700 }
         }
       }
     }
 
-    Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.surface1 }
-
     ListView {
+      id: list
       Layout.fillWidth: true
       Layout.fillHeight: true
       clip: true
-      visible: root.filtered.length > 0
-      model: root.filtered
+      spacing: 2
+      boundsBehavior: Flickable.StopAtBounds
+      visible: root.results.length > 0
       currentIndex: root.selectedIndex
+      highlightFollowsCurrentItem: true
+      highlightMoveDuration: Theme.animFast
+      highlightMoveVelocity: -1
+      highlight: Rectangle {
+        radius: Theme.radiusSm
+        color: Theme.surface1
+      }
+
+      add: Transition {
+        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.animNormal; easing.type: Theme.easeOut }
+        NumberAnimation { property: "x"; from: -12; to: 0; duration: Theme.animNormal; easing.type: Theme.easeOut }
+      }
+      remove: Transition {
+        NumberAnimation { property: "opacity"; to: 0; duration: Theme.animFast; easing.type: Theme.easeIn }
+      }
+      displaced: Transition {
+        NumberAnimation { properties: "x,y"; duration: Theme.animNormal; easing.type: Theme.easeOut }
+        NumberAnimation { property: "opacity"; to: 1; duration: Theme.animFast }
+      }
+
+      model: ScriptModel {
+        values: root.results
+        objectProp: "id"
+      }
 
       delegate: Rectangle {
+        id: row
         required property var modelData
         required property int index
-        height: 34
-        radius: Theme.radiusSm
-        color: index === root.selectedIndex ? Theme.surface1 : "transparent"
+        readonly property bool selected: index === root.selectedIndex
 
-        Text {
+        width: ListView.view.width
+        height: 46
+        radius: Theme.radiusSm
+        color: "transparent"
+
+        RowLayout {
           anchors.fill: parent
-          anchors.margins: Theme.paddingSm
-          text: modelData.name
-          color: Theme.text
-          font { family: Theme.font; pixelSize: 13; weight: 600 }
-          elide: Text.ElideRight
-          verticalAlignment: Text.AlignVCenter
+          anchors.leftMargin: Theme.paddingSm
+          anchors.rightMargin: Theme.paddingSm
+          spacing: Theme.spacingLg
+
+          Item {
+            implicitWidth: 28
+            implicitHeight: 28
+
+            IconImage {
+              id: appIcon
+              anchors.fill: parent
+              source: row.modelData.iconSource
+              asynchronous: true
+              visible: row.modelData.iconSource !== ""
+            }
+
+            Text {
+              anchors.centerIn: parent
+              visible: !appIcon.visible
+              text: String.fromCodePoint(0xF08C6)
+              color: Theme.overlay1
+              font { family: Theme.nerdFont; pixelSize: 20 }
+            }
+          }
+
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+
+            Text {
+              text: row.modelData.name
+              textFormat: Text.PlainText
+              color: Theme.text
+              font { family: Theme.font; pixelSize: 13; weight: 700 }
+              elide: Text.ElideRight
+              Layout.fillWidth: true
+            }
+
+            Text {
+              text: row.modelData.genericName || row.modelData.comment
+              textFormat: Text.PlainText
+              color: Theme.overlay1
+              font { family: Theme.font; pixelSize: 10; weight: 600 }
+              elide: Text.ElideRight
+              Layout.fillWidth: true
+              visible: text !== ""
+            }
+          }
         }
 
         MouseArea {
           anchors.fill: parent
           hoverEnabled: true
-          onDoubleClicked: root.launchSelected()
-          onContainsMouseChanged: { if (containsMouse) root.selectedIndex = index }
+          cursorShape: Qt.PointingHandCursor
+          onEntered: root.selectedIndex = row.index
+          onClicked: root.launch(row.index)
         }
       }
     }
@@ -271,14 +213,13 @@ done
     Item {
       Layout.fillWidth: true
       Layout.fillHeight: true
-      visible: root.filtered.length === 0
+      visible: root.results.length === 0
 
       Text {
         anchors.centerIn: parent
-        text: root.statusText
+        text: root.launchPort.apps.length === 0 ? "No applications found" : "No matches"
         color: Theme.subtext0
         font { family: Theme.font; pixelSize: 12; weight: 600 }
-        horizontalAlignment: Text.AlignHCenter
       }
     }
   }

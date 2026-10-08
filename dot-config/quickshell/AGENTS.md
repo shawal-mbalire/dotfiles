@@ -29,8 +29,8 @@ The `justfile` here is a thin command index. Never put logic in it — it delega
 | Command | What it does |
 |---------|--------------|
 | `just` / `just run` | Launch `qs` under a 4s timeout, print only `ERROR` lines. The smoke test. |
-| `just verify` | *(target)* lint + all test tiers. Must be green before merge. |
-| `just test` | *(target)* run the `tests/` suites. |
+| `just verify` | `qmllint` every QML file, then all test tiers. Must be green before merge. |
+| `just test` | `qmltestrunner -input tests/unit` (pure domain). |
 
 From the dotfiles root, `just shell run` routes here.
 
@@ -88,8 +88,15 @@ it is written down. Every port used here follows the same five rules:
 1. **The port file is the single source of truth for the surface.**
    A `*Port.qml` declares only the properties (outputs), signals (events/intents),
    and functions (commands) that a consumer may rely on. The header comment
-   documents each member. It holds a working *null* default, so the domain is
-   always runnable without a real device.
+   documents each member, with **Pre/Post** clauses on commands and any
+   **Invariant** on returned values. It holds a working *null* default, so the
+   domain is always runnable without a real device.
+
+   QML forbids a derived type from binding an inherited `readonly property`, so
+   ports declare **plain** properties and mark them `(read-only)` in the header:
+   only adapters bind them, consumers never write them. Ports also declare
+   `default property list<QtObject> resources` so adapters can nest their
+   private helpers (`Process`, `Timer`, `FileView`, trackers).
 
 2. **Adapters extend the port and bind the surface.**
    A driven adapter is the port type with concrete bindings. It may hold extra
@@ -112,20 +119,22 @@ it is written down. Every port used here follows the same five rules:
 
 ```qml
 // domain/ports/BatteryPort.qml
-// CONTRACT — BatteryPort
-//   readonly int    level     0-100
-//   readonly bool   present   laptop battery exists
-//   readonly bool   charging
-//   readonly string state     "Charging"|"Discharging"|"Full"|"Plugged"|"Unknown"
-//   readonly string timeText  human remaining/until-full, "" when unknown
+// CONTRACT — BatteryPort (all members read-only by contract)
+//   bool   present   laptop battery exists
+//   int    level     0-100
+//   bool   charging
+//   string state     "Charging"|"Discharging"|"Full"|"Plugged in"|"Unknown"
+//   string timeText  human remaining/until-full, "" when unknown
 import QtQml
 
 QtObject {
-  readonly property int level: 0
-  readonly property bool present: false
-  readonly property bool charging: false
-  readonly property string state: "Unknown"
-  readonly property string timeText: ""
+  property bool present: false
+  property int level: 0
+  property bool charging: false
+  property string state: "Unknown"
+  property string timeText: ""
+
+  default property list<QtObject> resources
 }
 ```
 
@@ -297,13 +306,46 @@ quickshell/
 |--------------|-------------|
 | `shell.qml` | stay — composition root |
 | `Shared/Theme.qml` | `infra/config/Theme.qml` |
-| `Shared/NotificationBridge.qml` | `domain/ports/NotificationFeedPort.qml` + `adapters/driven/notifications/` |
+| ~~`Shared/NotificationBridge.qml`~~ | removed — history is a property of `Notifications`, injected by `shell.qml`; next step is `NotificationFeedPort` + `adapters/driven/notifications/` |
 | `Shared/Card·Pill·Slider·Overlay.qml` | `adapters/driving/Shared/` |
 | `Bar/*.qml` | `adapters/driving/Bar/*`; service reads → `adapters/driven/*` |
 | `ControlCenter/ControlCenter.qml` | `adapters/driving/ControlCenter/`; nmcli/bt/brightness/gammastep logic → driven adapters; parsing/math → `domain/` |
 | `Menus/Menu.qml` | `adapters/driving/Menus/`; scan+tokenize → `domain/` + `adapters/driven/desktop-entries/` |
 | `Menus/Clipboard.qml` | view in `adapters/driving/Menus/`; history/validation → `domain/` |
 | `Menus/Wallpapers.qml` | view + `adapters/driven/hyprland/`; selection math → `domain/` |
+
+**Migrated so far** (ports in `domain/ports/`, adapters wired in `shell.qml`):
+Audio (`pipewire/`), Battery (`upower/`), Bluetooth (`bluetooth/`), Brightness
+(`brightness/`), Network (`network/`), NightLight (`gammastep/`), Clipboard
+(`wl-clipboard/`), Launch (`desktop-entries/`). Pure helpers live in
+`domain/models/*.js` with tests in `tests/unit/`. Views still sit in their
+feature folders (`Bar/`, `Menus/`, `ControlCenter/`) but consume ports only;
+moving them under `adapters/driving/` is a later, mechanical step.
+Not yet migrated: notifications daemon, wallpapers, workspaces, system tray,
+power profiles, theme/gsettings sync.
+
+**Performance rules learned here**
+- Overlays (menu, clipboard, control center) are created by a `LazyLoader` on
+  the focused monitor only, never one per screen kept alive while hidden.
+- One adapter instance per capability, shared by every screen; never a
+  `Timer`+`Process` inside a per-screen view.
+- Prefer event-driven typed services; if polling is unavoidable (sysfs), poll a
+  file with `FileView.reload()`, not a spawned process.
+- Use per-item `NumberAnimation`s for progress bars, not a global ticking `Timer`.
+- Never size a window from a `ListView`'s `contentHeight` (0px ListViews create
+  no delegates); use `Column` + `Repeater` for short, auto-sized lists.
+- Hyprland runs in Lua mode: `Hyprland.dispatch` must branch on
+  `Hyprland.usingLua` (`hl.dsp.focus({ workspace = N })`).
+- Never activate a `HyprlandFocusGrab` in the same frame its window maps;
+  Hyprland clears it at once and the popup closes instantly (broke SUPER+N).
+  Use `Shared/DismissGrab.qml`, which arms late and only dismisses after a
+  grab really engaged.
+- Overlays animate through `Shared/Overlay.qml` (`open` drives enter/exit,
+  `closed()` fires after the exit animation) and are mounted by a
+  `Shared/OverlaySlot.qml` in `shell.qml`, so windows outlive their exit
+  animation. Motion durations/easings are tokens in `Theme.qml`.
+- Never name a property after an `Item` member (`enabled`, `focus`,
+  `visible`, …) in a view; it silently shadows it.
 
 **File placement decision tree** — every new file lands in one of the four roots:
 
