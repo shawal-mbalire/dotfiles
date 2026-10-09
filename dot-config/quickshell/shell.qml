@@ -9,17 +9,8 @@ import QtQuick.Layouts
 import "Bar"
 import "Menus"
 import "Shared"
-import "ControlCenter"
-import "adapters/driven/pipewire"
-import "adapters/driven/upower"
-import "adapters/driven/bluetooth"
-import "adapters/driven/brightness"
-import "adapters/driven/network"
-import "adapters/driven/gammastep"
-import "adapters/driven/wl-clipboard"
-import "adapters/driven/desktop-entries"
-import "adapters/driven/mpris"
-import "adapters/driven/feedback"
+import "infra/config"
+import "adapters/driven"
 
 ShellRoot {
   id: root
@@ -35,6 +26,7 @@ ShellRoot {
   DesktopEntriesLaunchAdapter { id: launcher; terminalCommand: ["kitty", "-e"] }
   MprisMediaAdapter { id: media }
   PipewireToneAdapter { id: feedback }
+  HyprlandWallpaperAdapter { id: wallpaper; directory: Config.wallpaperDir }
 
   // ── Auto-hidden bar ──────────────────────────────────────────────────────
   // Hidden until the pointer reaches the top (Bar/TopEdgeReveal), enters the
@@ -157,28 +149,14 @@ ShellRoot {
   }
 
   // ── Colour scheme sync with GNOME settings ───────────────────────────────
-  function applyThemeLine(line) {
-    if (line.indexOf("prefer-dark") >= 0) Theme.darkMode = true
-    else if (line.indexOf("prefer-light") >= 0) Theme.darkMode = false
-  }
+  // Reading/monitoring is an infra concern (infra/config/ColorSchemeWatcher);
+  // writing back when the user toggles the control center pill stays here.
+  ColorSchemeWatcher {}
 
   function setDarkMode(enabled) {
     Theme.darkMode = enabled
     Quickshell.execDetached(["gsettings", "set", "org.gnome.desktop.interface", "color-scheme",
                              enabled ? "prefer-dark" : "prefer-light"])
-  }
-
-  Process {
-    command: ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"]
-    running: true
-    stdout: SplitParser { onRead: data => root.applyThemeLine(data) }
-  }
-
-  Process {
-    command: ["gsettings", "monitor", "org.gnome.desktop.interface", "color-scheme"]
-    running: true
-    stdout: SplitParser { onRead: data => root.applyThemeLine(data) }
-    onExited: exitCode => console.warn("[theme] gsettings monitor exited with", exitCode)
   }
 
   // ── Bar, one per screen ──────────────────────────────────────────────────
@@ -285,7 +263,7 @@ ShellRoot {
       open: menuSlot.open
       launchPort: launcher
       onCloseRequested: menuSlot.close()
-      onClosed: menuSlot.unmount()
+      onCloseFinished: menuSlot.unmount()
     }
   }
 
@@ -297,7 +275,7 @@ ShellRoot {
       open: clipboardSlot.open
       clipboardPort: clipboard
       onCloseRequested: clipboardSlot.close()
-      onClosed: clipboardSlot.unmount()
+      onCloseFinished: clipboardSlot.unmount()
     }
   }
 
@@ -316,7 +294,7 @@ ShellRoot {
       mediaPort: media
       notificationHistory: notifications.history
       onCloseRequested: controlCenterSlot.close()
-      onClosed: {
+      onCloseFinished: {
         controlCenterSlot.unmount()
         root.updateBar()
       }
@@ -325,5 +303,5 @@ ShellRoot {
     }
   }
 
-  Wallpapers {}
+  Wallpapers { wallpaperPort: wallpaper }
 }

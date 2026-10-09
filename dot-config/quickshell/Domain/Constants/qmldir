@@ -1,7 +1,0 @@
-singleton Applications 1.0 Applications.qml
-singleton ClipboardPolicy 1.0 ClipboardPolicy.qml
-singleton NotificationPolicy 1.0 NotificationPolicy.qml
-singleton TrayPolicy 1.0 TrayPolicy.qml
-singleton Indicators 1.0 Indicators.qml
-singleton WallpaperPolicy 1.0 WallpaperPolicy.qml
-singleton ColorScheme 1.0 ColorScheme.qml

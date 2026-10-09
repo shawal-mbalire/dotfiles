@@ -14,8 +14,8 @@ PanelWindow {
   // Draw the rounded backdrop; off for windows whose children are their own cards.
   property bool showBackground: true
 
-  // false plays the exit animation, after which closed() is emitted and the
-  // owner may destroy the window. true (re)plays the enter animation.
+  // false plays the exit animation, after which closeFinished() is emitted and
+  // the owner may destroy the window. true (re)plays the enter animation.
   property bool open: true
   // Corner the open/close scale grows from.
   property int openOrigin: Item.Top
@@ -26,7 +26,9 @@ PanelWindow {
   // Emitted instead of writing `visible` directly; the owner in shell.qml
   // decides whether the overlay exists at all.
   signal closeRequested()
-  signal closed()
+  // NB: not `closed` — QsWindow (PanelWindow's base) already declares a `closed`
+  // signal, and re-declaring it is an invalid override (qt.qml.invalidOverride).
+  signal closeFinished()
 
   implicitWidth: 400
   implicitHeight: 400
@@ -86,7 +88,7 @@ PanelWindow {
     NumberAnimation { target: body; property: "opacity"; to: 0; duration: Theme.animFast; easing.type: Theme.easeIn }
     NumberAnimation { target: body; property: "scale"; to: 0.96; duration: Theme.animFast; easing.type: Theme.easeIn }
     NumberAnimation { target: slide; property: "y"; to: -6; duration: Theme.animFast; easing.type: Theme.easeIn }
-    onFinished: root.closed()
+    onFinished: root.closeFinished()
   }
 
   function playOpen() {

@@ -1,6 +1,6 @@
 // Quickshell reference: https://quickshell.org/docs/v0.3.0/types/Quickshell.Services.SystemTray/
 import "../Shared"
-import "../Domain/Constants"
+import "../domain/constants"
 import QtQuick
 import QtQuick.Layouts
 import Quickshell

@@ -14,7 +14,7 @@ run:
 
 # Run the QtQuickTest suites (needs qmltestrunner from qt6-qtdeclarative/qttools).
 test:
-    qmltestrunner -input tests/unit
+    qmltestrunner -input tests
 
 # Lint every QML file, then run all test tiers.
 verify:

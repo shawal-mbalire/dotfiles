@@ -1,0 +1,63 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Fabric — a Python desktop shell. Thin command index; recipes delegate to tooling.
+
+default:
+    @just run
+
+# ── Environment ────────────────────────────────────────────────────────────
+# Create / refresh the uv-managed virtualenv with dev tooling.
+setup:
+    uv sync --extra dev
+
+# ── Quality gates ──────────────────────────────────────────────────────────
+# Lint, type-check, verify architecture boundaries, then run all test tiers.
+verify: lint types architecture test test-contract
+
+lint:
+    uv run ruff check .
+    uv run ruff format --check .
+
+types:
+    uv run mypy domain infra adapters
+
+# Enforce the hexagonal dependency rule: domain imports nothing outward.
+architecture:
+    uv run python -m tests.guards.boundaries
+
+# ── Tests ──────────────────────────────────────────────────────────────────
+# Pure domain + workflows with fake ports. Fast, headless.
+test:
+    uv run pytest tests/unit
+
+# Contract tests: every adapter against its port contract, on real + fake.
+test-contract:
+    uv run pytest tests/contract
+
+test-all:
+    uv run pytest
+
+# ── Running ────────────────────────────────────────────────────────────────
+# Validate the full wiring without opening a window, then print the bar model.
+check:
+    uv run python main.py --check
+
+# Render the shell in the terminal (headless smoke test; no GTK required).
+render:
+    uv run python main.py --render
+
+# Launch the real GTK4 + gtk4-layer-shell shell.
+run:
+    uv run python main.py
+
+# Send a command to the running shell (e.g. `just ipc "toggle menu"`).
+ipc command:
+    uv run python main.py ipc "{{command}}"
+
+# ── Housekeeping ───────────────────────────────────────────────────────────
+build:
+    uv build
+
+clean:
+    rm -rf build dist .pytest_cache .mypy_cache .ruff_cache
+    find . -name '__pycache__' -type d -prune -exec rm -rf {} +

@@ -1,0 +1,21 @@
+# Build artifacts — recreatable from source, never committed.
+build/
+dist/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime state written by adapters (clipboard history, logs).
+var/
+*.log

@@ -1,0 +1,3 @@
+singleton ColorScheme 1.0 ColorScheme.qml
+singleton TrayPolicy 1.0 TrayPolicy.qml
+singleton WallpaperPolicy 1.0 WallpaperPolicy.qml

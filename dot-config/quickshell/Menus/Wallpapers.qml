@@ -2,7 +2,7 @@
 // Menus/Wallpapers.qml
 // Admin entry point for wallpapers (keybinds call `qs ipc call wallpapers …`).
 // It owns no I/O: it only exposes WallpaperPort intents over IPC.
-import "../Domain/Ports"
+import "../domain/ports"
 import Quickshell.Io
 import QtQuick
 
