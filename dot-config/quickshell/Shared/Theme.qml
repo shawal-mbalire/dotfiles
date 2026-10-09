@@ -38,6 +38,9 @@ QtObject {
   readonly property int fontSize: 15
   readonly property int fontWeight: 1000
 
+  // Layout
+  readonly property int barHeight: 30
+
   // Shape — 5px structural radius (see AGENTS.md §3). Pills/circles stay full-round.
   readonly property int radius: 5
   readonly property int radiusSm: 3
@@ -52,9 +55,9 @@ QtObject {
   readonly property int paddingLg: 16
 
   // Motion
-  readonly property int animFast: 120
-  readonly property int animNormal: 200
-  readonly property int animSlow: 320
+  readonly property int animFast: 90
+  readonly property int animNormal: 140
+  readonly property int animSlow: 220
   readonly property int easeOut: Easing.OutCubic
   readonly property int easeIn: Easing.InCubic
   readonly property int easeEmphasized: Easing.OutBack

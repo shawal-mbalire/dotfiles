@@ -39,11 +39,16 @@ RowLayout {
       Behavior on color { ColorAnimation { duration: 150 } }
       Behavior on implicitWidth { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
+      // Center by aligning inside the whole button box rather than by the
+      // text's own measured width/height, so it stays centered across the
+      // animated active/inactive width and any font metric quirks.
       Text {
-        anchors.centerIn: parent
+        anchors.fill: parent
         text: workspaceButton.workspaceId
         color: workspaceButton.isActive ? Theme.crust : Theme.subtext0
         font { family: Theme.font; pixelSize: 11; weight: 800 }
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
       }
 
       HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }

@@ -13,6 +13,14 @@ BluetoothPort {
   available: adapter !== null
   enabled: adapter !== null && adapter.enabled
   connectedName: enabled && connectedDevice !== null ? connectedDevice.name : ""
+  devices: available ? adapter.devices.values
+      .filter(device => device.paired || device.connected)
+      .map(device => ({
+        name: device.name !== "" ? device.name : device.deviceName,
+        address: device.address,
+        connected: device.connected
+      }))
+    : []
 
   function setEnabled(value) {
     if (!available) {
@@ -20,5 +28,11 @@ BluetoothPort {
       return
     }
     adapter.enabled = value
+  }
+
+  function forgetDevice(address) {
+    if (!available) return
+    const device = adapter.devices.values.find(d => d.address === address)
+    if (device) device.forget()
   }
 }
