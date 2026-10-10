@@ -3,6 +3,8 @@
 import QtQml
 import Quickshell.Networking
 import "../../domain/ports"
+import "../../domain/models"
+import "../../domain/errors"
 
 NetworkPort {
   id: root
@@ -23,6 +25,8 @@ NetworkPort {
     const best = {}
     for (const n of Array.from(list)) {
       if (!n.name) continue
+      Errors.postcondition(Contracts.isInRange(n.signalStrength, 0, 1), "network.signal-range",
+                           "signal strength is outside 0..1", { name: n.name, strength: n.signalStrength })
       const prev = best[n.name]
       if (!prev || n.connected || (!prev.connected && n.signalStrength > prev.signalStrength)) best[n.name] = n
     }
@@ -46,15 +50,24 @@ NetworkPort {
     return match
   }
 
+  // Pre: value is a boolean.
   function setWifiEnabled(value) {
+    Errors.precondition(Contracts.isBool(value), "network.wifi-type", "wifiEnabled must be a boolean",
+                        { value: value })
     Networking.wifiEnabled = value
   }
 
+  // Pre: value is a boolean.
   function setScanning(value) {
+    Errors.precondition(Contracts.isBool(value), "network.scanning-type", "scanning must be a boolean",
+                        { value: value })
     if (device) device.scannerEnabled = value
   }
 
+  // Pre: name is a non-empty string.
   function connectTo(name) {
+    Errors.precondition(Contracts.isNonEmptyString(name), "network.name-empty",
+                        "network name must be a non-empty string", { name: name })
     const n = find(name)
     if (!n) {
       connectionFailed(name, "Network not found")
@@ -64,7 +77,11 @@ NetworkPort {
     n.connect()
   }
 
+  // Pre: name is a non-empty string and psk is a non-empty string.
   function connectWithPsk(name, psk) {
+    Errors.precondition(Contracts.isNonEmptyString(name) && Contracts.isNonEmptyString(psk),
+                        "network.psk-empty", "network name and passphrase must be non-empty",
+                        { name: name })
     const n = find(name)
     if (!n) {
       connectionFailed(name, "Network not found")

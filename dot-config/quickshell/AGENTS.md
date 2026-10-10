@@ -28,15 +28,12 @@ The `justfile` here is a thin command index. Never put logic in it — it delega
 
 | Command | What it does |
 |---------|--------------|
-| `just` / `just run` | Launch `qs` under a 4s timeout, print only `ERROR` lines. The smoke test. |
-| `just verify` | `qmllint` every QML file, then all test tiers. Must be green before merge. |
-| `just test` | `qmltestrunner -input tests/unit` (pure domain). |
+| `just` / `just run` | Launch `qs` under a 4s timeout. Fails on any `ERROR` line. This is the only test. |
 
 From the dotfiles root, `just shell run` routes here.
 
-**Tooling note:** this machine currently has `qs` but not `qmllint`/`qmltestrunner`
-(package `qt6-qttools`). Until installed, `just run` is the only automated gate;
-add the tools rather than hand-waving a "verify" step.
+There is no separate test suite. Running `qs` loads `shell.qml` and every adapter
+against its port, so a load error is the failure signal. Must be green before merge.
 
 ---
 
@@ -70,7 +67,7 @@ boundary is made explicit with a **contract**.
 
 | Hexagonal concept | In this repo |
 |-------------------|--------------|
-| Domain | Pure `.qml`/`.js` under `domain/` — models, workflows, pure functions, constants, errors. No `Quickshell.*` imports. |
+| Domain | Pure `.qml` under `domain/` — models, workflows, pure functions, constants, errors. No `Quickshell.*` imports. |
 | Port | A `*Port.qml` file documenting a required capability, with default (null) values. The **contract**. |
 | Driven adapter | A Quickshell service wrapper (`Quickshell.Io`, `Services.Pipewire`, `UPower`, `Bluetooth`, `Networking`, `Hyprland`, `SystemTray`, …) that fulfills a port by translating external state into domain values. |
 | Driving adapter | A view/panel (`Bar`, `ControlCenter`, `Menus`, `Notifications`) that renders domain values and emits user intents. |
@@ -111,9 +108,32 @@ it is written down. Every port used here follows the same five rules:
    `shell.qml` creates one adapter instance per capability and hands it to the
    views/workflows. Swapping real → fake happens here, not inside components.
 
-5. **Every port has a contract test.**
-   `tests/contract/` instantiates each adapter and asserts it satisfies the port
-   surface and semantics. A new adapter is not "done" until its contract test is.
+5. **Every port is checked by the running shell.**
+   `just run` loads each adapter against its port type. A new adapter is not "done"
+   until `just run` is clean with it wired in `shell.qml`.
+
+### Design by contract
+
+Every port command states three kinds of clause. Each is enforced where it applies:
+
+- **Precondition (the caller's obligation).** Checked before any side effect, at the
+  top of the adapter's command, with `Errors.precondition(...)`. A failure throws a
+  `ValidationError`. Example: `setVolume` requires a finite value within `0..Bounds.volumeMax`.
+- **Postcondition (the backend's obligation).** Checked where backend data enters the
+  shell, with `Errors.postcondition(...)`. A failure throws a `ContractViolation`.
+  Example: `PowerProfilesAdapter` throws on an unknown daemon profile instead of
+  mapping it to `"Balanced"`.
+- **Invariant (always true of a model).** A pure predicate in `domain/models/`, for
+  example `ClipboardModel.holdsInvariant(history, limit)`.
+
+Clause predicates are pure functions in `domain/models/Contracts.qml` (and the topic
+singletons such as `ClipboardModel.qml`). `domain/errors/Errors.qml` builds the error
+values and provides the two guards. Bounds are named in `domain/constants/Bounds.qml`.
+
+Expected outcomes are not contract violations. An absent device, an unknown desktop
+entry, or a vanished network is logged with `console.warn` and returned through the
+port's normal path. Only defects throw. `just run` only sees the first 4 seconds of
+output, so a violation at runtime shows up in the `qs` log, not in the gate.
 
 ### Example — a port
 
@@ -209,14 +229,14 @@ QtObject {
 ## 5. Layers
 
 ### Domain (`domain/`) — pure, no Quickshell
-- `models/` — plain `QtObject`s and `.js` data shapes (an `AppEntry`, a `NotificationEntry`).
+- `models/` — `pragma Singleton` QML types holding pure functions (`Contracts`, `Sinks`, `ClipboardModel`, `NotificationModel`, …) and the plain data shapes they build.
 - `workflows/` — orchestrate pure functions + ports (`VolumeWorkflow`, `ClipboardHistoryWorkflow`).
 - `ports/` — one `*Port.qml` per capability (see §4).
 - `constants/` — static business constants. **No magic numbers.** No env reads.
-- `errors/` — domain error types/values.
+- `errors/Errors.qml` — `ValidationError` / `ContractViolation` values and the `precondition` / `postcondition` guards.
 - Pure transforms that currently live inline (app-list filtering, `Exec` tokenizing,
   signal/icon tiering, notification timeout math, clipboard text validation) move
-  here as functions and get unit tests. That is the highest-value refactor in this repo.
+  here as pure functions. That is the highest-value refactor in this repo.
 
 Domain **must not** `import Quickshell` or `Quickshell.*`. `import QtQml` for `QtObject`
 and `import QtQuick` for layout-neutral value types are tolerated; service modules are not.
@@ -276,53 +296,55 @@ ShellRoot {
 
 ## 6. Target layout & migration map
 
-The architecture uses **four root directories** plus root-level entry files.
+The architecture uses **three root directories** (`domain/`, `infra/`, `adapters/`) plus root-level entry files.
 Adopt incrementally — when you touch a feature, move its pieces to their home.
 
 ```
 quickshell/
-├── shell.qml                     # composition root
+├── shell.qml                     # composition root (entry point)
 ├── AGENTS.md
 ├── justfile
-├── domain/
-│   ├── models/                   # pure data shapes
-│   ├── ports/                    # *Port.qml contracts
-│   ├── workflows/                # pure orchestrators
-│   ├── constants/                # static business constants
-│   └── errors/
+├── domain/                       # pure; imports QtQml only
+│   ├── constants/                # static bounds + pure policies (qmldir)
+│   ├── errors/Errors.qml         # contract errors and guards (DbC)
+│   ├── models/                   # pure JS data shapes, transforms and clause predicates
+│   └── ports/                    # *Port.qml contracts (Pre/Post/Invariant headers)
 ├── infra/
-│   └── config/                   # Theme.qml, Config.qml (env)
+│   └── config/                   # Config.qml (env), Theme.qml (design tokens), qmldir
 ├── adapters/
-│   ├── driven/<system>/          # lowercase: service bindings (pipewire, upower, …)
-│   └── driving/<Feature>/        # PascalCase: views/panels (Bar, ControlCenter, Menus)
-├── tests/
-│   ├── contract/                 # one per adapter
-│   ├── unit/                     # pure domain + workflows
-│   └── fixtures/                 # fakes, builders, sample data
+│   ├── driven/                   # flat: one file per external system, <System>Adapter.qml
+│   └── driving/                  # PascalCase feature folders: views that render ports and emit intents
+│       ├── Bar/
+│       ├── ControlCenter/
+│       ├── Menus/
+│       ├── Notifications/
+│       └── Shared/               # presentation primitives (Card, Pill, Slider, Overlay, Osd, …)
 └── build/                        # gitignored, recreatable, never committed
 ```
 
-| Current file | Destination |
-|--------------|-------------|
-| `shell.qml` | stay — composition root |
-| `Shared/Theme.qml` | `infra/config/Theme.qml` |
-| ~~`Shared/NotificationBridge.qml`~~ | removed — history is a property of `Notifications`, injected by `shell.qml`; next step is `NotificationFeedPort` + `adapters/driven/notifications/` |
-| `Shared/Card·Pill·Slider·Overlay.qml` | `adapters/driving/Shared/` |
-| `Bar/*.qml` | `adapters/driving/Bar/*`; service reads → `adapters/driven/*` |
-| `ControlCenter/ControlCenter.qml` | `adapters/driving/ControlCenter/`; nmcli/bt/brightness/gammastep logic → driven adapters; parsing/math → `domain/` |
-| `Menus/Menu.qml` | `adapters/driving/Menus/`; scan+tokenize → `domain/` + `adapters/driven/desktop-entries/` |
-| `Menus/Clipboard.qml` | view in `adapters/driving/Menus/`; history/validation → `domain/` |
-| `Menus/Wallpapers.qml` | view + `adapters/driven/hyprland/`; selection math → `domain/` |
+Flat `driven/` files are deliberate: a folder per adapter with one file each breaks
+"files over folders". Create a `driven/<system>/` folder only when a system has 3+ files.
+
+| Current file | Location |
+|--------------|----------|
+| `shell.qml` | root — composition root |
+| `infra/config/Theme.qml`, `Config.qml` | `infra/config/` |
+| `adapters/driving/Shared/*` | presentation primitives and overlay plumbing |
+| `adapters/driving/Bar/*` | bar widgets; service reads go through ports into `adapters/driven/` |
+| `adapters/driving/ControlCenter/ControlCenter.qml` | view; device I/O lives in driven adapters |
+| `adapters/driving/Menus/*` | launcher, clipboard, wallpaper IPC; search and history logic in `domain/models/` |
+| `adapters/driving/Notifications/Notifications.qml` | notification popups and history, rendered through `NotificationFeedPort`; the daemon lives in `NotificationServerAdapter.qml` |
 
 **Migrated so far** (ports in `domain/ports/`, adapters wired in `shell.qml`):
 Audio (`pipewire/`), Battery (`upower/`), Bluetooth (`bluetooth/`), Brightness
-(`brightness/`), Network (`network/`), NightLight (`gammastep/`), Clipboard
-(`wl-clipboard/`), Launch (`desktop-entries/`). Pure helpers live in
-`domain/models/*.js` with tests in `tests/unit/`. Views still sit in their
-feature folders (`Bar/`, `Menus/`, `ControlCenter/`) but consume ports only;
-moving them under `adapters/driving/` is a later, mechanical step.
-Not yet migrated: notifications daemon, wallpapers, workspaces, system tray,
-power profiles, theme/gsettings sync.
+(`brightness/`), Network (`network/`), ColorCorrection (`gammastep/`), Clipboard
+(`wl-clipboard/`), Launch (`desktop-entries/`), Power profiles (`upower/`),
+colour scheme (`gsettings/`), Notifications (`NotificationServerAdapter`),
+Workspaces (`HyprlandWorkspaceAdapter`), Wallpapers (`HyprlandWallpaperAdapter`).
+Pure helpers live in `domain/models/*.qml` singletons. Views live under
+`adapters/driving/` and consume ports only.
+Not yet migrated: system tray (`Bar/SystemTray.qml` still uses `Quickshell.Services.SystemTray`
+directly; its menus need a decision on how `QsMenuAnchor` handles cross the port).
 
 **Performance rules learned here**
 - Overlays (menu, clipboard, control center) are created by a `LazyLoader` on
@@ -346,8 +368,37 @@ power profiles, theme/gsettings sync.
   animation. Motion durations/easings are tokens in `Theme.qml`.
 - Never name a property after an `Item` member (`enabled`, `focus`,
   `visible`, …) in a view; it silently shadows it.
+- Never bind a layer surface's size to content that animates. Each frame resizes the
+  Wayland surface and the window flickers. Size the window once, animate the panel
+  inside it, and pass clicks through the empty area with `mask: Region { item: panel }`.
+  The control center does this; overlays that grow or shrink should follow it.
+- Overlays hang below the bar (`margins.top: Theme.barHeight`), never over it.
+- The hot corner opens the control center only after a dwell (`dwellMs`), at most once
+  per visit. Hovering it reveals the bar at once. Do not make it fire on entry.
 
-**File placement decision tree** — every new file lands in one of the four roots:
+**Sound rules**
+- Writes are capped at `Bounds.volumeMax` (100%). Lowering is always allowed, so a sink
+  already boosted past the cap can still be turned down; raising above it is refused by
+  the precondition. Do not raise the cap to make a control work.
+- No feedback tone while muted. The composition root gates `playTone` on `audio.muted`.
+- The tone player is probed once at startup (`command -v ffplay`) and feedback is disabled
+  when it is missing.
+- A tone is killed by a watchdog after `maxPlayMs`, so a hung player cannot block later
+  tones. Three consecutive failures disable feedback for the session, with a warning.
+- **Never output to an AirPlay (RAOP) sink or the Mac mini.** `domain/models/Sinks.qml`
+  excludes them by name and description. They are never listed in `sinks`, and the
+  adapter moves the default off them. Do not add them back, and do not add a bypass.
+- **HDMI / DisplayPort outputs are not sinks either.** They are listed by the sound
+  card even when unplugged, so the laptop's built-in speakers are the single output.
+  `Sinks.qml` excludes them the same way.
+- `QS_PREFERRED_SINK=<node.name>` names the fallback sink (the `node.name` is in
+  `pw-cli`/`wpctl`, e.g. `alsa_output....HiFi__Speaker__sink`). When the default is not
+  eligible, the adapter steers it there, or else to the first eligible sink.
+  `hypr/lua/autostart.lua` sets it when it starts `qs`.
+- Choose the default in the shell with `setDefaultSink(name)`, which also updates the
+  preference. Never write to Pipewire from a view.
+
+**File placement decision tree** — every new file lands in one of the three roots:
 
 ```
 Is it an entry point?              → root file (e.g. shell.qml)
@@ -355,10 +406,10 @@ Is it a contract/interface?        → domain/ports/
 Is it a pure data shape?           → domain/models/
 Is it workflow orchestration?      → domain/workflows/
 Is it a constant / error?          → domain/constants/ · domain/errors/
-Is it a portable adapter?          → adapters/<driven|driving>/<system>/
+Is it a driven adapter?            → adapters/driven/<System>Adapter.qml
+Is it a view?                      → adapters/driving/<Feature>/
 Is it config or cross-cutting?     → infra/
-Is it a test?                      → tests/
-Otherwise: it belongs inside an existing file — do NOT add a fifth root directory.
+Otherwise: it belongs inside an existing file — do NOT add a fourth root directory.
 ```
 
 Prefer **files over folders**: only make a folder when it will hold 3+ files.
@@ -373,9 +424,10 @@ on-disk name exactly. There is no auto-correct — a wrong case is a load failur
 |------|------|----------|
 | Feature / module directories (**larger imports**) | `PascalCase` | `Bar/`, `Menus/`, `Shared/`, `ControlCenter/` |
 | Component files and type names (**larger imports**) | `PascalCase` | `ControlCenter.qml`, `Audio.qml`, `Theme.qml` |
-| Architecture / plumbing directories (**smaller imports**) | `lowercase` | `domain/`, `infra/`, `ports/`, `adapters/`, `tests/` |
+| Architecture / plumbing directories (**smaller imports**) | `lowercase` | `domain/`, `infra/`, `ports/`, `adapters/` |
 | `qmldir` module URIs | `lowercase` | `module shared` |
-| `id`s, properties, functions, signals, JS files (**smaller imports**) | `lowerCamelCase` | `id: root`, `barVisible`, `setVolume`, `tune.js` |
+| `id`s, properties, functions, signals (**smaller imports**) | `lowerCamelCase` | `id: root`, `barVisible`, `setVolume` |
+| Pure-logic singletons (`pragma Singleton` in `domain/`) | `PascalCase` | `Contracts.qml`, `ClipboardModel.qml`, `Errors.qml` |
 | Quickshell module imports | `PascalCase` segments | `Quickshell.Io`, `Quickshell.Services.Pipewire` |
 
 Rules of thumb:
@@ -397,19 +449,20 @@ find . -maxdepth 2 -type d                # actual on-disk names
 
 1. **Dependencies point inward.** Adapters depend on Domain. Domain never imports adapters, `Quickshell`, or services.
 2. **The contract is the port file.** A `*Port.qml` is the one place its surface is defined; adapters extend it, consumers require it.
-3. **Never import a concrete adapter outside `shell.qml`/`tests/`.** If a view needs a capability, inject a port.
+3. **Never import a concrete adapter outside `shell.qml`.** If a view needs a capability, inject a port.
 4. **The DTO boundary is real.** Adapters translate service/CLI/D-Bus shapes into domain values. No raw `UPowerDevice`, `Network`, or process output leaks into domain or views.
 5. **Views don't do I/O.** No `Process`, `FileView`, `execDetached`, or service imports in `adapters/driving/`. Emit intents; the port acts.
 6. **Composition root is the only wiring point.** Only it reads config and constructs adapters. It contains no logic.
 7. **No magic numbers in domain.** Name them in `domain/constants/`. Configurable values come from `infra/config`.
 8. **Prefer typed service adapters over shell-outs.** Use `Quickshell.Bluetooth`, `Networking`, `Services.Pipewire`, `Services.UPower`, `Hyprland`, `Services.SystemTray`, `Services.Mpris` where the API exists. Shelling out (`nmcli`, `bluetoothctl`, `wpctl`, `brightnessctl`) is a fallback adapter only, and lives in exactly one driven adapter.
-9. **Every function pure by default.** Extract pure transforms (`tokenizeExec`, `isUsableText`, `timeoutFor`, icon/signal tiering, filters) into pure functions and unit-test them. Impure code is only the thin I/O methods in adapters and the wiring in `shell.qml`.
+9. **Every function pure by default.** Extract pure transforms (`tokenizeExec`, `isUsableText`, `timeoutFor`, icon/signal tiering, filters) into pure functions. Impure code is only the thin I/O methods in adapters and the wiring in `shell.qml`.
 10. **Workflows read like pseudocode.** One intent per line: validate → act → report.
 11. **Fail fast, never fail silent.** Validate at the boundary; surface errors through `LoggerPort`; handle `onExited` non-zero codes explicitly. No empty `catch`, no `|| true` hidden behind a view.
 12. **TimePort / LifetimePort equivalents.** Use a `ClockPort` (backed by `SystemClock`) instead of scattered `Date.now()`, and a `LifetimePort` (backed by `Component.onDestruction` / shell shutdown) to stop processes/timers and flush state on reload/exit.
 13. **Portable adapters.** An adapter file copies to another project with only its driver + standard ports: no app imports, config injected, vendor errors translated, mapping pure.
 14. **Keep it shippable.** Don't big-bang refactor. Extracting one adapter/port at a time is a complete change; migrate the touched feature and leave the rest.
 15. **Reproducible.** No global RNG/time in domain; inject `ClockPort`. Pin no hidden state in singletons beyond config/logging.
+16. **No JavaScript files.** Pure logic is a `pragma Singleton` QML type in `domain/`, registered in its folder's `qmldir`. Constants are `readonly property`. Consumers import the folder (`import "../../domain/models"`) and call the type by name. Do not add `.js` files, and do not add `.js` imports.
 
 ---
 
@@ -421,7 +474,7 @@ find . -maxdepth 2 -type d                # actual on-disk names
 | `Quickshell.Io` | `Process`, `SplitParser`, `StdioCollector`, `FileView` | driven adapters only |
 | `Quickshell.Services.Pipewire` | audio sinks/sources, volume | `adapters/driven/pipewire/` |
 | `Quickshell.Services.UPower` | battery, power profiles | `adapters/driven/upower/` |
-| `Quickshell.Services.Notifications` | `NotificationServer`, urgency | `adapters/driven/notifications/` |
+| `Quickshell.Services.Notifications` | `NotificationServer`, urgency | `adapters/driven/NotificationServerAdapter.qml` |
 | `Quickshell.Networking` | Wi-Fi/Ethernet state | `adapters/driven/network/` |
 | `Quickshell.Bluetooth` | adapter/devices/pairing | `adapters/driven/bluetooth/` |
 | `Quickshell.Hyprland` | workspaces, dispatch | `adapters/driven/hyprland/` |
@@ -434,25 +487,23 @@ Reference: <https://quickshell.org/docs/v0.3.0/types/>
 
 ---
 
-## 9. Testing
+## 9. Verification
 
-- Framework: QtQuickTest (`TestCase`, `SignalSpy`). Run with `qmltestrunner`.
-- `tests/unit/` — pure functions and workflows with **fake ports** from `tests/fixtures/`.
-  These are fast and must be exhaustive for `domain/`.
-- `tests/contract/` — instantiate each adapter and assert the port surface + semantics.
-  Run the same contract test against the port's null default and every real adapter.
-- `tests/fixtures/` — `FakeAudioPort.qml`, `FakeBatteryPort.qml`, app-entry builders,
-  clipboard samples. Shared, never duplicated per test.
-- `just verify` = lint + all tiers. Nothing merges unless it is green.
-- Every failure path in a driven adapter gets a fault-injection test (non-zero exit,
-  missing device, malformed output).
+- There is no test suite. `just run` is the gate: it starts `qs`, loads `shell.qml`
+  and every adapter, and fails on any `ERROR` line.
+- Check a change by running the shell and exercising the feature (bar, control center,
+  launcher, clipboard, notifications) on a live Hyprland session.
+- Every driven adapter must handle its failure paths explicitly: non-zero exits,
+  missing devices, and malformed output are logged through `console.warn` and never ignored.
 
 ---
 
 ## 10. Error handling & diagnostics
 
-- A failure is a domain error with a stable `code`, structured `context`, and a
-  preserved `cause` — not a bare string and not a raw service error.
+- A defect throws a contract error from `domain/errors/Errors.qml`: `kind` (`ValidationError`
+  or `ContractViolation`), a stable `code`, and structured `context`. Never a bare
+  string, never a raw service error.
+- An expected outcome is logged and returned through the port, not thrown.
 - Adapters report through `LoggerPort`; the dev implementation logs structured lines
   (`console.warn`/`console.error` are acceptable until a file sink exists), and is
   swappable. Logging is an adapter, never inline `console.log` in domain.
@@ -471,6 +522,7 @@ Reference: <https://quickshell.org/docs/v0.3.0/types/>
 - Magic numbers in domain code.
 - Adding a fifth root directory for "just one file".
 - Silent failure (empty catch, ignored exit code, `|| true` masking).
+- A `.js` file anywhere in the shell. Pure logic goes in a `pragma Singleton` QML type (rule 16).
 - Coupling `Theme` (config) to behavior logic.
 
 ---
@@ -479,15 +531,15 @@ Reference: <https://quickshell.org/docs/v0.3.0/types/>
 
 ```
 Adding or changing a capability?
-├─ Name the contract first: write/extend domain/ports/<Capability>Port.qml
+├─ Name the contract first: write/extend domain/ports/<Capability>Port.qml with Pre/Post/Invariant
+├─ Add clause predicates to domain/models/Contracts.qml; guard them in the adapter with Errors.precondition / postcondition
 ├─ Add static constants to domain/constants/ (no magic numbers)
-├─ Extract pure logic into domain/ (models, functions, workflows) + unit tests
-├─ Implement the driven adapter under adapters/<driven>/<system>/ (typed service first)
-├─ Add tests/contract/<adapter>Test.qml and run it against null + real
+├─ Extract pure logic into domain/ (models, functions, workflows)
+├─ Implement the driven adapter as adapters/driven/<System>Adapter.qml (typed service first)
 ├─ Keep the driving view I/O-free: require the port, emit intents
 ├─ Wire it once in shell.qml (create adapter, inject port)
 ├─ Register any new error code
-├─ Verify: `just run` clean, unit + contract green, no Quickshell imports in domain/
+├─ Verify: `just run` clean, no Quickshell imports in domain/
 └─ Touch nothing else — the migration is incremental
 ```
 

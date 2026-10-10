@@ -2,7 +2,7 @@
 //   list<string> history   newest first, unique, bounded        (read-only)
 //   string       state     "loading"|"ready"|"unavailable"      (read-only)
 //   copy(string text)
-//     Pre:  text satisfies clipboard.isUsableText (otherwise ignored).
+//     Pre:  text satisfies clipboard.isUsableText (ValidationError otherwise).
 //     Post: text is the system selection and history[0] once it is observed back.
 //   remove(string text)    Post: text is no longer in history.
 //   clear()                Post: history is empty (the live selection is untouched).

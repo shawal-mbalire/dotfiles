@@ -12,7 +12,8 @@ import QtQml
 import Quickshell
 import Quickshell.Io
 import "../../domain/ports"
-import "../../domain/models/clipboard.js" as Clip
+import "../../domain/models"
+import "../../domain/errors"
 
 ClipboardPort {
   id: root
@@ -36,15 +37,20 @@ ClipboardPort {
     if (root.restored) store.setText(JSON.stringify(root.history))
   }
 
+  // Watcher input is untrusted: unusable selections are dropped here, by design.
   function record(text) {
-    if (!Clip.isUsableText(text)) return
-    history = Clip.pushUnique(history, text, maxItems)
+    if (!ClipboardModel.isUsableText(text)) return
+    history = ClipboardModel.pushUnique(history, text, maxItems)
+    Errors.postcondition(ClipboardModel.holdsInvariant(history, maxItems), "clipboard.history-invariant",
+                         "history must be usable, unique and bounded", { size: history.length })
     state = "ready"
     persist()
   }
 
+  // Pre: text is usable (ValidationError otherwise).
   function copy(text) {
-    if (!Clip.isUsableText(text)) return
+    Errors.precondition(ClipboardModel.isUsableText(text), "clipboard.text-unusable",
+                        "copy needs usable text", { length: text ? text.length : 0 })
     // Detached: wl-copy forks a server that must outlive this call (and reloads).
     Quickshell.execDetached(["wl-copy", "--", text])
     record(text)
@@ -66,7 +72,7 @@ ClipboardPort {
 
   function restore() {
     try {
-      const saved = Clip.restore(JSON.parse(store.text() || "[]"), root.maxItems)
+      const saved = ClipboardModel.restore(JSON.parse(store.text() || "[]"), root.maxItems)
       // Anything copied before the file finished loading stays on top.
       root.history = root.history.concat(saved.filter(t => !root.history.includes(t))).slice(0, root.maxItems)
       if (root.history.length > 0) root.state = "ready"

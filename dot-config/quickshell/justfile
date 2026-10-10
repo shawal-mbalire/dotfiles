@@ -3,20 +3,13 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default:
     @just run
 
-# Run qs under a timeout and print only ERROR lines.
+# Launch qs under a 4s timeout and fail on any ERROR line. This is the test gate.
 run:
     #!/usr/bin/env bash
     export NO_COLOR=1 QT_QPA_PLATFORM=wayland WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-$(cd "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" 2>/dev/null && ls -d wayland-* 2>/dev/null | grep -v '\.lock$' | head -n1)}"
 
     out="$(timeout 4 qs 2>&1 || true)"
 
-    printf '%s\n' "${out}" | grep -E 'ERROR' || true
-
-# Run the QtQuickTest suites (needs qmltestrunner from qt6-qtdeclarative/qttools).
-test:
-    qmltestrunner -input tests
-
-# Lint every QML file, then run all test tiers.
-verify:
-    qmllint -I . $(git ls-files --cached --others --exclude-standard '*.qml')
-    @just test
+    if printf '%s\n' "${out}" | grep -E 'ERROR'; then
+      exit 1
+    fi

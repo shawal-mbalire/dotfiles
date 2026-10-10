@@ -4,6 +4,8 @@
 import QtQml
 import Quickshell
 import "../../domain/ports"
+import "../../domain/models"
+import "../../domain/errors"
 
 LaunchPort {
   id: root
@@ -19,11 +21,14 @@ LaunchPort {
       genericName: e.genericName,
       comment: e.comment,
       keywords: Array.from(e.keywords ?? []),
-      iconSource: e.icon ? Quickshell.iconPath(e.icon, true) : ""
+      icon: e.icon
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
+  // Pre: id is a non-empty string. An unknown id is an expected outcome: false.
   function launch(id) {
+    Errors.precondition(Contracts.isNonEmptyString(id), "launch.id-empty",
+                        "desktop entry id must be a non-empty string", { id: id })
     const entry = DesktopEntries.byId(id)
     if (!entry) {
       console.warn("[launcher] unknown desktop entry", id)

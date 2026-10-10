@@ -5,6 +5,7 @@
 import QtQml
 import Quickshell.Io
 import "../../domain/ports"
+import "../../domain/errors"
 import "../../domain/constants"
 
 WallpaperPort {
@@ -55,12 +56,16 @@ WallpaperPort {
     listProc.running = true
   }
 
+  // Pre: path is an entry of `wallpapers`.
   function set(path) {
-    if (!path) return
+    const index = root.wallpapers.indexOf(path)
+    Errors.precondition(index >= 0, "wallpaper.unknown", "wallpaper is not in the scanned directory",
+                        { path: path })
     root.current = path
-    root.currentIndex = root.wallpapers.indexOf(path)
-    // hyprpaper IPC: "<monitor>,<path>"; an empty monitor applies to all.
-    applyProc.command = ["hyprctl", "hyprpaper", "wallpaper", "," + path]
+    root.currentIndex = index
+    // hyprpaper 0.7+ only applies images that were preloaded first. The
+    // wallpaper IPC is "<monitor>,<path>"; an empty monitor applies to all.
+    applyProc.command = ["sh", "-c", 'hyprctl hyprpaper preload "$1" && hyprctl hyprpaper wallpaper ",$1"', "sh", path]
     applyProc.running = false
     applyProc.running = true
   }

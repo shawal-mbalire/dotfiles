@@ -2,7 +2,7 @@
 //   var    wallpapers   string[] absolute paths, populated by refresh()
 //   string current      currently applied wallpaper path, "" when none
 //   refresh()           re-scan the configured directory into `wallpapers`
-//   set(string path)    Pre: path is an entry of `wallpapers`.
+//   set(string path)    Pre: path is an entry of `wallpapers` (ValidationError otherwise).
 //                       Post: current == path, hyprpaper applied it.
 //   next() / previous() step through `wallpapers`, wrapping.
 //   random()            apply a uniformly random entry.

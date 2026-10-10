@@ -7,6 +7,8 @@
 import QtQml
 import Quickshell.Services.Mpris
 import "../../domain/ports"
+import "../../domain/models"
+import "../../domain/errors"
 
 MediaPort {
   id: root
@@ -44,8 +46,14 @@ MediaPort {
     if (canPrevious) player.previous()
   }
 
+  // Pre: seconds is a finite number >= 0.
   function seekTo(seconds) {
-    if (!canSeek || !player.positionSupported || !Number.isFinite(seconds)) return
+    Errors.precondition(Contracts.isNonNegative(seconds), "media.seek-invalid",
+                        "seek position must be a finite number >= 0", { seconds: seconds })
+    if (!canSeek || !player.positionSupported) {
+      console.warn("[media] seek ignored: player cannot seek")
+      return
+    }
     player.position = Math.max(0, Math.min(length, seconds))
   }
 }

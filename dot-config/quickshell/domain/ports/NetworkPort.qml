@@ -12,7 +12,8 @@
 //   setScanning(bool)           Post: `networks` is kept live while true. Callers
 //                               must set it back to false when they stop showing it.
 //   connectTo(string name)
-//     Pre:  name is an entry of `networks`.
+//     Pre:  name is a non-empty string (ValidationError otherwise). An unknown
+//           name is an expected outcome: exactly one connectionFailed.
 //     Post: connected/ssid follow on success, else exactly one connectionFailed(name, …).
 //   connectWithPsk(string name, string psk)
 //     Pre:  as connectTo, psk non-empty. Post: as connectTo.

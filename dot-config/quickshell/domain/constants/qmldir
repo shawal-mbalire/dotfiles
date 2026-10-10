@@ -1,3 +1,5 @@
+singleton Bounds 1.0 Bounds.qml
 singleton ColorScheme 1.0 ColorScheme.qml
 singleton TrayPolicy 1.0 TrayPolicy.qml
 singleton WallpaperPolicy 1.0 WallpaperPolicy.qml
+singleton WorkspacePolicy 1.0 WorkspacePolicy.qml

@@ -2,7 +2,7 @@
 import QtQml
 import Quickshell.Services.UPower
 import "../../domain/ports"
-import "../../domain/models/duration.js" as Duration
+import "../../domain/models"
 
 BatteryPort {
   id: root

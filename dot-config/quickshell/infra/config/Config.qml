@@ -9,4 +9,6 @@ import QtQuick
 QtObject {
   readonly property string home: Quickshell.env("HOME")
   readonly property string wallpaperDir: home + "/wallpapers"
+  // node.name of the sink to keep as default (see `wpctl status`); "" leaves the system choice.
+  readonly property string preferredSink: Quickshell.env("QS_PREFERRED_SINK") || ""
 }

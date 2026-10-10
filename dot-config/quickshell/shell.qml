@@ -6,27 +6,35 @@ import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
 
-import "Bar"
-import "Menus"
-import "Shared"
 import "infra/config"
+import "adapters/driving/Bar"
+import "adapters/driving/ControlCenter"
+import "adapters/driving/Menus"
+import "adapters/driving/Notifications"
+import "adapters/driving/Shared"
 import "adapters/driven"
+import "domain/workflows"
 
 ShellRoot {
   id: root
 
   // ── Driven adapters (one instance each, shared by every screen) ──────────
-  PipewireAudioAdapter { id: audio }
+  PipewireAudioAdapter { id: audio; preferredSink: Config.preferredSink }
   UPowerBatteryAdapter { id: battery }
   BluezBluetoothAdapter { id: bluetooth }
   SysfsBrightnessAdapter { id: brightness; device: "intel_backlight" }
   NetworkingWifiAdapter { id: network }
-  GammastepNightLightAdapter { id: nightLight; temperature: 16000 }
+  GammastepColorCorrectionAdapter { id: colorCorrection; temperature: 16000 }
+  PowerProfilesAdapter { id: powerProfiles }
   WlClipboardAdapter { id: clipboard; maxItems: 50; storePath: Quickshell.statePath("clipboard.json") }
   DesktopEntriesLaunchAdapter { id: launcher; terminalCommand: ["kitty", "-e"] }
   MprisMediaAdapter { id: media }
   PipewireToneAdapter { id: feedback }
   HyprlandWallpaperAdapter { id: wallpaper; directory: Config.wallpaperDir }
+  NotificationServerAdapter { id: notificationFeed; maxVisible: 5; maxHistory: 20 }
+  HyprlandWorkspaceAdapter { id: workspaces }
+
+  ConnectionNoticeWorkflow { bluetoothPort: bluetooth; networkPort: network; feedPort: notificationFeed }
 
   // ── Auto-hidden bar ──────────────────────────────────────────────────────
   // Hidden until the pointer reaches the top (Bar/TopEdgeReveal), enters the
@@ -84,6 +92,12 @@ ShellRoot {
     function toggle(): void { root.toggleBar() }
   }
 
+  // Called by the brightness keybinds after they change the backlight.
+  IpcHandler {
+    target: "brightness"
+    function refresh(): void { brightness.refresh() }
+  }
+
   IpcHandler {
     target: "menu"
     function toggle(): void { menuSlot.toggle(root.focusedScreen()) }
@@ -136,7 +150,7 @@ ShellRoot {
     function onVolumeChanged() {
       if (!root.levelFeedbackReady || controlCenterSlot.open) return
       root.showOsd("volume", audio.volume)
-      feedback.playTone(audio.volume)
+      if (!audio.muted && feedback.available) feedback.playTone(audio.volume)
     }
   }
 
@@ -148,15 +162,12 @@ ShellRoot {
     }
   }
 
-  // ── Colour scheme sync with GNOME settings ───────────────────────────────
-  // Reading/monitoring is an infra concern (infra/config/ColorSchemeWatcher);
-  // writing back when the user toggles the control center pill stays here.
-  ColorSchemeWatcher {}
-
-  function setDarkMode(enabled) {
-    Theme.darkMode = enabled
-    Quickshell.execDetached(["gsettings", "set", "org.gnome.desktop.interface", "color-scheme",
-                             enabled ? "prefer-dark" : "prefer-light"])
+  // ── Colour scheme: the adapter owns the desktop setting, Theme only renders it
+  GnomeColorSchemeAdapter { id: colorScheme }
+  Binding {
+    target: Theme
+    property: "darkMode"
+    value: colorScheme.darkMode
   }
 
   // ── Bar, one per screen ──────────────────────────────────────────────────
@@ -174,6 +185,8 @@ ShellRoot {
         right: true
       }
 
+      // Auto-hiding: must not reserve space, or tiled windows reflow on every hide.
+      exclusiveZone: 0
       implicitHeight: Theme.barHeight
       color: Theme.mantle
 
@@ -197,7 +210,7 @@ ShellRoot {
           anchors.verticalCenter: parent.verticalCenter
           spacing: 6
 
-          Workspaces {}
+          Workspaces { workspacePort: workspaces }
           SystemTray {}
         }
 
@@ -211,7 +224,7 @@ ShellRoot {
           anchors.verticalCenter: parent.verticalCenter
           spacing: 20
 
-          Gammastep { nightLightPort: nightLight }
+          ColorCorrection { colorCorrectionPort: colorCorrection }
           Network { networkPort: network }
           Bluetooth { bluetoothPort: bluetooth }
           Volume { audioPort: audio }
@@ -252,7 +265,7 @@ ShellRoot {
   }
 
   // ── Notification popups (single daemon) ──────────────────────────────────
-  Notifications { id: notifications }
+  Notifications { feedPort: notificationFeed }
 
   // ── Overlays: created on open, destroyed after their exit animation ──────
   LazyLoader {
@@ -290,16 +303,17 @@ ShellRoot {
       batteryPort: battery
       networkPort: network
       bluetoothPort: bluetooth
-      nightLightPort: nightLight
+      colorCorrectionPort: colorCorrection
+      powerProfilePort: powerProfiles
+      colorSchemePort: colorScheme
       mediaPort: media
-      notificationHistory: notifications.history
+      notificationHistory: notificationFeed.history
       onCloseRequested: controlCenterSlot.close()
       onCloseFinished: {
         controlCenterSlot.unmount()
         root.updateBar()
       }
-      onDarkModeRequested: enabled => root.setDarkMode(enabled)
-      onClearNotificationsRequested: notifications.clearHistory()
+      onClearNotificationsRequested: notificationFeed.clearHistory()
     }
   }
 

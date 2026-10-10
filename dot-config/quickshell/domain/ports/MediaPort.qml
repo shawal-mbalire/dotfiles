@@ -19,9 +19,9 @@
 //   next()            skip forward.                    No-op unless canNext.
 //   previous()        skip back.                       No-op unless canPrevious.
 //   seekTo(seconds)   seek to an absolute position.
-//     Pre:  seconds is finite.
+//     Pre:  seconds is a finite number >= 0 (ValidationError otherwise).
 //     Post: position == clamp(seconds, 0, length) once the player confirms.
-//           No-op unless canSeek.
+//           Logged no-op unless canSeek.
 import QtQml
 
 QtObject {
