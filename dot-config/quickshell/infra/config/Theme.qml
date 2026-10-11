@@ -32,6 +32,11 @@ QtObject {
   readonly property color mantle: darkMode ? "#181825" : "#e6e9ef"
   readonly property color crust: darkMode ? "#11111b" : "#dce0e8"
 
+  // Frosted glass: panel fills are translucent so Hyprland's blur shows through
+  // (layer rule in hypr/lua/looknfeel.lua).
+  readonly property real glassOpacity: 0.75
+  function glass(c) { return Qt.rgba(c.r, c.g, c.b, glassOpacity) }
+
   // Fonts
   readonly property string font: "Comfortaa"
   readonly property string nerdFont: "Hack Nerd Font"
@@ -40,6 +45,10 @@ QtObject {
 
   // Layout
   readonly property int barHeight: 30
+  // Top-right hot corner and the top-edge reveal strip. The strip leaves the
+  // corner's width free, so the two share these tokens and cannot drift apart.
+  readonly property int hotCornerWidth: 80
+  readonly property int edgeStripHeight: 4
 
   // Shape — 5px structural radius (see AGENTS.md §3). Pills/circles stay full-round.
   readonly property int radius: 5

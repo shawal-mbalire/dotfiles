@@ -2,8 +2,8 @@
 //
 // Sliding the pointer to the very top reveals the auto-hidden bar. The rightmost
 // `cornerReserve` px are left to Bar/HotCorner, so the two input regions never
-// overlap. It lives on the Overlay layer so it works whether or not the bar is
-// currently mapped.
+// overlap. It is always mapped, so it works whether or not the bar is currently shown.
+import "../../../infra/config"
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
@@ -16,8 +16,8 @@ PanelWindow {
   screen: modelData
 
   // Leave the top-right hot corner to Bar/HotCorner.
-  property int cornerReserve: 80
-  property int stripHeight: 4
+  property int cornerReserve: Theme.hotCornerWidth
+  property int stripHeight: Theme.edgeStripHeight
 
   signal hoverEntered()
   signal hoverExited()
@@ -33,7 +33,9 @@ PanelWindow {
   color: "transparent"
   exclusiveZone: 0
   WlrLayershell.namespace: "quickshell:bar-reveal"
-  WlrLayershell.layer: WlrLayer.Overlay
+  // Top, not Overlay: the strip stays under fullscreen windows instead of blocking
+  // their top edge. The bar is also on Top, so the reveal works wherever the bar does.
+  WlrLayershell.layer: WlrLayer.Top
   WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
   Item {

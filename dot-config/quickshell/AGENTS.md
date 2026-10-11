@@ -340,7 +340,7 @@ Audio (`pipewire/`), Battery (`upower/`), Bluetooth (`bluetooth/`), Brightness
 (`brightness/`), Network (`network/`), ColorCorrection (`gammastep/`), Clipboard
 (`wl-clipboard/`), Launch (`desktop-entries/`), Power profiles (`upower/`),
 colour scheme (`gsettings/`), Notifications (`NotificationServerAdapter`),
-Workspaces (`HyprlandWorkspaceAdapter`), Wallpapers (`HyprlandWallpaperAdapter`).
+Workspaces (`HyprlandWorkspaceAdapter`), Wallpapers (`DirectoryWallpaperAdapter` for the selection, `Shared/WallpaperBackground.qml` for drawing; no hyprpaper).
 Pure helpers live in `domain/models/*.qml` singletons. Views live under
 `adapters/driving/` and consume ports only.
 Not yet migrated: system tray (`Bar/SystemTray.qml` still uses `Quickshell.Services.SystemTray`
@@ -394,7 +394,8 @@ directly; its menus need a decision on how `QsMenuAnchor` handles cross the port
 - `QS_PREFERRED_SINK=<node.name>` names the fallback sink (the `node.name` is in
   `pw-cli`/`wpctl`, e.g. `alsa_output....HiFi__Speaker__sink`). When the default is not
   eligible, the adapter steers it there, or else to the first eligible sink.
-  `hypr/lua/autostart.lua` sets it when it starts `qs`.
+  `hypr/lua/env.lua` exports it (with `QS_BACKLIGHT` and `QS_COLOR_TEMPERATURE`), and
+  `infra/config/Config.qml` is the only file that reads them.
 - Choose the default in the shell with `setDefaultSink(name)`, which also updates the
   preference. Never write to Pipewire from a view.
 

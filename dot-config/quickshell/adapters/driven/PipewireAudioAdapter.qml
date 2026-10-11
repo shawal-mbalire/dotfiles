@@ -78,6 +78,22 @@ AudioPort {
     sink.audio.volume = percent / 100
   }
 
+  // Pre: delta is finite. Moves the level, clamped to 0..ceiling; a level already
+  // above the ceiling can still be lowered by a step.
+  function step(delta) {
+    Errors.precondition(Number.isFinite(delta), "audio.step-type",
+                        "step must be a finite number", { delta: delta })
+    setVolume(Math.max(0, Math.min(maxVolume, volume + delta)))
+  }
+
+  function toggleSourceMuted() {
+    if (!source || !source.audio) {
+      console.warn("[audio] toggleSourceMuted ignored: no default input")
+      return
+    }
+    source.audio.muted = !source.audio.muted
+  }
+
   // Pre: value is a boolean.
   function setMuted(value) {
     Errors.precondition(Contracts.isBool(value), "audio.muted-type",

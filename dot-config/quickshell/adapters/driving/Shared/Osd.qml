@@ -13,6 +13,7 @@ PanelWindow {
 
   property string kind: "volume" // "volume" | "brightness"
   property int level: 0
+  property bool muted: false
   property bool active: false
 
   readonly property bool isBrightness: kind === "brightness"
@@ -23,12 +24,13 @@ PanelWindow {
       if (level < 67) return String.fromCodePoint(0xF00DE)
       return String.fromCodePoint(0xF00E0)
     }
+    if (muted) return String.fromCodePoint(0xF075F)
     if (level <= 0) return String.fromCodePoint(0xF0581)
     if (level < 34) return String.fromCodePoint(0xF057F)
     if (level < 67) return String.fromCodePoint(0xF0580)
     return String.fromCodePoint(0xF057E)
   }
-  readonly property color accent: isBrightness ? Theme.peach : Theme.yellow
+  readonly property color accent: isBrightness ? Theme.peach : muted ? Theme.overlay1 : Theme.yellow
 
   color: "transparent"
   implicitWidth: 260
@@ -91,7 +93,7 @@ PanelWindow {
       }
 
       Text {
-        text: root.level + "%"
+        text: root.muted && !root.isBrightness ? "Muted" : root.level + "%"
         color: Theme.text
         font { family: Theme.font; pixelSize: 13; weight: 800 }
       }

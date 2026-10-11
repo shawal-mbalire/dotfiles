@@ -6,6 +6,7 @@
 // Each visit fires `triggered()` at most once, and leaving re-arms it.
 // It is a separate surface from the top-edge strip (which reserves this width),
 // so corner detection never depends on hit-testing math or stacking order.
+import "../../../infra/config"
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
@@ -17,8 +18,8 @@ PanelWindow {
   property var modelData
   screen: modelData
 
-  property int zoneWidth: 80
-  property int zoneHeight: 4
+  property int zoneWidth: Theme.hotCornerWidth
+  property int zoneHeight: Theme.edgeStripHeight
   property int dwellMs: 180
 
   signal hoverEntered()
@@ -35,7 +36,8 @@ PanelWindow {
   color: "transparent"
   exclusiveZone: 0
   WlrLayershell.namespace: "quickshell:hot-corner"
-  WlrLayershell.layer: WlrLayer.Overlay
+  // Top, not Overlay, so it does not sit over fullscreen windows (see TopEdgeReveal).
+  WlrLayershell.layer: WlrLayer.Top
   WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
   Timer {

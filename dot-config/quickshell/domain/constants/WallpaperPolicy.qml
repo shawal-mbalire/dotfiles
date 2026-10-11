@@ -15,6 +15,13 @@ QtObject {
     return extensions.indexOf(path.slice(dot + 1).toLowerCase()) >= 0
   }
 
+  // file:// URL for an absolute path, with each segment percent-encoded so spaces
+  // and '#' or '?' in file names load. "" for "" (nothing to show).
+  function toFileUrl(path) {
+    if (!path) return ""
+    return "file://" + path.split("/").map(encodeURIComponent).join("/")
+  }
+
   function joinPath(dir, name) {
     if (!dir) return name
     return dir.charAt(dir.length - 1) === "/" ? dir + name : dir + "/" + name

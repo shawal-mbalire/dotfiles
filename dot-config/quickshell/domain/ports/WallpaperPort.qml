@@ -3,7 +3,7 @@
 //   string current      currently applied wallpaper path, "" when none
 //   refresh()           re-scan the configured directory into `wallpapers`
 //   set(string path)    Pre: path is an entry of `wallpapers` (ValidationError otherwise).
-//                       Post: current == path, hyprpaper applied it.
+//                       Post: current == path. Drawn by Shared/WallpaperBackground.
 //   next() / previous() step through `wallpapers`, wrapping.
 //   random()            apply a uniformly random entry.
 //

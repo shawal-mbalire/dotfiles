@@ -3,10 +3,12 @@
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import Quickshell.Wayland
 import QtQuick
 import QtQuick.Layouts
 
 import "infra/config"
+import "domain/constants"
 import "adapters/driving/Bar"
 import "adapters/driving/ControlCenter"
 import "adapters/driving/Menus"
@@ -22,15 +24,15 @@ ShellRoot {
   PipewireAudioAdapter { id: audio; preferredSink: Config.preferredSink }
   UPowerBatteryAdapter { id: battery }
   BluezBluetoothAdapter { id: bluetooth }
-  SysfsBrightnessAdapter { id: brightness; device: "intel_backlight" }
+  SysfsBrightnessAdapter { id: brightness; device: Config.backlight }
   NetworkingWifiAdapter { id: network }
-  GammastepColorCorrectionAdapter { id: colorCorrection; temperature: 16000 }
+  GammastepColorCorrectionAdapter { id: colorCorrection; temperature: Config.colorTemperature }
   PowerProfilesAdapter { id: powerProfiles }
   WlClipboardAdapter { id: clipboard; maxItems: 50; storePath: Quickshell.statePath("clipboard.json") }
   DesktopEntriesLaunchAdapter { id: launcher; terminalCommand: ["kitty", "-e"] }
   MprisMediaAdapter { id: media }
   PipewireToneAdapter { id: feedback }
-  HyprlandWallpaperAdapter { id: wallpaper; directory: Config.wallpaperDir }
+  DirectoryWallpaperAdapter { id: wallpaper; directory: Config.wallpaperDir; autoApply: true }
   NotificationServerAdapter { id: notificationFeed; maxVisible: 5; maxHistory: 20 }
   HyprlandWorkspaceAdapter { id: workspaces }
 
@@ -48,10 +50,14 @@ ShellRoot {
   property bool cornerHovered: false
   property int barHideDelay: 500
 
-  function updateBar() {
+  // immediate: hide now instead of after barHideDelay (used once the control center has closed).
+  function updateBar(immediate) {
     if (barPinned || barHovered || stripHovered || cornerHovered || controlCenterSlot.open) {
       barHideTimer.stop()
       barVisible = true
+    } else if (immediate) {
+      barHideTimer.stop()
+      barVisible = false
     } else {
       barHideTimer.restart()
     }
@@ -92,9 +98,22 @@ ShellRoot {
     function toggle(): void { root.toggleBar() }
   }
 
-  // Called by the brightness keybinds after they change the backlight.
+  // Volume and mic keys go through the audio adapter, so the volume ceiling,
+  // sink eligibility and the OSD all apply.
+  IpcHandler {
+    target: "audio"
+    function up(): void { audio.step(Bounds.volumeStep) }
+    function down(): void { audio.step(-Bounds.volumeStep) }
+    function toggleMute(): void { audio.setMuted(!audio.muted) }
+    function toggleMicMute(): void { audio.toggleSourceMuted() }
+  }
+
+  // Brightness keys step the shell's own level, so the curve, the OSD and the
+  // readout all come from one place.
   IpcHandler {
     target: "brightness"
+    function up(): void { brightness.step(Bounds.brightnessStep) }
+    function down(): void { brightness.step(-Bounds.brightnessStep) }
     function refresh(): void { brightness.refresh() }
   }
 
@@ -121,6 +140,7 @@ ShellRoot {
   // keys); the control center's own sliders are their own feedback.
   property string osdKind: "volume"
   property int osdLevel: 0
+  property bool osdMuted: false
   property bool osdActive: false
   // Ignore the initial 0 -> real sink/brightness values at startup.
   property bool levelFeedbackReady: false
@@ -138,9 +158,10 @@ ShellRoot {
     onTriggered: root.osdActive = false
   }
 
-  function showOsd(kind, level) {
+  function showOsd(kind, level, muted) {
     root.osdKind = kind
     root.osdLevel = Math.round(level)
+    root.osdMuted = muted === true
     root.osdActive = true
     osdHide.restart()
   }
@@ -149,8 +170,12 @@ ShellRoot {
     target: audio
     function onVolumeChanged() {
       if (!root.levelFeedbackReady || controlCenterSlot.open) return
-      root.showOsd("volume", audio.volume)
+      root.showOsd("volume", audio.volume, audio.muted)
       if (!audio.muted && feedback.available) feedback.playTone(audio.volume)
+    }
+    function onMutedChanged() {
+      if (!root.levelFeedbackReady || controlCenterSlot.open) return
+      root.showOsd("volume", audio.volume, audio.muted)
     }
   }
 
@@ -175,9 +200,37 @@ ShellRoot {
     model: Quickshell.screens
 
     PanelWindow {
+      id: barWindow
       required property var modelData
       screen: modelData
-      visible: root.barVisible
+
+      // Stays mapped through the exit slide, like the control center, then unmaps.
+      property bool shown: root.barVisible
+      property bool mounted: false
+      visible: mounted
+      onShownChanged: {
+        if (shown) {
+          mounted = true
+          barExit.stop()
+          barEnter.restart()
+        } else {
+          barEnter.stop()
+          barExit.restart()
+        }
+      }
+
+      ParallelAnimation {
+        id: barEnter
+        NumberAnimation { target: barSlide; property: "y"; to: 0; duration: Theme.animSlow; easing.type: Theme.easeOut }
+        NumberAnimation { target: barPanel; property: "opacity"; to: 1; duration: Theme.animNormal; easing.type: Theme.easeOut }
+      }
+
+      ParallelAnimation {
+        id: barExit
+        NumberAnimation { target: barSlide; property: "y"; to: -Theme.barHeight; duration: Theme.animFast; easing.type: Theme.easeIn }
+        NumberAnimation { target: barPanel; property: "opacity"; to: 0; duration: Theme.animFast; easing.type: Theme.easeIn }
+        onFinished: if (!barWindow.shown) barWindow.mounted = false
+      }
 
       anchors {
         top: true
@@ -187,13 +240,19 @@ ShellRoot {
 
       // Auto-hiding: must not reserve space, or tiled windows reflow on every hide.
       exclusiveZone: 0
+      // Clicks pass through the empty area while the bar is sliding out of view.
+      mask: Region { item: barPanel }
       implicitHeight: Theme.barHeight
-      color: Theme.mantle
+      color: Theme.glass(Theme.mantle)
+      WlrLayershell.namespace: "quickshell:bar"
 
       // Full-bleed so the hover handler covers the whole bar, not just the
       // content inset; margins move to the left/right groups.
       Item {
+        id: barPanel
         anchors.fill: parent
+        opacity: 0
+        transform: Translate { id: barSlide; y: -Theme.barHeight }
 
         // Keep the bar up while the pointer is on it; hiding is deferred so the
         // pointer can travel between the bar and the top-edge strip.
@@ -261,6 +320,7 @@ ShellRoot {
     screen: root.focusedScreen()
     kind: root.osdKind
     level: root.osdLevel
+    muted: root.osdMuted
     active: root.osdActive
   }
 
@@ -311,11 +371,18 @@ ShellRoot {
       onCloseRequested: controlCenterSlot.close()
       onCloseFinished: {
         controlCenterSlot.unmount()
-        root.updateBar()
+        root.updateBar(true)
       }
       onClearNotificationsRequested: notificationFeed.clearHistory()
     }
   }
 
   Wallpapers { wallpaperPort: wallpaper }
+
+  // ── Wallpaper, one background surface per screen ─────────────────────────
+  Variants {
+    model: Quickshell.screens
+
+    WallpaperBackground { wallpaperPort: wallpaper }
+  }
 }

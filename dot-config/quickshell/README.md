@@ -98,7 +98,7 @@ Quickshell runs for days at a time, so the design favours events over loops:
   polls them.
 - **Polling only where the kernel offers no events.** Brightness reads a sysfs file
   with `FileView.reload()` every two seconds, and the Hyprland brightness keys call
-  `qs ipc call brightness refresh` so the shell updates at once. The poll is only a
+  `qs ipc call brightness up|down` so the shell steps its own level and updates at once. The poll is only a
   fallback. The shell and the keys share brightnessctl's `-e4` curve
   (`domain/models/BrightnessCurve.qml`), so the readout matches what the keys set.
   Gammastep is checked with `pgrep` once a minute and whenever the control center

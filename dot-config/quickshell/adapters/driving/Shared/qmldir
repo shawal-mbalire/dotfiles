@@ -8,3 +8,4 @@ Osd 1.0 Osd.qml
 MediaButton 1.0 MediaButton.qml
 DismissGrab 1.0 DismissGrab.qml
 OverlaySlot 1.0 OverlaySlot.qml
+WallpaperBackground 1.0 WallpaperBackground.qml

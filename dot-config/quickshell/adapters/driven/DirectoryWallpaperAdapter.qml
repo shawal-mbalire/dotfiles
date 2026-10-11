@@ -1,7 +1,8 @@
-// adapters/driven/HyprlandWallpaperAdapter.qml
-// Driven adapter: WallpaperPort ← hyprpaper, driven through `hyprctl`. It lists
-// a configured directory and applies the chosen image. All path/selection logic
-// is pure (domain/constants/WallpaperPolicy.qml); this file is only I/O.
+// adapters/driven/DirectoryWallpaperAdapter.qml
+// Driven adapter: WallpaperPort over a plain directory. It lists the configured
+// directory and tracks which image is current. Drawing the image is a view's job
+// (Shared/WallpaperBackground.qml). All path/selection logic is pure
+// (domain/constants/WallpaperPolicy.qml); this file is only I/O.
 import QtQml
 import Quickshell.Io
 import "../../domain/ports"
@@ -40,14 +41,6 @@ WallpaperPort {
     }
   }
 
-  Process {
-    id: applyProc
-    running: false
-    onExited: (code, status) => {
-      if (code !== 0) console.warn("[Wallpaper] apply failed with code", code)
-    }
-  }
-
   function refresh() {
     root.wallpapers = []
     root.scanned = false
@@ -57,17 +50,13 @@ WallpaperPort {
   }
 
   // Pre: path is an entry of `wallpapers`.
+  // Post: current == path.
   function set(path) {
     const index = root.wallpapers.indexOf(path)
     Errors.precondition(index >= 0, "wallpaper.unknown", "wallpaper is not in the scanned directory",
                         { path: path })
     root.current = path
     root.currentIndex = index
-    // hyprpaper 0.7+ only applies images that were preloaded first. The
-    // wallpaper IPC is "<monitor>,<path>"; an empty monitor applies to all.
-    applyProc.command = ["sh", "-c", 'hyprctl hyprpaper preload "$1" && hyprctl hyprpaper wallpaper ",$1"', "sh", path]
-    applyProc.running = false
-    applyProc.running = true
   }
 
   function next() {

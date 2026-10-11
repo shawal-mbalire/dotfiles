@@ -67,10 +67,17 @@ Overlay {
   }
 
   Component.onCompleted: colorCorrectionPort.refresh()
-  Component.onDestruction: if (showNetworks) networkPort.setScanning(false)
+  Component.onDestruction: {
+    if (showNetworks) networkPort.setScanning(false)
+    if (expandedCard === "bt") bluetoothPort.setDiscovering(false)
+  }
 
   // The network list is live exactly while its tile is open.
-  onExpandedCardChanged: root.showNetworks = (root.expandedCard === "network")
+  onExpandedCardChanged: {
+    root.showNetworks = (root.expandedCard === "network")
+    if (root.expandedCard === "bt") root.bluetoothPort.setDiscovering(true)
+    else if (root.bluetoothPort.discovering) root.bluetoothPort.setDiscovering(false)
+  }
 
   onShowNetworksChanged: {
     // networkPort may not be injected yet while the component initializes.
@@ -117,7 +124,7 @@ Overlay {
     anchors.right: parent.right
     anchors.top: parent.top
     height: Math.min(col.implicitHeight + Theme.padding * 2, parent.height)
-    color: Theme.base
+    color: Theme.glass(Theme.base)
     radius: Theme.radiusLg
     border.color: Theme.surface1
     border.width: 1
@@ -375,16 +382,31 @@ Overlay {
                 : root.bluetoothPort.connectedName !== "" ? root.bluetoothPort.connectedName
                 : "On"
 
-            Pill {
+            RowLayout {
               Layout.fillWidth: true
-              icon: String.fromCodePoint(0xF00AF)
-              label: root.bluetoothPort.enabled ? "On" : "Off"
-              checked: root.bluetoothPort.enabled
-              checkedColor: Theme.blue
-              onToggled: checked => root.bluetoothPort.setEnabled(checked)
+              spacing: Theme.spacingSm
+
+              Pill {
+                Layout.fillWidth: true
+                icon: String.fromCodePoint(0xF00AF)
+                label: root.bluetoothPort.enabled ? "On" : "Off"
+                checked: root.bluetoothPort.enabled
+                checkedColor: Theme.blue
+                onToggled: checked => root.bluetoothPort.setEnabled(checked)
+              }
+
+              Pill {
+                Layout.fillWidth: true
+                icon: String.fromCodePoint(0xF0349)
+                label: root.bluetoothPort.discovering ? "Scanning" : "Scan"
+                checked: root.bluetoothPort.discovering
+                enabled: root.bluetoothPort.enabled
+                checkedColor: Theme.blue
+                onToggled: checked => root.bluetoothPort.setDiscovering(checked)
+              }
             }
 
-            // Known (paired) devices with a forget action.
+            // Paired, connected and nearby devices. Forget applies to paired ones only.
             ListView {
               Layout.fillWidth: true
               Layout.preferredHeight: Math.min(root.bluetoothPort.devices.length * 34, 170)
@@ -446,13 +468,15 @@ Overlay {
                   Text {
                     text: btRow.modelData.state === "Connecting" ? "Connecting…"
                         : btRow.modelData.state === "Disconnecting" ? "Disconnecting…"
-                        : btRow.modelData.connected ? "Connected" : ""
+                        : btRow.modelData.connected ? "Connected"
+                        : btRow.modelData.paired ? "" : "Pair"
                     color: btRow.busy ? Theme.yellow : Theme.blue
                     font { family: Theme.font; pixelSize: 10; weight: 600 }
                     visible: text !== ""
                   }
 
                   Text {
+                    visible: btRow.modelData.paired
                     text: "Forget"
                     color: forgetArea.containsMouse ? Theme.red : Theme.overlay0
                     font { family: Theme.font; pixelSize: 10; weight: 700 }
@@ -473,7 +497,7 @@ Overlay {
             Text {
               Layout.fillWidth: true
               visible: root.bluetoothPort.devices.length === 0
-              text: "No saved devices"
+              text: root.bluetoothPort.discovering ? "Scanning…" : "No devices"
               color: Theme.overlay0
               font { family: Theme.font; pixelSize: 11; weight: 600 }
               horizontalAlignment: Text.AlignHCenter

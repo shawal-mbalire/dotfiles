@@ -12,4 +12,8 @@ QtObject {
   readonly property int brightnessExponent: 4
   // Lowest raw backlight value written, so the screen never goes fully dark (brightnessctl -n2).
   readonly property int brightnessMinRaw: 2
+  // Percentage points moved by one volume key press.
+  readonly property int volumeStep: 5
+  // Percentage points moved by one brightness key press.
+  readonly property int brightnessStep: 5
 }

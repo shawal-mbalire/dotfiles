@@ -9,11 +9,6 @@ hl.config({
 
 		border_size = 0,
 
-		col = {
-			active_border = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, angle = 45 },
-			inactive_border = "rgba(595959aa)",
-		},
-
 		-- Set to true to enable resizing windows by clicking and dragging on borders and gaps
 		resize_on_border = false,
 
@@ -49,6 +44,19 @@ hl.config({
 	animations = {
 		enabled = true,
 	},
+})
+
+-- Frosted glass: blur Quickshell's translucent panels (bar, overlays, control
+-- center, notifications, OSD). The edge strips are transparent and the wallpaper
+-- uses the "quickshell-wallpaper" namespace, so both stay out of the rule.
+-- ignore_alpha keeps transparent pixels unblurred. Full-height windows (control
+-- center) would otherwise blur their whole height. It must stay below the glass
+-- opacity in quickshell/infra/config/Theme.qml (0.75).
+hl.layer_rule({
+	name = "quickshell-blur",
+	match = { namespace = "^quickshell:(bar|overlay|menu|clipboard|controlcenter|notifications|osd)$" },
+	blur = true,
+	ignore_alpha = 0.5,
 })
 
 -- Default curves and animations, see https://wiki.hypr.land/configuring/core/animations/
@@ -101,19 +109,5 @@ hl.animation({ leaf = "zoomFactor", enabled = true, speed = 2, bezier = "quick" 
 hl.config({
 	dwindle = {
 		preserve_split = true, -- You probably want this
-	},
-})
-
--- See https://wiki.hypr.land/configuring/layouts/master-layout/ for more
-hl.config({
-	master = {
-		new_status = "master",
-	},
-})
-
--- See https://wiki.hypr.land/configuring/layouts/scrolling-layout/ for more
-hl.config({
-	scrolling = {
-		fullscreen_on_one_column = true,
 	},
 })

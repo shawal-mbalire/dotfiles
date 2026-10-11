@@ -15,11 +15,13 @@ BluetoothPort {
   available: adapter !== null
   enabled: adapter !== null && adapter.enabled
   connectedName: enabled && connectedDevice !== null ? connectedDevice.name : ""
+  discovering: available && adapter.discovering
   devices: available ? adapter.devices.values
-      .filter(device => device.paired || device.connected)
+      .filter(device => device.paired || device.connected || discovering)
       .map(device => ({
         name: device.name !== "" ? device.name : device.deviceName,
         address: device.address,
+        paired: device.paired,
         connected: device.connected,
         state: stateName(device.state)
       }))
@@ -51,6 +53,17 @@ BluetoothPort {
     adapter.enabled = value
   }
 
+  // Pre: value is a boolean.
+  function setDiscovering(value) {
+    Errors.precondition(Contracts.isBool(value), "bluetooth.discovering-type",
+                        "discovering must be a boolean", { value: value })
+    if (!available || !enabled) {
+      if (value) console.warn("[bluetooth] scan ignored: bluetooth is off or no adapter")
+      return
+    }
+    adapter.discovering = value
+  }
+
   // Pre: address is a non-empty string.
   function connectDevice(address) {
     Errors.precondition(Contracts.isNonEmptyString(address), "bluetooth.address-empty",
@@ -60,7 +73,8 @@ BluetoothPort {
       console.warn("[bluetooth] connect ignored: unknown device or no adapter", address)
       return
     }
-    device.connect()
+    if (device.paired) device.connect()
+    else device.pair()
   }
 
   // Pre: address is a non-empty string.

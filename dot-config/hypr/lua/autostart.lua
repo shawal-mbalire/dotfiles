@@ -7,7 +7,10 @@
 -- Or execute your favorite apps at launch like this:
 --
 
+local shell = require("lua.env")
+
 hl.on("hyprland.start", function()
-	hl.exec_cmd("env QS_PREFERRED_SINK=alsa_output.pci-0000_00_1f.3-platform-skl_hda_dsp_generic.HiFi__Speaker__sink qs")
-	hl.exec_cmd("gammastep")
+	-- Restart qs if it exits, so the keybinds (qs ipc call …) keep working.
+	hl.exec_cmd("sh -c 'while true; do qs; sleep 1; done'")
+	hl.exec_cmd("gammastep -m wayland -O " .. shell.colorTemperature)
 end)

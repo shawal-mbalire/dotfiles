@@ -41,7 +41,7 @@ PanelWindow {
     right: true
   }
 
-  margins.top: 60
+  margins.top: Theme.barHeight
   margins.left: Math.max(0, (screen.width - implicitWidth) / 2)
   margins.right: Math.max(0, (screen.width - implicitWidth) / 2)
 
@@ -70,7 +70,7 @@ PanelWindow {
     Rectangle {
       anchors.fill: parent
       visible: root.showBackground
-      color: Theme.base
+      color: Theme.glass(Theme.base)
       radius: Theme.radiusLg
       border.color: Theme.surface1
       border.width: 1

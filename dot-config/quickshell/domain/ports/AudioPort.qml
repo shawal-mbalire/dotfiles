@@ -13,6 +13,11 @@
 //           otherwise). The ceiling is Bounds.volumeMax (100): lowering is always allowed,
 //           raising above the ceiling is refused.
 //     Post: volume == percent once the sink reports back. Logged no-op when !ready.
+//   step(int delta)
+//     Pre:  delta is finite (ValidationError otherwise).
+//     Post: setVolume(clamp(volume + delta, 0..ceiling)). Used by the volume keys.
+//   toggleSourceMuted()
+//     Post: the default input's mute flips. Logged no-op when there is no input.
 //   setMuted(bool muted)
 //     Pre:  muted is a boolean (ValidationError otherwise).
 //     Post: muted == value once the sink reports back. Logged no-op when !ready.
@@ -45,6 +50,8 @@ QtObject {
   default property list<QtObject> resources
 
   function setVolume(percent) {}
+  function step(delta) {}
+  function toggleSourceMuted() {}
   function setMuted(value) {}
   function setDefaultSink(name) {}
   function setDefaultSource(name) {}

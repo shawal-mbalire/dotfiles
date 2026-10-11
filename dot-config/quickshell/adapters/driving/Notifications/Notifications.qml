@@ -28,7 +28,7 @@ Overlay {
     right: false
   }
 
-  margins.top: 8
+  margins.top: Theme.barHeight + 8
   margins.left: 8
 
   visible: feedPort.popups.length > 0
@@ -80,7 +80,7 @@ Overlay {
         width: stack.width
         implicitHeight: content.implicitHeight + Theme.padding * 2
         radius: Theme.radius
-        color: critical ? Theme.surface1 : Theme.base
+        color: Theme.glass(critical ? Theme.surface1 : Theme.base)
         border.color: critical ? Theme.red : Theme.surface1
         border.width: 1
 

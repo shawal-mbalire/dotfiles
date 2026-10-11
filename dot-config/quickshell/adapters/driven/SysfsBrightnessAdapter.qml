@@ -59,6 +59,13 @@ BrightnessPort {
     else write(clamped)
   }
 
+  // Pre: delta is finite. Moves the displayed level, clamped to 0..100.
+  function step(delta) {
+    Errors.precondition(Number.isFinite(delta), "brightness.step-type",
+                        "step must be a finite number", { delta: delta })
+    setPercent(Math.max(Bounds.percentMin, Math.min(Bounds.percentMax, percent + delta)))
+  }
+
   function write(value) {
     settleTimer.restart()
     setProc.exec(["brightnessctl", "--device", device,
