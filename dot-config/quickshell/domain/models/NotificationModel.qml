@@ -83,6 +83,11 @@ QtObject {
     return popups.filter(item => item.key !== key)
   }
 
+  // History entries worth keeping in the control center: critical ones only.
+  function important(history) {
+    return history.filter(item => item.critical)
+  }
+
   function pushHistory(history, entry, receivedAt, maxHistory) {
     const item = {
       key: entry.key,

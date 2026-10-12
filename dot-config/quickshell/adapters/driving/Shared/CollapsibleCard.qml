@@ -57,12 +57,15 @@ Rectangle {
         elide: Text.ElideRight
       }
 
-      Item { Layout.fillWidth: true }
-
+      // Fills the space left of the chevron and elides inside it; a layout only
+      // elides a Text whose width it constrains, so this also replaces a spacer.
       Text {
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
         text: root.summary
         color: Theme.overlay0
         font { family: Theme.font; pixelSize: 10; weight: 600 }
+        horizontalAlignment: Text.AlignRight
         elide: Text.ElideRight
       }
 

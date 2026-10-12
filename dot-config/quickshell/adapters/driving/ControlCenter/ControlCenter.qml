@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Layouts
 import "../Shared"
 import "../../../domain/ports"
+import "../../../domain/models"
 
 // Created on demand by shell.qml (LazyLoader). All device state comes from
 // injected ports, so opening it starts no processes and it polls nothing.
@@ -25,6 +26,7 @@ Overlay {
   required property ColorSchemePort colorSchemePort
   required property MediaPort mediaPort
   property var notificationHistory: []
+  readonly property var importantNotifications: NotificationModel.important(notificationHistory)
 
   signal clearNotificationsRequested()
 
@@ -538,13 +540,8 @@ Overlay {
               Layout.fillWidth: true
               spacing: Theme.spacingSm
 
-              Pill {
-                label: "Saver"
-                checked: root.powerProfilePort.profile === "Saver"
-                checkedColor: Theme.green
-                onToggled: root.powerProfilePort.setProfile("Saver")
-              }
-
+              // Only Balanced and Performance are offered; Saver is still reported
+              // in the summary if the daemon switches to it on its own.
               Pill {
                 label: "Balanced"
                 checked: root.powerProfilePort.profile === "Balanced"
@@ -639,122 +636,6 @@ Overlay {
             }
           }
 
-          // Notifications
-          CollapsibleCard {
-            Layout.fillWidth: true
-            expanded: root.expandedCard === "notif"
-            onToggleRequested: root.toggleCard("notif")
-            icon: String.fromCodePoint(0xF009A)
-            iconColor: Theme.mauve
-            title: "Notifications"
-            summary: root.notificationHistory.length > 0
-              ? root.notificationHistory.length + " earlier" : "None"
-
-            RowLayout {
-              Layout.fillWidth: true
-              visible: root.notificationHistory.length > 0
-              spacing: Theme.spacing
-
-              Text {
-                text: root.notificationHistory.length + " earlier"
-                color: Theme.overlay0
-                font { family: Theme.font; pixelSize: 10; weight: 600 }
-              }
-
-              Item { Layout.fillWidth: true }
-
-              Text {
-                text: "Clear"
-                color: clearArea.containsMouse ? Theme.red : Theme.overlay0
-                font { family: Theme.font; pixelSize: 10; weight: 700 }
-
-                MouseArea {
-                  id: clearArea
-                  anchors.fill: parent
-                  anchors.margins: -6
-                  hoverEnabled: true
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: root.clearNotificationsRequested()
-                }
-              }
-            }
-
-            ListView {
-              Layout.fillWidth: true
-              Layout.preferredHeight: Math.min(root.notificationHistory.length * 42, 168)
-              visible: root.notificationHistory.length > 0
-              clip: true
-              spacing: 4
-              boundsBehavior: Flickable.StopAtBounds
-
-              model: ScriptModel {
-                values: root.notificationHistory
-                objectProp: "key"
-              }
-
-              delegate: Rectangle {
-                id: historyRow
-                required property var modelData
-                width: ListView.view.width
-                height: 38
-                radius: Theme.radiusSm
-                color: Theme.surface1
-
-                RowLayout {
-                  anchors.fill: parent
-                  anchors.margins: Theme.paddingSm
-                  spacing: Theme.spacingSm
-
-                  Rectangle {
-                    implicitWidth: 6
-                    implicitHeight: 6
-                    radius: 3
-                    color: historyRow.modelData.critical ? Theme.red : Theme.blue
-                  }
-
-                  ColumnLayout {
-                    spacing: 0
-                    Layout.fillWidth: true
-
-                    Text {
-                      text: historyRow.modelData.summary
-                      textFormat: Text.PlainText
-                      color: Theme.text
-                      font { family: Theme.font; pixelSize: 11; weight: 700 }
-                      elide: Text.ElideRight
-                      Layout.fillWidth: true
-                    }
-
-                    Text {
-                      text: historyRow.modelData.body !== "" ? historyRow.modelData.body : historyRow.modelData.appName
-                      textFormat: Text.PlainText
-                      color: Theme.overlay0
-                      font { family: Theme.font; pixelSize: 9; weight: 600 }
-                      elide: Text.ElideRight
-                      maximumLineCount: 1
-                      Layout.fillWidth: true
-                      visible: text !== ""
-                    }
-                  }
-
-                  Text {
-                    text: Qt.formatTime(historyRow.modelData.receivedAt, "HH:mm")
-                    color: Theme.overlay0
-                    font { family: Theme.font; pixelSize: 9; weight: 600 }
-                  }
-                }
-              }
-            }
-
-            Text {
-              text: "No notifications"
-              color: Theme.subtext0
-              font { family: Theme.font; pixelSize: 11; weight: 600 }
-              visible: root.notificationHistory.length === 0
-              Layout.fillWidth: true
-              horizontalAlignment: Text.AlignHCenter
-            }
-          }
         }
 
         // ── Media (full width) ─────────────────────────────────────────────
@@ -1038,6 +919,122 @@ Overlay {
           }
         }
 
+        // ── Notifications (full width, last; important ones only) ─────────
+        CollapsibleCard {
+          Layout.fillWidth: true
+          expanded: root.expandedCard === "notif"
+          onToggleRequested: root.toggleCard("notif")
+          icon: String.fromCodePoint(0xF009A)
+          iconColor: Theme.mauve
+          title: "Notifications"
+          summary: root.importantNotifications.length > 0
+            ? root.importantNotifications.length + " important" : "None"
+
+          RowLayout {
+            Layout.fillWidth: true
+            visible: root.importantNotifications.length > 0
+            spacing: Theme.spacing
+
+            Text {
+              text: root.importantNotifications.length + " important"
+              color: Theme.overlay0
+              font { family: Theme.font; pixelSize: 10; weight: 600 }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+              text: "Clear"
+              color: clearArea.containsMouse ? Theme.red : Theme.overlay0
+              font { family: Theme.font; pixelSize: 10; weight: 700 }
+
+              MouseArea {
+                id: clearArea
+                anchors.fill: parent
+                anchors.margins: -6
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.clearNotificationsRequested()
+              }
+            }
+          }
+
+          ListView {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(root.importantNotifications.length * 42, 168)
+            visible: root.importantNotifications.length > 0
+            clip: true
+            spacing: 4
+            boundsBehavior: Flickable.StopAtBounds
+
+            model: ScriptModel {
+              values: root.importantNotifications
+              objectProp: "key"
+            }
+
+            delegate: Rectangle {
+              id: historyRow
+              required property var modelData
+              width: ListView.view.width
+              height: 38
+              radius: Theme.radiusSm
+              color: Theme.surface1
+
+              RowLayout {
+                anchors.fill: parent
+                anchors.margins: Theme.paddingSm
+                spacing: Theme.spacingSm
+
+                Rectangle {
+                  implicitWidth: 6
+                  implicitHeight: 6
+                  radius: 3
+                  color: historyRow.modelData.critical ? Theme.red : Theme.blue
+                }
+
+                ColumnLayout {
+                  spacing: 0
+                  Layout.fillWidth: true
+
+                  Text {
+                    text: historyRow.modelData.summary
+                    textFormat: Text.PlainText
+                    color: Theme.text
+                    font { family: Theme.font; pixelSize: 11; weight: 700 }
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                  }
+
+                  Text {
+                    text: historyRow.modelData.body !== "" ? historyRow.modelData.body : historyRow.modelData.appName
+                    textFormat: Text.PlainText
+                    color: Theme.overlay0
+                    font { family: Theme.font; pixelSize: 9; weight: 600 }
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                    Layout.fillWidth: true
+                    visible: text !== ""
+                  }
+                }
+
+                Text {
+                  text: Qt.formatTime(historyRow.modelData.receivedAt, "HH:mm")
+                  color: Theme.overlay0
+                  font { family: Theme.font; pixelSize: 9; weight: 600 }
+                }
+              }
+            }
+          }
+
+          Text {
+            text: "No important notifications"
+            color: Theme.subtext0
+            font { family: Theme.font; pixelSize: 11; weight: 600 }
+            visible: root.importantNotifications.length === 0
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+          }
+        }
       }
     }
   }
