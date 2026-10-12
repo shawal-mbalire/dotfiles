@@ -3,6 +3,7 @@
 import QtQml
 import "../ports"
 import "../models"
+import "../constants"
 
 QtObject {
   id: root
@@ -11,14 +12,19 @@ QtObject {
   required property NetworkPort networkPort
   required property NotificationFeedPort feedPort
 
-  // Plain values, set once at startup and then only by the handlers below.
-  // A binding here would track the live state and never report a change.
+  // Plain values, set once the startup state has settled and then only by the
+  // handlers below. A binding here would track the live state and never report a change.
+  // While null, changes are the adapters loading what was already connected, not news.
   property var bluetoothSnapshot: null
   property var networkSnapshot: null
 
-  Component.onCompleted: {
-    bluetoothSnapshot = bluetoothConnected()
-    networkSnapshot = networkConnected()
+  property Timer settle: Timer {
+    interval: Bounds.connectionSettleMs
+    running: true
+    onTriggered: {
+      root.bluetoothSnapshot = root.bluetoothConnected()
+      root.networkSnapshot = root.networkConnected()
+    }
   }
 
   function bluetoothConnected() {
@@ -41,6 +47,7 @@ QtObject {
   property Connections bluetoothWatch: Connections {
     target: root.bluetoothPort
     function onDevicesChanged() {
+      if (root.bluetoothSnapshot === null) return
       const next = root.bluetoothConnected()
       root.announce("Bluetooth", ConnectionModel.transitions(root.bluetoothSnapshot, next))
       root.bluetoothSnapshot = next
@@ -50,6 +57,7 @@ QtObject {
   property Connections networkWatch: Connections {
     target: root.networkPort
     function onSsidChanged() {
+      if (root.networkSnapshot === null) return
       const next = root.networkConnected()
       root.announce("Network", ConnectionModel.transitions(root.networkSnapshot, next))
       root.networkSnapshot = next

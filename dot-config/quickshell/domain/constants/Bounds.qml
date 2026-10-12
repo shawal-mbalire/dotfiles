@@ -16,4 +16,7 @@ QtObject {
   readonly property int volumeStep: 5
   // Percentage points moved by one brightness key press.
   readonly property int brightnessStep: 5
+  // After startup, connection changes are not announced for this long: the adapters
+  // are still loading devices and networks that were already connected.
+  readonly property int connectionSettleMs: 3000
 }
