@@ -5,7 +5,8 @@
 // appears or disappears. AirPlay sinks, the Mac mini included, are never used
 // (domain/models/Sinks.qml). If the default is one of them, or there is none,
 // this adapter steers the default to the preferred sink, or else the first
-// eligible one. An eligible default is left alone, so a manual choice sticks.
+// eligible one. An eligible default is left alone, so a manual choice sticks,
+// except that a Bluetooth sink becomes the default when it connects.
 import QtQml
 import Quickshell.Services.Pipewire
 import "../../domain/ports"
@@ -46,6 +47,17 @@ AudioPort {
   sourceName: source !== null ? source.name : ""
   sources: sourceNodes.map(n => ({ name: n.name, label: n.description !== "" ? n.description : n.name }))
 
+  // Sink names seen last time, so a newly connected Bluetooth sink is noticed.
+  property var knownSinks: []
+  onSinkNodesChanged: {
+    const names = sinkNodes.map(n => n.name)
+    const arrived = Sinks.arrivedBluetooth(knownSinks, names)
+    knownSinks = names
+    if (arrived === "" || arrived === sinkName) return
+    console.log("[audio] bluetooth sink connected, switching to:", arrived)
+    Pipewire.preferredDefaultAudioSink = sinkNodes.find(n => n.name === arrived)
+  }
+
   onSinkNameChanged: console.log("[audio] default sink:", sinkName !== "" ? sinkName : "none")
   onReadyChanged: if (!ready) console.warn("[audio] no usable default sink; output is silent")
 
@@ -54,7 +66,11 @@ AudioPort {
     target: Pipewire
     property: "preferredDefaultAudioSink"
     value: root.fallback
-    when: !root.defaultEligible && root.fallback !== null
+    // Only after the initial sync: before it the default reads as null, and steering
+    // then would overwrite the saved default (e.g. the Bluetooth speaker) with the fallback.
+    when: Pipewire.ready && !root.defaultEligible && root.fallback !== null
+    // Leave the last value when released; restoring would undo a later choice.
+    restoreMode: Binding.RestoreNone
   }
 
   // Postcondition: the node reports a finite, non-negative volume.

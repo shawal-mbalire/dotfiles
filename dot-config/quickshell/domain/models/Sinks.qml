@@ -15,4 +15,14 @@ QtObject {
     const text = (name || "") + " " + (description || "")
     return !excluded.some(pattern => pattern.test(text))
   }
+
+  // Bluetooth (bluez) output sinks, e.g. "bluez_output.AF_45_C1_DA_22_67.1".
+  function isBluetooth(name) {
+    return /^bluez_output\./.test(name || "")
+  }
+
+  // The first Bluetooth sink in `current` that was not in `previous` (names), or "".
+  function arrivedBluetooth(previous, current) {
+    return current.find(name => isBluetooth(name) && !previous.includes(name)) ?? ""
+  }
 }
