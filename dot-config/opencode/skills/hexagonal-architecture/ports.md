@@ -68,11 +68,11 @@ Port: DocumentRepository
 ```
 # Generic — one adapter serves any entity
 Port: Repository[T]
-  save(entity: T) -> void
-  save_all(entities: list[T]) -> void   # one atomic unit of work — commit all or none
-  find_by_id(id: str) -> T | none
-  find_all() -> list[T]
-  delete(id: str) -> void
+  save(entity: T) -> Result[void]
+  save_all(entities: list[T]) -> Result[void]   # one atomic unit of work — commit all or none
+  find_by_id(id: str) -> Result[T | none]       # Success(none) = not found
+  find_all() -> Result[list[T]]
+  delete(id: str) -> Result[void]
 
 # Domain-specific alias — optional, for readability
 Port: DocumentRepository = Repository[Document]
@@ -101,15 +101,17 @@ A port is a **contract**, not just a signature. Document — in the port's docst
 ```python
 # domain/ports/repository.py — the contract in prose, plus a shared pure predicate
 class Repository(Protocol[T, IdT]):
-    def save(self, entity: T) -> None:
+    def save(self, entity: T) -> Result[None]:
         """Pre:  entity satisfies its invariants.
-        Post: find_by_id(id_of(entity)) returns an entity equal to it."""
+        Post: Success → find_by_id(id_of(entity)) returns Success(entity equal to it).
+              Failure → an operational AppError (e.g. retryable outage); nothing written."""
         ...
 
-    def find_by_id(self, entity_id: IdT) -> T | None:
+    def find_by_id(self, entity_id: IdT) -> Result[T | None]:
         """Pre:  entity_id is non-empty.
-        Post: a fully-populated entity that satisfies its invariants, or None if absent —
-              never a partial record, and never None because the backend failed."""
+        Post: Success(entity) fully populated and satisfying its invariants, Success(None) if
+              absent, or Failure(AppError) if the lookup itself failed — never a partial record,
+              and never Success(None) because the backend failed."""
         ...
 ```
 
@@ -147,10 +149,14 @@ class Transport(str, Enum):
 from typing import Protocol
 from domain.models.money import Money
 from domain.models.payment import PaymentResult, RefundResult
+from domain.result import Result
 
 class PaymentGateway(Protocol):
-    def charge(self, amount: Money, token: str) -> PaymentResult: ...
-    def refund(self, payment_id: str) -> RefundResult: ...
+    def charge(self, amount: Money, token: str,
+               idempotency_key: str) -> Result[PaymentResult]:
+        """Post: repeated calls with the same idempotency_key charge at most once."""
+        ...
+    def refund(self, payment_id: str) -> Result[RefundResult]: ...
 ```
 
 ```python
@@ -179,15 +185,16 @@ class StripeGateway:
         self._client = self._connect(config)
         lifetime.register_cleanup(self.close)
 
-    def charge(self, amount: Money, token: str) -> PaymentResult:
+    def charge(self, amount: Money, token: str, idempotency_key: str) -> Result[PaymentResult]:
         try:
-            raw = self._client.call(self._config.protocol, self._to_wire(amount, token))
+            raw = self._client.call(self._config.protocol,
+                                    self._to_wire(amount, token, idempotency_key))
         except DriverError as e:
-            raise GatewayUnavailableError(
+            return Failure(GatewayUnavailableError(
                 cause=e, retryable=True,
                 context={"operation": "charge", "adapter": "stripe", "protocol": self._config.protocol},
-            ) from e
-        return self._from_wire(raw)
+            ))
+        return Success(self._from_wire(raw))   # from_wire raises ContractViolationError on malformed data
 ```
 
 ```python
@@ -268,7 +275,7 @@ class ConsoleLogger(LoggerPort):  # required: "implements LoggerPort"
 
 | Port | Tier | Add when | Required methods |
 |------|------|----------|-----------------|
-| `TimePort` | Baseline | measuring duration or driving poll loops | `nowMs()`, `elapsedMs(start)`, `sleepMs(ms)` |
+| `TimePort` | Baseline | measuring duration or driving poll loops | `nowMs()` (wall), `monotonicMs()`, `elapsedMs(start)`, `sleepMs(ms)` |
 | `LifetimePort` | Baseline | long-running process, or one that owns resources needing cleanup | `registerCleanup(handler)`, `onExit(handler)`, `getExitReason()`, `isShuttingDown()` |
 | `LoggerPort` | Conditional | the system emits structured logs | `info(message, fields*)`, `error(message, fields*)` |
 | `Repository[T, IdT]` | Conditional | persisting domain aggregates | `save(entity)`, `saveAll(entities)` (atomic), `findById(id)`, `findAll()`, `delete(id)` |
@@ -277,7 +284,7 @@ class ConsoleLogger(LoggerPort):  # required: "implements LoggerPort"
 | `MetricsPort` | Conditional | emitting counters, gauges, timings | `counter(name, value, labels)`, `gauge(...)`, `timing(...)` |
 | `EventPublisherPort` | Conditional | publishing domain events | `publish(topic, payload)` |
 | `EventConsumerPort` | Conditional | consuming domain events | `subscribe(topic, handler)` |
-| `TracerPort` | Conditional | span-based tracing | `startSpan(name)`, `endSpan(spanId)` |
+| `TracerPort` | Conditional | span-based tracing | `startSpan(name)`, `endSpan(spanId, status)` |
 | `RandomPort` | Conditional | seeded, reproducible randomness | `int(below)`, `bytes(n)` |
 | `FeatureFlagPort` | Conditional | progressive delivery / kill switches | `isEnabled(flag, context)`, `variant(flag, context)` |
 | `PresenterPort` | Conditional | rich, colored terminal/CLI output | `success/error/warn/info(message)`, `panel(title, body)`, `table(...)` |

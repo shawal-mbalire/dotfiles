@@ -21,7 +21,7 @@ A dev workspace runs several processes (`api`, `worker`, `frontend`, `device`), 
               │
        ┌──────┴────────┐
        │ adapters/     │   single writer, owns the DuckDB file
-       │ duckdb/hub    │   logs | metrics | events | insights views
+       │ duckdb/hub    │   logs | metrics | events | spans | insights views
        └──────┬────────┘
               ▲
        adapters/duckdb/insights   driving adapter — queries through the hub
@@ -67,7 +67,7 @@ Insights are a driving adapter (like a CLI or admin task), never domain logic.
 
 ## Managing Logs, Metrics, and Events Together
 
-One database, three tables, one `ts`. Correlate across them by `request_id` and time — metrics find the *when*, logs/events find the *what*.
+One database, four tables, one `ts`. Correlate across them by `request_id` and time — metrics find the *when*, logs/events/spans find the *what* and *how long*.
 
 ```sql
 -- Metric spike -> time window -> the failing requests in logs
@@ -85,6 +85,7 @@ LIMIT 20;
 ```sql
 DELETE FROM logs    WHERE ts < now() - INTERVAL '7 days';
 DELETE FROM metrics WHERE ts < now() - INTERVAL '30 days';
+DELETE FROM spans   WHERE ts < now() - INTERVAL '7 days';
 DELETE FROM events  WHERE ts < now() - INTERVAL '7 days'
   AND seq <= (SELECT min(last_seq) FROM event_cursors);
 ```
@@ -139,6 +140,16 @@ CREATE TABLE IF NOT EXISTS metrics (
     labels JSON
 );
 
+CREATE TABLE IF NOT EXISTS spans (
+    span_id     TEXT      NOT NULL,   -- TracerPort.start_span id
+    trace_id    TEXT,                 -- request correlation id (the driving adapter's request_id)
+    service     TEXT      NOT NULL,
+    name        TEXT      NOT NULL,   -- "accounts.find_by_id", "workflow.withdraw"
+    ts          TIMESTAMP NOT NULL,   -- wall clock at span start (now_ms)
+    duration_ms DOUBLE    NOT NULL,   -- monotonic delta — never the wall clock
+    status      TEXT      NOT NULL    -- success | failure:<code> | defect (Instrumented labels)
+);
+
 CREATE TABLE IF NOT EXISTS events (
     seq     BIGINT    NOT NULL,   -- monotonic cursor
     ts      TIMESTAMP NOT NULL,
@@ -159,6 +170,17 @@ SELECT service, request_id,
 FROM logs
 WHERE level = 'INFO'
 GROUP BY service, request_id;
+
+CREATE OR REPLACE VIEW slow_spans AS
+SELECT service, name,
+       count(*) AS calls,
+       approx_quantile(duration_ms, 0.50) AS p50_ms,
+       approx_quantile(duration_ms, 0.95) AS p95_ms,
+       approx_quantile(duration_ms, 0.99) AS p99_ms,
+       count(*) FILTER (WHERE status <> 'success') AS not_success
+FROM spans
+GROUP BY service, name
+ORDER BY p95_ms DESC;
 ```
 
-Clients and the hub speak **newline-delimited JSON over a Unix socket**. Ops: `append_logs`, `append_metrics`, `append_events`, `poll_events`, `load_cursor`, `save_cursor`, `query`, and the admin-only `execute`. Every op is handled by the single writer — no client ever opens the database file.
+Clients and the hub speak **newline-delimited JSON over a Unix socket**. Ops: `append_logs`, `append_metrics`, `append_spans`, `append_events`, `poll_events`, `load_cursor`, `save_cursor`, `query`, and the admin-only `execute`. Every op is handled by the single writer — no client ever opens the database file.

@@ -20,8 +20,10 @@ from typing import Protocol
 
 class TracerPort(Protocol):
     def start_span(self, name: str) -> str: ...
-    def end_span(self, span_id: str) -> None: ...
+    def end_span(self, span_id: str, status: str = "success") -> None: ...   # railway outcome
 ```
+
+Wire spans and timings with decorators, not by hand — see [Profiling](./profiling.md).
 
 ### Observability Must Not Break the App (Prod)
 
@@ -157,17 +159,18 @@ logger.info("order_created", user_id=user_id, order_id=order_id, total=total)
 
 Every log and metric record carries a timestamp so you can see where time is spent. Adapters stamp time from the injected `TimePort` (never a raw `now()`), so it is mockable in tests:
 
-- **Logger** — each record gets `ts`; log `duration_ms` for any operation that crosses a boundary (from `TimePort.elapsed_ms(start)`), so slow calls stand out.
+- **Logger** — each record gets `ts`; log `duration_ms` for any operation that crosses a boundary (recorded by the `Instrumented` decorator on the monotonic clock — see [Profiling](./profiling.md)), so slow calls stand out.
 - **Metrics** — every `counter`/`gauge`/`timing` sample gets `ts`; `timing(name, duration_ms)` captures latency directly.
-- In dev the DuckDB hub stores `ts` on every row and the `slow_requests` view derives request latency from log timestamps — delays become a SQL query, not a guess.
+- In dev the DuckDB hub stores `ts` on every row; the `slow_requests` view derives request latency from log timestamps and `slow_spans` ranks operations by p95 — delays become a SQL query, not a guess.
 
+```python
+# main.py — the decorator stamps ts + duration at the edge; the workflow
+# supplies only business fields, never a start/elapsed pair
+documents = Instrumented(repo, "documents", tracer, metrics, time)
+documents.save(document)   # span + timing + outcome label recorded for free
 ```
-# Adapter stamps ts + duration; the caller supplies only business fields
-start = time.now_ms()
-repo.save(document)
-logger.info("document_saved", document_id=document.id,
-            duration_ms=time.elapsed_ms(start))
-```
+
+See [Profiling](./profiling.md#port-timing-the-instrumented-decorator) for the decorator, and the [hub schema](./duckdb-hub.md#reference-schema--hub-protocol) for the `spans` table the tracer adapter fills.
 
 ### Request Tracing
 

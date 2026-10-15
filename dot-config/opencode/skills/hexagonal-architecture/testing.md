@@ -40,9 +40,12 @@ try:
 except Exception:
     return None  # What went wrong? Nobody knows.
 
-# GOOD: hard fail — stops execution, clear error message
-result = create_document(content, repo, logger)  # Raises if anything is wrong
-assert result.id is not None, f"Document creation failed: {result}"
+# GOOD: every outcome is explicit — Failure is handled, defects still raise
+match create_document(content, repo, logger):
+    case Success(doc):
+        assert doc.id is not None, f"Document created without an id: {doc}"
+    case Failure(error):
+        render(error)            # code, cause, origin, correlation_id — nothing lost
 ```
 
 ```
@@ -100,19 +103,27 @@ class EmptyContentError(ValidationError):
 - **`origin` is filled at the boundary** — the driving/driven adapter sets layer + `module.function:line` and the `correlation_id`; the domain never knows file locations.
 - **Context is structured and redacted** — `{"document_id": ..., "operation": "save", "adapter": "postgres"}`; never secrets or PII.
 - **One renderer** — `render(error)` for logs, CLI, and HTTP (map `code` → status). Log the full cause chain once, at the boundary.
-- **Error-code registry** — every `code` maps to meaning, owner, retryable, and a runbook. `just errors-check` fails CI on unknown or duplicate codes. The codes in the examples (`DOC-002`, `DOM-001`, `STO-002`, …) are illustrative; every code that ships must be registered here.
-- **Contract families** — `ValidationError` signals a caller error (precondition; `retryable=False`); `ContractViolationError` signals an internal/infrastructure breach (postcondition or invariant). Both are `AppError` subclasses, so they cross ports unchanged and render by class, not by string matching. Ports and examples may name the concrete type idiomatically (a `DomainError` wrapper, say), but it is always this one uniform error shape.
+- **Error-code registry** — every `code` maps to meaning, owner, retryable, HTTP status, and a runbook. `just errors-check` fails CI on unknown or duplicate codes. The codes in the examples (`DOC-002`, `DOM-001`, `STO-002`, …) are illustrative; every code that ships must be registered here.
+- **Contract families** — `ValidationError` signals a caller error (precondition; `retryable=False`); `ContractViolationError` signals an internal/infrastructure breach (postcondition or invariant). Both are `AppError` subclasses and render through the registry, not by string matching. A `ValidationError` crosses ports as a value inside `Failure`; a `ContractViolationError` is a defect and is raised (Rust: `panic_any`), never returned. Every language uses this one uniform error shape, named `AppError`.
 
 ```
 # errors.toml
 ["DOC-001"]
 meaning = "Document content is empty"
 retryable = false
+http_status = 422
 runbook = "docs/runbooks/DOC-001.md"
+
+["VAL-000"]
+meaning = "One or more invalid fields (see context.violations)"
+retryable = false
+http_status = 422
+runbook = "docs/runbooks/VAL-000.md"
 
 ["STO-001"]
 meaning = "Storage backend unavailable"
 retryable = true
+http_status = 503
 runbook = "docs/runbooks/STO-001.md"
 ```
 
@@ -121,24 +132,24 @@ runbook = "docs/runbooks/STO-001.md"
 try:
     self._pool.execute(self._config.save_sql, params)
 except DriverError as e:
-    raise AppError(
+    return Failure(StorageUnavailableError(
         code="STO-001", message="Storage write failed", cause=e,
         context={"operation": "save", "adapter": "postgres"},
         origin=origin_here(), correlation_id=correlation_id, retryable=True,
-    ) from e
+    ))
 ```
 
 ## Optional Returns vs Errors: When `None` Is Acceptable
 
 The rule "never return `None`-on-failure" has a nuance: `None` is legitimate for **"not found" semantics** — the operation succeeded, but the entity doesn't exist. `None` is the anti-pattern when used as a substitute for error reporting.
 
-| Scenario | Return `None`? | Reason |
+| Scenario | Return `Success(None)`? | Reason |
 |----------|----------------|--------|
-| `find_by_id("missing-id")` | **Yes** | Entity doesn't exist — `None` is the correct answer |
-| `find_by_id("valid-id")` but DB is down | **No** | Operation failed — raise `AppError`, don't return `None` |
-| `get_user("unknown-email")` for lookup | **Yes** | Lookup semantics — `None` means "not found" |
-| `get_user("unknown-email")` for auth | **No** | Auth failure — raise `AuthorizationError`, don't return `None` |
-| `save(entity)` fails due to constraint violation | **No** | Operation failed — raise `ConflictError`, don't return `None` |
+| `find_by_id("missing-id")` | **Yes** | Entity doesn't exist — `Success(None)` is the correct answer |
+| `find_by_id("valid-id")` but DB is down | **No** | Operation failed — return `Failure(StorageUnavailableError)` |
+| `get_user("unknown-email")` for lookup | **Yes** | Lookup semantics — `Success(None)` means "not found" |
+| `get_user("unknown-email")` for auth | **No** | Auth failure — return `Failure(AuthenticationError)` |
+| `save(entity)` fails due to constraint violation | **No** | Operation failed — return `Failure(ConflictError)` |
 
 **Rule:** If the operation *should* have succeeded but didn't (infrastructure error, constraint violation, timeout), return `Failure(AppError)` (or raise, if it is a defect). `Success(None)` is only when "nothing found" is the expected, valid outcome of a lookup.
 
@@ -213,22 +224,22 @@ def repository():
 
 def test_save_then_find_round_trips(repository):
     entity = make_entity("id-1")
-    repository.save(entity)
-    assert repository.find_by_id("id-1") == entity
+    assert repository.save(entity) == Success(None)
+    assert repository.find_by_id("id-1") == Success(entity)
 
-def test_find_missing_returns_none(repository):
-    assert repository.find_by_id("missing") is None
+def test_find_missing_returns_success_none(repository):
+    assert repository.find_by_id("missing") == Success(None)   # not-found is not a Failure
 
 def test_save_is_idempotent(repository):
     entity = make_entity("id-1")
-    repository.save(entity)
-    repository.save(entity)                      # upsert, not duplicate
-    assert repository.find_all() == [entity]
+    assert repository.save(entity) == Success(None)
+    assert repository.save(entity) == Success(None)   # upsert, not duplicate
+    assert repository.find_all() == Success([entity])
 
 def test_delete_removes(repository):
     repository.save(make_entity("id-1"))
-    repository.delete("id-1")
-    assert repository.find_by_id("id-1") is None
+    assert repository.delete("id-1") == Success(None)
+    assert repository.find_by_id("id-1") == Success(None)
 ```
 
 - **One suite per standard port** (`Repository`, `CachePort`, `KeyValueStorePort`, `BlobStorePort`, `EventPublisherPort`), kept once and run by every adapter.
@@ -241,27 +252,28 @@ def test_delete_removes(repository):
 ```python
 # Precondition: invalid input is rejected with the right code, before any side effect.
 def test_save_rejects_blank_id(repository, counting_backend):
-    with pytest.raises(ValidationError) as exc:
-        repository.save(make_entity(id=""))          # documented precondition
-    assert exc.value.code == "DOC-002"
-    assert exc.value.retryable is False
+    result = repository.save(make_entity(id=""))     # documented precondition
+    assert isinstance(result, Failure)               # expected failure = a value
+    assert isinstance(result.error, ValidationError)
+    assert result.error.code == "DOC-002"
+    assert result.error.retryable is False
     assert counting_backend.writes == 0              # nothing was persisted
 
-# Postcondition: the round-trip guarantee, not merely "no exception".
+# Postcondition: the round-trip guarantee, not merely "no Failure".
 def test_save_postcondition_round_trips(repository):
     entity = make_entity("id-1")
-    repository.save(entity)
+    assert repository.save(entity) == Success(None)
     stored = repository.find_by_id("id-1")
-    assert stored == entity                          # postcondition
-    assert stored is not None                        # never a partial record
+    assert stored == Success(entity)                 # postcondition — never a partial record
 
 # Invariant: every value a port returns satisfies the model's pure predicate.
 def test_find_never_returns_invalid_aggregate(repository):
     repository.save(make_entity("id-1"))
-    assert Account.is_balanced(repository.find_by_id("id-1"))
+    found = repository.find_by_id("id-1")
+    assert isinstance(found, Success) and Account.is_balanced(found.value)
 ```
 
-- **Precondition tests** prove invalid input is rejected *before* a side effect (assert the counting fake wrote nothing).
+- **Precondition tests** prove invalid input is returned as `Failure(ValidationError)` *before* a side effect (assert the counting fake wrote nothing).
 - **Postcondition tests** prove the guarantee, not just the absence of an exception.
 - **Invariant hooks** run the model's pure predicate over every value a port returns.
 - **Mutation testing** mutates the predicate (flip `>=` to `>`); if the suite still passes, the contract is not really tested.
@@ -276,7 +288,7 @@ from domain.result import Success, Failure
 
 def test_save_failure_surfaces_storage_error():
     repo = FailingRepo(fail_with=TimeoutError("backend timed out"))  # returns Failure(...)
-    result = create_document("Hello", repo, FakeLogger(), FakeTime())
+    result = create_document("Hello", repo, FakeLogger())
 
     assert isinstance(result, Failure)           # expected failure = a value
     err = result.error
@@ -288,11 +300,11 @@ def test_save_failure_surfaces_storage_error():
 def test_save_contract_violation_is_a_defect():
     # A backend that persists nothing is a defect, not a value: it must raise.
     with pytest.raises(ContractViolationError):
-        create_document("Hello", CorruptRepo(), FakeLogger(), FakeTime())
+        create_document("Hello", CorruptRepo(), FakeLogger())
 
 def test_observability_survives_sink_failure():
     # logging/metrics must not raise even when their sink is down
-    result = create_document("Hello", FakeRepo(), FailingLogger(), FakeTime())
+    result = create_document("Hello", FakeRepo(), FailingLogger())
     assert isinstance(result, Success)
 ```
 
@@ -307,9 +319,9 @@ Also inject **postcondition violations** — a `save` that returns without persi
 Cheap, high-leverage guarantees that catch whole defect classes before tests run:
 
 - **Strict types everywhere** — no implicit `any`/`Any`, exhaustive `match`/`switch`, non-null by default; turn warnings into errors.
-- **No panics in production paths** — forbid `unwrap`/`expect` (Rust), `!`/non-null assertions (TS), bare `except` (Python); validate instead.
-- **Boundary schema validation** — parse external input (config, HTTP bodies, rows) into typed values at the edge and reject with an `AppError` before it reaches the domain.
-- **Invariants as assertions** — debug-only `assert` for pre/postconditions; enabled in dev/test, compiled out in prod.
+- **No accidental panics in production paths** — forbid `unwrap`/`expect` (Rust), `!`/non-null assertions (TS), bare `except` (Python); return `Failure` instead. The only sanctioned panic/raise is a deliberate defect (`ContractViolationError` / `std::panic::panic_any(ContractViolation { .. })`).
+- **Boundary schema validation** — parse external input (config, HTTP bodies, rows) into typed values at the edge and return `Failure(ValidationError)` before it reaches the domain.
+- **Internal sanity checks as assertions** — debug-only `assert` for things only a programming error could break; compiled out in prod. Preconditions return `Failure`; postconditions and production invariants raise `ContractViolationError` explicitly ([Design by Contract](./domain.md#design-by-contract-in-the-domain)).
 - **Memory/UB safety** — Rust `Miri`, C++/Rust AddressSanitizer + UndefinedBehaviorSanitizer + ThreadSanitizer, valgrind; race detector for concurrent adapters.
 
 ## Reproducibility

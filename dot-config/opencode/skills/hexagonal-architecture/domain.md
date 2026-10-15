@@ -34,21 +34,20 @@ def create_document(
     content: str,
     repo: DocumentRepository,
     logger: LoggerPort,
-    time: TimePort,
-) -> Document:
-    start = time.now_ms()
-
+) -> Result[Document]:
     # Pure logic: validation
     if not content.strip():
-        raise EmptyContentError()
+        return Failure(EmptyContentError())
 
     # Pure logic: create model
     document = Document.create(content=content)
 
     # Adapter calls: all I/O happens here
-    repo.save(document)
-    logger.info(f"Document created {document.id} in {time.elapsed_ms(start)}ms")
-    return document
+    saved = repo.save(document)
+    if isinstance(saved, Failure):
+        return saved
+    logger.info("document_created", document_id=document.id)   # timing: decorators, not here
+    return Success(document)
 ```
 
 ## Pure Function Benefits
@@ -66,29 +65,31 @@ Domain workflows validate their inputs as their **first action**. Invalid state 
 
 ```python
 # BAD: validation buried after side effects
-def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Document:
+def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Result[Document]:
     document = Document.create(content=content)
     repo.save(document)                          # saved bad data
     if not content.strip():
-        raise EmptyContentError()                # too late — already persisted
-    return document
+        return Failure(EmptyContentError())      # too late — already persisted
+    return Success(document)
 
 # GOOD: validation is the first thing
-def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Document:
+def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Result[Document]:
     # 1. Validate inputs — fail fast before any side effects
     if not content.strip():
-        raise EmptyContentError()
+        return Failure(EmptyContentError())
 
     # 2. Only then proceed with side effects
     document = Document.create(content=content)
-    repo.save(document)
-    return document
+    saved = repo.save(document)
+    if isinstance(saved, Failure):
+        return saved
+    return Success(document)
 ```
 
 **Workflow validation checklist:**
 
 - [ ] Validate every input parameter at the top of the workflow
-- [ ] Reject with a domain-specific `AppError` subclass (never `ValueError` or bare strings)
+- [ ] Reject by returning `Failure` with a domain-specific `ValidationError` subclass (never raise, never `ValueError` or bare strings); use `validate_all` when the checks are independent
 - [ ] Validate before calling any adapter — no side effects on invalid input
 - [ ] Check preconditions (required fields, ranges, business rules) before orchestration
 - [ ] Validate domain model invariants when constructing models (e.g., `Document.create()` validates internally)
@@ -108,7 +109,7 @@ Validating at the door is the **precondition** half of **Design by Contract (DbC
 
 **Write each clause as a pure predicate.** A precondition is a named pure function (`is_valid_amount`); an invariant is a pure function over the aggregate (`is_balanced`). Pure predicates are trivial to test and are reused by the workflow, the adapter, and the contract test.
 
-**Preconditions use explicit raises, never `assert`.** `assert` is compiled out under `python -O` and in release builds, so a check on external input must not rely on it. Reserve `assert` for **internal invariants** that should only fire on a programming error (dev/test).
+**Preconditions return `Failure`, never `assert`.** `assert` is compiled out under `python -O` and in release builds, so a check on external input must not rely on it — and a rejected input is an expected outcome, so it rides the failure track rather than raising. Reserve `assert` for **internal invariants** that should only fire on a programming error (dev/test).
 
 ```python
 # domain/models/account.py — an invariant as a pure predicate, enforced on every construction
@@ -137,21 +138,24 @@ def is_transferable(amount: Decimal, src: Account) -> bool:
     return amount > 0 and amount <= src.balance
 
 def transfer(amount: Decimal, src: Account, dst: Account,
-             repo: AccountRepository, logger: LoggerPort) -> None:
-    # 1. Precondition — caller error, one named pure predicate, explicit raise (never `assert`)
+             repo: AccountRepository, logger: LoggerPort) -> Result[None]:
+    # 1. Precondition — caller error, one named pure predicate, returned as a Failure (never `assert`)
     if not is_transferable(amount, src):
-        raise ValidationError(
+        return Failure(ValidationError(
             code="DOM-002", message="Transfer amount must be positive and available",
-            context={"amount": str(amount), "balance": str(src.balance)}, retryable=False,
-        )
+            context={"amount": str(amount), "balance": str(src.balance)},
+        ))
     # 2. Build the next state through the model factory (invariants enforced)
     src_after = Account.create(src.id, src.balance - amount)
     dst_after = Account.create(dst.id, dst.balance + amount)
     assert src_after.balance + dst_after.balance == src.balance + dst.balance  # dev-only sanity check
     # 3. Persist as one unit of work — the adapter owns the transaction and commits
     #    both accounts atomically; never issue two independent saves from a workflow.
-    repo.save_all([src_after, dst_after])
+    saved = repo.save_all([src_after, dst_after])
+    if isinstance(saved, Failure):
+        return saved
     logger.info("transfer_complete", amount=str(amount))
+    return Success(None)
 ```
 
 ```typescript
@@ -178,12 +182,13 @@ export class Account {
 impl Account {
     fn is_balanced(&self) -> bool { self.balance >= Decimal::ZERO }   // pure invariant
 
-    pub fn create(id: String, balance: Decimal) -> Result<Account, DomainError> {
+    pub fn create(id: String, balance: Decimal) -> Account {
         let account = Account { id, balance };
-        if !account.is_balanced() {                                   // enforce it
-            return Err(DomainError::contract("DOM-001", "account balance cannot be negative"));
+        if !account.is_balanced() {                                   // enforce it — a defect
+            std::panic::panic_any(                                    // not debug_assert!: holds in prod
+                ContractViolation::new("DOM-001", "account balance cannot be negative"));
         }
-        Ok(account)
+        account
     }
 }
 ```
@@ -217,9 +222,10 @@ Every function in the system is one of two kinds. Know which one you're writing.
 def calculate_total(cart: Cart, tax_rate: float) -> float:
     return cart.subtotal * (1 + tax_rate)
 
-def validate_content(content: str) -> None:
+def validate_content(content: str) -> Result[str]:
     if not content.strip():
-        raise EmptyContentError()
+        return Failure(EmptyContentError())
+    return Success(content)
 
 def apply_discount(total: float, discount_pct: float) -> float:
     return total * (1 - discount_pct)
@@ -232,12 +238,16 @@ def create_document(
     content: str,
     repo: DocumentRepository,
     logger: LoggerPort,
-) -> Document:
-    validate_content(content)           # pure function
-    doc = Document.create(content=content)  # pure function
-    repo.save(doc)                      # port call
-    logger.info(f"Created {doc.id}")    # port call
-    return doc
+) -> Result[Document]:
+    checked = validate_content(content)     # pure function
+    if isinstance(checked, Failure):
+        return checked
+    doc = Document.create(content=checked.value)  # pure function
+    saved = repo.save(doc)                  # port call
+    if isinstance(saved, Failure):
+        return saved
+    logger.info(f"Created {doc.id}")        # port call
+    return Success(doc)
 ```
 
 **The split prevents jack-of-all-trades functions.** If a function does validation + logic + I/O, extract the validation and logic into pure functions and keep the orchestration thin. Every function should be either a pure function (test by calling) or a pure orchestrator (test by faking ports). Nothing in between.
@@ -247,7 +257,8 @@ def create_document(
 Expected failures are **values**: workflows return a `Result[T]` (`Success` / `Failure(AppError)`) and compose the failure track with a bounded toolkit over named steps ([Railway-Oriented Workflows](./rop.md)). Defects still raise.
 
 **Allowed** — the fixed toolkit in `domain/workflows/` and the composition root:
-- `and_then`, `map`, `pipeline`, `recover`
+- `and_then`, `map_value`, `pipeline`, `recover`
+- `validate_all` — collects every independent input violation into one `ValidationError` ([Validation](./rop.md#validation-collect-every-error))
 - Steps are named functions or `functools.partial`s
 
 **Banned** — the surviving half of [Rule 33](./SKILL.md#architecture-rules):
@@ -267,37 +278,50 @@ A workflow is a **domain operation** — a business action that orchestrates pur
 ```python
 # domain/workflows/create_document.py
 def create_document(content: str, repo: DocumentRepository,
-                    logger: LoggerPort, time: TimePort) -> Document:
+                    logger: LoggerPort) -> Result[Document]:
     """Create a document: validate, persist, log, return."""
-    start = time.now_ms()
-    validate_content(content)
-    doc = Document.create(content=content)
-    repo.save(doc)
-    logger.info(f"Created {doc.id} in {time.elapsed_ms(start)}ms")
-    return doc
+    checked = validate_content(content)
+    if isinstance(checked, Failure):
+        return checked
+    doc = Document.create(content=checked.value)
+    saved = repo.save(doc)
+    if isinstance(saved, Failure):
+        return saved
+    logger.info("document_created", document_id=doc.id)
+    return Success(doc)
 
 # domain/workflows/authenticate_user.py
 def authenticate_user(email: str, password: str,
                       user_repo: UserRepository,
                       hasher: PasswordHasher,
-                      token_service: TokenService) -> str:
+                      token_service: TokenService) -> Result[str]:
     """Authenticate user: look up, verify, generate token."""
-    user = user_repo.find_by_email(email)
-    if user is None:
-        raise AuthenticationError("Invalid credentials")
-    if not hasher.verify(password, user.password_hash):
-        raise AuthenticationError("Invalid credentials")
-    return token_service.generate(user.id)
+    found = user_repo.find_by_email(email)
+    if isinstance(found, Failure):
+        return found                            # lookup itself failed
+    user = found.value
+    # Always run the hash — skipping it for unknown emails is a timing oracle.
+    verified = hasher.verify(password, user.password_hash if user else DUMMY_PASSWORD_HASH)
+    if user is None or not verified:
+        return Failure(AuthenticationError())       # one error for both: no user enumeration
+    return Success(token_service.generate(user.id))  # hasher/token_service fail only by defect
 
 # domain/workflows/process_payment.py
 def process_payment(order: Order, gateway: PaymentGateway,
-                    repo: PaymentRepository, logger: LoggerPort) -> PaymentResult:
+                    repo: PaymentRepository, logger: LoggerPort) -> Result[PaymentResult]:
     """Process payment: charge via gateway, record, log."""
-    result = gateway.charge(order.total, order.payment_token)
-    payment = Payment.create(order_id=order.id, result=result)
-    repo.save(payment)
+    # Idempotency key = order id: a retry after a partial failure replays the same charge
+    # instead of creating a second one, so a retryable Failure below is safe to retry.
+    charged = gateway.charge(order.total, order.payment_token, idempotency_key=order.id)
+    if isinstance(charged, Failure):
+        return charged
+    payment = Payment.create(order_id=order.id, result=charged.value)
+    saved = repo.save(payment)
+    if isinstance(saved, Failure):
+        logger.error(f"Charged but not recorded: order {order.id}")   # surfaced, never swallowed
+        return saved                                    # retry is safe: charge is idempotent
     logger.info(f"Payment {payment.id} processed for order {order.id}")
-    return result
+    return charged
 ```
 
 **What makes a workflow a workflow:**
@@ -368,15 +392,15 @@ def create_document(
     content: str,
     repo: DocumentRepository,
     logger: LoggerPort,
-    time: TimePort,
-) -> Document:
-    start = time.now_ms()
+) -> Result[Document]:
     if not content.strip():
-        raise EmptyContentError()
+        return Failure(EmptyContentError())
     document = Document.create(content=content)
-    repo.save(document)
-    logger.info(f"Created {document.id} in {time.elapsed_ms(start)}ms")
-    return document
+    saved = repo.save(document)
+    if isinstance(saved, Failure):
+        return saved
+    logger.info("document_created", document_id=document.id)
+    return Success(document)
 ```
 
 ```rust
@@ -385,15 +409,13 @@ pub fn save_document(
     content: &str,
     repo: &dyn FileRepository,
     logger: &dyn Logger,
-    time: &dyn TimePort,
-) -> Result<Document, DomainError> {
-    let start = time.now_ms();
+) -> Result<Document, AppError> {
     if content.trim().is_empty() {
-        return Err(DomainError::empty_content());
+        return Err(AppError::empty_content());
     }
     let doc = Document { id: uuid::Uuid::new_v4().to_string(), content: content.to_string() };
     repo.save(&doc)?;
-    logger.info(&format!("Created {} in {}ms", doc.id, time.elapsed_ms(start)));
+    logger.info(&format!("Created {}", doc.id));
     Ok(doc)
 }
 ```
@@ -411,15 +433,16 @@ export class AddToCartWorkflow {
     private cartRepo: CartRepository,
     private stockChecker: StockChecker,
     private logger: Logger,
-    private time: TimePort,
   ) {}
 
-  async execute(productId: string, quantity: number, price: number): Promise<Cart> {
-    // ... business logic
+  async execute(productId: string, quantity: number, price: number): Promise<Result<Cart>> {
+    const inStock = await this.stockChecker.check(productId, quantity);
+    if (!inStock.ok) return inStock;                 // expected failure: propagate unchanged
+    // ... business logic, returning ok(cart) or fail(new OutOfStockError(...))
   }
 
-  async removeItem(productId: string): Promise<Cart> {
-    // ... uses same injected dependencies
+  async removeItem(productId: string): Promise<Result<Cart>> {
+    // ... uses same injected dependencies; async on the outside, Result inside
   }
 }
 ```
@@ -428,15 +451,16 @@ export class AddToCartWorkflow {
 # Python: class (when lifecycle hooks are needed)
 class DataCollector:
     def __init__(self, sensor: SensorPort, storage: StoragePort,
-                 lifetime: LifetimePort, time: TimePort):
+                 lifetime: LifetimePort):
         self.sensor = sensor
         self.storage = storage
-        self.time = time
         lifetime.register_cleanup(self._flush)
 
-    def collect(self):
+    def collect(self) -> Result[None]:
         reading = self.sensor.read()
-        self.storage.save(reading)
+        if isinstance(reading, Failure):
+            return reading
+        return self.storage.save(reading.value)
 
     def _flush(self):
         # cleanup logic

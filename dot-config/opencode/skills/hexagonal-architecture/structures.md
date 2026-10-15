@@ -9,7 +9,8 @@ project/
 ├── domain/
 │   ├── models          # Pure data structures representing business concepts
 │   ├── constants       # Named business constants (injected from config, never hardcoded)
-│   ├── errors          # Custom business-rule exceptions
+│   ├── errors          # AppError families: expected failures (returned in Failure) and defects (raised)
+│   ├── result          # Result / Success / Failure + the bounded ROP toolkit
 │   ├── ports           # Interfaces defining required I/O (see Port Taxonomy)
 │   └── workflows       # Orchestrate flow using domain models and ports
 ├── infra/
@@ -38,6 +39,7 @@ Every new file must land in one of the four root directories or at the root as a
 | Domain model | `domain/models/` | `document.py`, `user.py`, `money.py` |
 | Workflow (orchestration) | `domain/workflows/` | `create_document.py`, `process_payment.py` |
 | Business error | `domain/errors/` | `empty_content_error.py` |
+| `Result` type + ROP toolkit | `domain/result.py` (standard port vocabulary) | `Success`, `Failure`, `and_then`, `validate_all` |
 | Business constant | `domain/constants.py` | `TAX_RATE` defined in `constants.py` |
 | Adapter (implements a port) | `adapters/<backend>/` | `adapters/stripe/gateway.py` |
 | Adapter decorator (retry, cache) | `adapters/decorators/` | `retry_repository.py` |
@@ -135,10 +137,10 @@ Every **adapter** and every **standard/generic port** (`Repository[T]`, `CachePo
 - Lives in `domain/ports/`, depends on nothing outside `domain/`
 
 **Adapter rules:**
-- Imports only: standard library, driver, standard ports — zero app imports
+- Imports only: standard library, driver, standard ports (incl. `domain/result` + `domain/errors/app_error`) — zero app imports
 - Config injected via constructor — never reads env vars directly
 - Mappers (`to_row`/`from_row`) injected — never imports domain models
-- Translates vendor errors to port errors — never leaks SDK exceptions
+- Translates vendor errors to `Failure(AppError)` — never leaks SDK exceptions
 - Passes the port's contract test — in the original project AND the target project
 - No module-level connections or global state
 
@@ -177,17 +179,21 @@ Workflows and entry points must read like pseudocode. Each line expresses one in
 
 ```python
 # GOOD — each line is one intent
-def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Document:
-    validate_content(content)
-    doc = Document.create(content=content)
-    repo.save(doc)
+def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Result[Document]:
+    checked = validate_content(content)
+    if isinstance(checked, Failure):
+        return checked
+    doc = Document.create(content=checked.value)
+    saved = repo.save(doc)
+    if isinstance(saved, Failure):
+        return saved
     logger.info(f"Created {doc.id}")
-    return doc
+    return Success(doc)
 
 # BAD — implementation details leak through
-def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Document:
+def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) -> Result[Document]:
     if not content.strip():
-        raise EmptyContentError()
+        return Failure(EmptyContentError())
     doc_id = str(uuid4())
     doc = Document(id=doc_id, content=content, created_at=datetime.now(), version=1)
     sql = f"INSERT INTO documents (id, content, created_at, version) VALUES ('{doc_id}', '{content}', '{doc.created_at}', {doc.version})"
@@ -198,7 +204,7 @@ def create_document(content: str, repo: DocumentRepository, logger: LoggerPort) 
 
 **The test:** Read the function aloud. If you stumble on implementation details (SQL, JSON, connection strings), those details belong in a pure function or an adapter — not in the workflow or entry point.
 
-**Combinator sprawl breaks this rule.** Error-*translation* chains (`.ok_or`, `.map_err`, `.transpose`, `.flatten`, `.unwrap_or_else`) collapse several intents into one dense expression and swallow error causes; logic hidden in inline lambdas smuggles business rules into data flow. Rewrite those as `?`, `match`, guard clauses, and early returns. The **bounded ROP toolkit** — `and_then`/`map`/`pipeline`/`recover` over *named* steps — is allowed and reads clearly; it is the only sanctioned chain. See [Railway-Oriented Workflows](./rop.md).
+**Combinator sprawl breaks this rule.** Error-*translation* chains (`.ok_or`, `.map_err`, `.transpose`, `.flatten`, `.unwrap_or_else`) collapse several intents into one dense expression and swallow error causes; logic hidden in inline lambdas smuggles business rules into data flow. Rewrite those as `?`, `match`, guard clauses, and early returns. The **bounded ROP toolkit** — `and_then`/`map_value`/`pipeline`/`recover`/`validate_all` over *named* steps — is allowed and reads clearly; it is the only sanctioned chain. See [Railway-Oriented Workflows](./rop.md).
 
 ## Nested Hexagonal Architecture
 

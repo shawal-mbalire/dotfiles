@@ -17,9 +17,10 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 | Port taxonomy, port design, gateway ports, standard ports, **port contracts (pre/postconditions)** | [ports.md](./ports.md) |
 | Adapter portability, persistence (adapter-as-ORM), **postcondition discharge** | [adapters.md](./adapters.md) |
 | Pure functions, pure orchestrators, jack-of-all-trades split, **preconditions & invariants (DbC)** | [domain.md](./domain.md) |
-| Railway-oriented workflows, `Result`, bounded ROP toolkit, the failure track | [rop.md](./rop.md) |
+| Railway-oriented workflows, `Result`, bounded ROP toolkit, the failure track, validation, other monads (Writer/Reader/IO/async) | [rop.md](./rop.md) |
 | Lifecycle, TimePort, LifetimePort | [lifecycle.md](./lifecycle.md) |
 | Logging, diagnostics, developer debugging | [observability.md](./observability.md) |
+| Profiling, port/workflow timing, two clocks, benchmarks | [profiling.md](./profiling.md) |
 | Local-first DuckDB hub (dev backing services) | [duckdb-hub.md](./duckdb-hub.md) |
 | Testing strategy, confidence gates, **executable contract tests** | [testing.md](./testing.md) |
 | Entry points, justfile, workspace logs, terminal output | [dx.md](./dx.md) |
@@ -35,7 +36,7 @@ Domain owns the application logic. Adapters handle the plumbing. Separate the ar
 5. **Infrastructure is separate** — Logging, config, and cross-cutting concerns live in `infra/`, not domain
 6. **Files over folders** — Prefer single files when a directory would contain fewer than 3 files. `domain/errors.py` beats `domain/errors/__init__.py` with one file inside
 7. **Portable adapters** — Write each adapter so its file(s) copy to any project: depend only on standard ports + external libraries, hold zero app imports, constructor-inject a frozen config struct, translate vendor errors to port errors, and take row↔model mappers so the adapter is aggregate-agnostic.
-8. **TimePort everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
+8. **Measure at the Edges; TimePort for Business Time** — Every project includes a `TimePort` (wall `now_ms` + `monotonic_ms`) as the only source of time. Workflows take it only where time is a business rule (expiry, deadlines, poll intervals); process durations are measured outside the domain by the `Instrumented` decorator and `traced(...)` wrappers on the monotonic clock ([Profiling](./profiling.md)).
 9. **LifetimePort for graceful exits** — Every long-running process (and any component that owns a resource) gets a `LifetimePort` to detect exit reasons (crash, user exit, error, normal) and run cleanup. No resource left behind.
 10. **Ports only when they make sense** — A port is a boundary, not a badge. Add one only when it earns its place (see [Port Taxonomy](./ports.md#port-taxonomy-when-to-add-a-port)); pure logic, pure transforms, and adapter-private concerns stay out.
 11. **Fail Fast on Defects, Fail on the Railway for Expected Outcomes** — Invalid *system* state, a missing dependency, or an unrecoverable error halts immediately and reports. Never swallow, never silently degrade, never continue in a corrupt state. But an expected *domain* outcome — a rejected input, a business rule, a not-found, a transient vendor failure — is not invalid state: return it as a `Failure` on the failure track ([Railway-Oriented Workflows](./rop.md)). Defects raise; expected failures are values. In dev, fail fast to surface wiring and logic bugs instantly. In prod, fail safe (resilience) but never fail silent.
@@ -56,7 +57,8 @@ Pure, isolated rules and decisions. Zero external dependencies.
 domain/
 ├── models       # Pure data structures representing business concepts
 ├── constants    # Named business constants (injected from config, never hardcoded)
-├── errors       # Custom business-rule exceptions
+├── errors       # AppError families: expected failures (returned in Failure) and defects (raised)
+├── result       # Result / Success / Failure + the bounded ROP toolkit
 ├── ports        # Interfaces defining required I/O (see Port Taxonomy)
 └── workflows    # Orchestrate flow using domain models and ports
 ```
@@ -68,6 +70,7 @@ domain/
 ├── models/      # 3+ model files → folder
 ├── constants    # Usually 1 file → stays as file
 ├── errors/      # 3+ error types → folder
+├── result       # One file — Result type + toolkit
 ├── ports/       # 3+ port files → folder
 └── workflows/   # 3+ workflow files → folder
 ```
@@ -265,7 +268,7 @@ These refine the [Core Principles](#core-principles) with concrete, checkable ru
 2. **Never import external frameworks in Domain** — No framework imports in domain code
 3. **Mocking is Universal** — All platforms use Interfaces/Traits/Protocols for Ports, enabling pure in-memory Mocks in any language
 4. **Infrastructure Stays Separate** — Logging, config, caching go in `infra/`, never in domain
-5. **Error Handling in Domain** — Business rule errors are domain exceptions; infrastructure errors are adapter concerns
+5. **Error Handling in Domain** — Business rule errors are `AppError` subclasses returned in a `Failure`; infrastructure errors are translated to `AppError` by adapters; only defects raise
 6. **Composition Root is the Only Place** — Only the entry point reads config and creates concrete instances
 7. **Fixtures Enable Reuse** — Shared test data, factories, and fakes live in `tests/fixtures/`, not scattered across tests
 8. **Nested Hexagons Don't Import Each Other** — Bounded contexts communicate via ports/adapters, never direct imports
@@ -273,7 +276,7 @@ These refine the [Core Principles](#core-principles) with concrete, checkable ru
 10. **Ports are Pluggable Contracts** — Port interfaces must be minimal, accept only domain types, and avoid exposing adapter-specific concerns
 11. **Portable Adapters** — An adapter's file(s) must copy into any project unmodified: standard ports + driver only, zero app imports, frozen config struct injected, pure mappers injected, vendor errors translated to port errors
 12. **Files Over Folders** — Prefer single files when a directory would contain fewer than 3 files. `domain/errors.py` beats `domain/errors/__init__.py` with one file inside
-13. **TimePort Everywhere** — Every project includes a `TimePort` for measuring process duration. It makes performance visible and debugging easy across all layers.
+13. **Measure at the Edges; TimePort for Business Time** — Every project includes a `TimePort` (wall `now_ms` + `monotonic_ms`) as the only time source. Durations are measured outside the domain by the `Instrumented` decorator and `traced(...)` wrappers on the monotonic clock; workflows take `TimePort` only for business time (expiry, deadlines). See [Profiling](./profiling.md).
 14. **Pure Functions Everywhere** — Every function that can be pure MUST be pure: same input → same output, no side effects. This applies to domain, adapter helpers, and test utilities alike. I/O is the adapter's job only. Testing becomes trivial: call function, check result.
 15. **Light Justfile for DX** — The root justfile is a thin command index: each recipe is one line delegating to a program (e.g. `cli.py`), never inline logic. It defines `root := justfile_directory()`, and recipes `cd` into the project dir. All task output is colored and structured via `PresenterPort` (rich panels/tables), auto-degrading on non-TTY/`NO_COLOR`.
 16. **LifetimePort for Graceful Exits** — Every long-running process and every resource-owning component (usually an adapter) registers cleanup via LifetimePort. No resource left behind, no matter the exit reason (crash, user exit, normal, timeout).
@@ -290,11 +293,11 @@ These refine the [Core Principles](#core-principles) with concrete, checkable ru
 27. **Fail Fast at Every Boundary** — Invalid state must never propagate. Domain workflows validate inputs as their first action. The composition root validates all adapters before starting the driving adapter. Adapters translate vendor errors to `AppError` at the boundary — never return `None`-on-failure, raw SDK errors, or bare strings. Retry only transient errors; non-transient failures (validation, auth, not-found) fail immediately. In dev/test, observability failures panic. In prod, they fall back to stderr. Event consumers have a maximum retry count per message — after exhausting retries, move to a dead letter queue and alert.
 28. **File Placement** — A single project (one hexagon) has exactly four root directories (`domain/`, `infra/`, `adapters/`, `tests/`) plus root-level entry points. Every new file goes into one of these. No fifth root directory within a project, ever. (A multi-project workspace adds a shared contracts folder and one folder per project at the workspace root; each project still keeps the four.) The decision tree: Is it an entry point? → root file. Is it a port/interface? → `domain/ports/`. Is it a model? → `domain/models/`. Is it workflow orchestration? → `domain/workflows/`. Is it an error type? → `domain/errors/`. Is it a portable adapter implementing a port? → `adapters/<backend>/`. Is it a decorator wrapping a port? → `adapters/decorators/`. Is it config or infra-as-code? → `infra/`. Is it a test? → `tests/`. If it doesn't fit, it's not a new file — it belongs inside an existing one. See [File Placement](./structures.md#where-does-a-new-file-go).
 29. **Domain, Port, or Adapter** — Every piece of code is one of three things. Domain = pure business logic, no side effects, imports nothing outside itself. Port = an interface (Protocol/ABC/Trait) the domain defines to declare what it needs (e.g., "I need a logger"). Adapter = an implementation of a port that talks to the outside world (e.g., GCloudLogger, JsonLogger — both implement LoggerPort). The domain never knows which adapter it's using; the composition root wires the right one. If it has side effects, it's an adapter. If it's an interface the domain defines, it's a port. If it's pure logic with no external dependency, it's domain. See [Domain, Port, or Adapter?](./structures.md#domain-port-or-adapter).
-30. **Transferable Adapters, Standard Ports** — Every adapter and every *standard/generic* port (`Repository[T]`, `CachePort`, …) must be copy-pasteable into another project unmodified. Standard ports contain no app-specific types — only domain primitives, generics, and standard port vocabulary. Domain-specific ports (a `*Gateway`, a `DocumentRepository` alias that names `Document`) necessarily speak domain models and are **not** required to be portable on their own; the adapter beneath them still is. Adapters depend only on standard ports + their driver — never on app models, sibling adapters, or project-specific code. Before adding a port or adapter from a collection, verify it compiles and passes its contract test in the target project with zero changes.
+30. **Transferable Adapters, Standard Ports** — Every adapter and every *standard/generic* port (`Repository[T]`, `CachePort`, …) must be copy-pasteable into another project unmodified. Standard ports contain no app-specific types — only domain primitives, generics, and standard port vocabulary. **`domain/result` and the `AppError` families in `domain/errors/app_error` are standard port vocabulary**: they ship with the ports kit, are identical in every project, and are the only `domain/` modules an adapter may import. Domain-specific ports (a `*Gateway`, a `DocumentRepository` alias that names `Document`) necessarily speak domain models and are **not** required to be portable on their own; the adapter beneath them still is. Adapters depend only on standard ports + their driver — never on app models, sibling adapters, or project-specific code. Before adding a port or adapter from a collection, verify it compiles and passes its contract test in the target project with zero changes.
 31. **Two Kinds of Functions** — Every function in the system is one of two kinds. Pure functions: same input → same output, no side effects, no port calls — trivial to test by calling and checking. Pure orchestrators: coordinate pure functions and port calls, no business logic inline — testable by faking ports. If a function does both (logic + side effects), split it. If a function is too large, extract the logic into pure functions and keep the orchestration thin. This prevents jack-of-all-trades functions and keeps every function testable at the lowest tier. See [Pure Functions and Pure Orchestrators](./structures.md#pure-functions-and-pure-orchestrators).
 32. **Workflows Read Like Pseudocode; Entry Points Read Like Shell Scripts** — A workflow orchestrates pure functions and ports with each line expressing one intent: validate → create → persist → log. An entry point reads like a shell script: load config → create adapters → wire → start. No implementation details leak into either. If you can't read it top-to-bottom and describe what it does, extract the details. See [Workflows vs Entry Points](./structures.md#workflows-vs-entry-points).
-33. **Bounded ROP, No Ad-Hoc Combinators** — Workflows return `Result[T]` (`Success` / `Failure(AppError)`); expected failures ride the failure track and the driving adapter renders both tracks in one `match`. Compose the track with a **fixed toolkit only** — `and_then` / `map` / `pipeline` / `recover` over **named steps** ([Railway-Oriented Workflows](./rop.md)). Never use error-*translation* combinators (`.map_err`, `.ok_or`, `.unwrap_or_else`) to build control flow, never nest `Result[Option[T]]` gymnastics, and never bury logic in inline lambdas. Where the language has a native `?` operator, that plus `match` is the entire toolkit.
-34. **Design by Contract at the Boundaries** — State each port's **preconditions** (what callers must provide), **postconditions** (what the port guarantees on success), and each model's **invariants** (what is always true). Enforce preconditions at the driving boundary with explicit `ValidationError` raises *before* any side effect — never `assert` for external input (it compiles out under `-O`/release); reserve `assert` for internal invariants. Driven adapters discharge postconditions and raise `ContractViolationError` (internal) when a backend returns partial, malformed, or missing data. Write every clause as a pure predicate and encode all three in the port's contract test. See [Validate at the Door](./domain.md#validate-at-the-door-fail-fast-in-domain) and [Port Contracts](./ports.md#port-contracts-preconditions-and-postconditions).
+33. **Bounded ROP, No Ad-Hoc Combinators** — Workflows return `Result[T]` (`Success` / `Failure(AppError)`); expected failures ride the failure track and the driving adapter renders both tracks in one `match`. Compose the track with a **fixed toolkit only** — `and_then` / `map_value` / `pipeline` / `recover` over **named steps**, plus `validate_all` to collect independent input violations ([Railway-Oriented Workflows](./rop.md)). Never use error-*translation* combinators (`.map_err`, `.ok_or`, `.unwrap_or_else`) to build control flow, never nest `Result[Option[T]]` to carry a second failure channel (a language's native nullable — Java `Optional` — for not-found is fine), and never bury logic in inline lambdas. Where the language has a native `?` operator, that plus `match` is the entire toolkit.
+34. **Design by Contract at the Boundaries** — State each port's **preconditions** (what callers must provide), **postconditions** (what the port guarantees on success), and each model's **invariants** (what is always true). Enforce preconditions at the driving boundary by returning `Failure(ValidationError)` *before* any side effect — never `assert` for external input (it compiles out under `-O`/release); reserve `assert` for internal invariants. Driven adapters discharge postconditions and raise `ContractViolationError` (internal) when a backend returns partial, malformed, or missing data. Write every clause as a pure predicate and encode all three in the port's contract test. See [Validate at the Door](./domain.md#validate-at-the-door-fail-fast-in-domain) and [Port Contracts](./ports.md#port-contracts-preconditions-and-postconditions).
 
 ## 12FA Compliance
 
@@ -396,13 +399,13 @@ Building a new feature?
 ├─ Create Ports for any external dependency (Protocol/Interface/Trait)
 ├─ Wrap each external service behind a *Gateway port; declare its transport in the injected config
 ├─ Add a port only when a Port Taxonomy trigger fires — no speculative ports
-├─ Add TimePort for any process that needs duration tracking
+├─ Wrap driven ports with Instrumented and workflows with traced(...) in the composition root — no timing code in workflows
 ├─ Use single files for modules with < 3 files (errors.py, not errors/__init__.py)
 ├─ Add capabilities as files under domain/, infra/, adapters/, tests/ — never a new root folder
 │  └─ Use the [File Placement](./structures.md#where-does-a-new-file-go) decision tree
 ├─ Implement Workflows as pure orchestrators (same input → same output, ports faked)
 ├─ Return Result[T] from workflows — expected failures ride the Failure track, defects raise
-├─ Compose the failure track with and_then/map/pipeline over named steps — never map_err/ok_or chains
+├─ Compose the failure track with and_then/map_value/pipeline/recover/validate_all over named steps — never map_err/ok_or chains
 ├─ Wrap every expected failure in Failure(AppError) — never a bare string or vendor object
 ├─ Create infra/ modules for cross-cutting concerns
 ├─ Provisioning resources? Declare them as IaC under infra/; otherwise keep infra/ config-only
@@ -416,7 +419,7 @@ Building a new feature?
 ├─ Run the port's contract test against every adapter (local and copied-in)
 ├─ Return Failure(AppError) for expected failures; raise for defects (code, context, cause, origin, correlation_id)
 ├─ Write each port contract as pure predicates — preconditions return Failure(ValidationError); postconditions + invariants raise ContractViolationError
-├─ Bounded ROP only — and_then/map/pipeline/recover over named steps; never map_err/ok_or chains or logic in lambdas (Rule 33)
+├─ Bounded ROP only — and_then/map_value/pipeline/recover/validate_all over named steps; Result is the only monad that crosses a port; never map_err/ok_or chains or logic in lambdas (Rule 33)
 ├─ Register each new code in the error registry (errors-check must pass)
 ├─ Install a crash/panic handler and breadcrumb buffer in the composition root
 ├─ Add a fault-injection test for every driven adapter's failure paths

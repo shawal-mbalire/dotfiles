@@ -12,9 +12,13 @@ Language not listed? Use Python as the reference and map to your language's idio
 | `@dataclass(frozen=True)` | `struct` | `record` | `record` | `data class` | `struct` | readonly class |
 | `typing.Protocol` | `interface` | `interface` | `interface` | `interface` | `protocol` | `interface` |
 | `__init__` | constructor | constructor | constructor | constructor | `init` | `__construct` |
-| `raise` | `return err` | `throw` | `throw` | `throw` | `throw` | `throw` |
-| `try/except` | `if err != nil` | `try/catch` | `try/catch` | `try/catch` | `do/catch` | `try/catch` |
+| `Result[T]` | `(T, error)` | `sealed interface Result<T>` | `abstract record Result<T>` | `sealed interface Result<out T>` | `Result<T, AppError>` | `Success\|Failure` classes |
+| `return Failure(e)` (expected) | `return nil, err` | `return new Failure<>(e)` | `return new Failure<T>(e)` | `return Failure(e)` | `return .failure(e)` | `return new Failure($e)` |
+| `isinstance(r, Failure)` | `if err != nil` | `r instanceof Failure<T> f` | `r is Failure<T> f` | `is Failure ->` | `case .failure(let e)` | `$r instanceof Failure` |
+| `raise` (defect only) | `panic` | `throw` | `throw` | `throw` | `fatalError` | `throw` |
 | `pytest` | `testing` | `JUnit` | `xUnit/NUnit` | `JUnit` | `XCTest` | `PHPUnit` |
+
+Naming notes: in Kotlin, define the domain type as `Outcome<T>` (or import it explicitly) — `Result` collides with the auto-imported `kotlin.Result`, which wraps `Throwable` rather than `AppError`. In C#, `Unit` is not in the BCL; declare `public readonly record struct Unit;` in `domain/result`.
 
 ## File Structure Mapping
 
@@ -47,8 +51,8 @@ type DocumentRepository interface {
 ```java
 // domain/ports/DocumentRepository.java
 public interface DocumentRepository {
-    void save(Document document);
-    Optional<Document> findById(String documentId);
+    Result<Void> save(Document document);
+    Result<Optional<Document>> findById(String documentId);   // Optional = not-found, not a failure
 }
 ```
 
@@ -56,8 +60,8 @@ public interface DocumentRepository {
 ```csharp
 // domain/ports/IDocumentRepository.cs
 public interface IDocumentRepository {
-    void Save(Document document);
-    Document? FindById(string documentId);
+    Result<Unit> Save(Document document);
+    Result<Document?> FindById(string documentId);
 }
 ```
 
@@ -65,8 +69,8 @@ public interface IDocumentRepository {
 ```swift
 // domain/ports/DocumentRepository.swift
 protocol DocumentRepository {
-    func save(_ document: Document) throws
-    func findById(_ id: String) throws -> Document?
+    func save(_ document: Document) -> Result<Void, AppError>
+    func findById(_ id: String) -> Result<Document?, AppError>
 }
 ```
 
@@ -75,8 +79,7 @@ protocol DocumentRepository {
 **Python → Go:**
 ```go
 // domain/workflows/create_document.go
-func CreateDocument(content string, repo DocumentRepository, logger Logger, time TimePort) (*Document, error) {
-    start := time.NowMs()
+func CreateDocument(content string, repo DocumentRepository, logger Logger) (*Document, error) {
     if strings.TrimSpace(content) == "" {
         return nil, ErrEmptyContent
     }
@@ -87,7 +90,7 @@ func CreateDocument(content string, repo DocumentRepository, logger Logger, time
     if err := repo.Save(doc); err != nil {
         return nil, fmt.Errorf("save document: %w", err)
     }
-    logger.Info(fmt.Sprintf("Document created %s in %dms", doc.ID, time.ElapsedMs(start)))
+    logger.Info("document_created", "document_id", doc.ID)
     return doc, nil
 }
 ```
@@ -98,23 +101,22 @@ func CreateDocument(content string, repo DocumentRepository, logger Logger, time
 public class CreateDocument {
     private final DocumentRepository repo;
     private final Logger logger;
-    private final TimePort time;
 
-    public CreateDocument(DocumentRepository repo, Logger logger, TimePort time) {
+    public CreateDocument(DocumentRepository repo, Logger logger) {
         this.repo = repo;
         this.logger = logger;
-        this.time = time;
     }
 
-    public Document execute(String content) {
-        long start = time.nowMs();
+    public Result<Document> execute(String content) {
         if (content == null || content.isBlank()) {
-            throw new EmptyContentError();
+            return new Failure<>(new EmptyContentError());
         }
         Document doc = new Document(UUID.randomUUID().toString(), content);
-        repo.save(doc);
-        logger.info("Document created " + doc.getId() + " in " + time.elapsedMs(start) + "ms");
-        return doc;
+        if (repo.save(doc) instanceof Failure<Void> failed) {
+            return new Failure<>(failed.error());
+        }
+        logger.info("document_created", Map.of("document_id", doc.getId()));
+        return new Success<>(doc);
     }
 }
 ```
@@ -130,7 +132,7 @@ type FirestoreDocumentAdapter struct {
 }
 
 func NewFirestoreDocumentAdapter(projectID, collection string) (*FirestoreDocumentAdapter, error) {
-    client, err := firestorange.NewClient(context.Background(), projectID)
+    client, err := firestore.NewClient(context.Background(), projectID)
     if err != nil {
         return nil, fmt.Errorf("create firestore client: %w", err)
     }
@@ -142,7 +144,10 @@ func (a *FirestoreDocumentAdapter) Save(doc *Document) error {
         "content": doc.Content,
         "status":  doc.Status,
     })
-    return err
+    if err != nil {
+        return StorageUnavailable("save", err)   // translate to AppError; never leak the SDK error
+    }
+    return nil
 }
 ```
 
@@ -163,9 +168,8 @@ func (f *FakeRepository) Save(doc *Document) error {
 func TestCreateDocument(t *testing.T) {
     repo := &FakeRepository{docs: make(map[string]*Document)}
     logger := &FakeLogger{}
-    time := &FakeTime{currentMs: 1000}
 
-    doc, err := CreateDocument("Hello", repo, logger, time)
+    doc, err := CreateDocument("Hello", repo, logger)
 
     assert.NoError(t, err)
     assert.Equal(t, "Hello", doc.Content)

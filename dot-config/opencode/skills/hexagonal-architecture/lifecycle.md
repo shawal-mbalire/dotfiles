@@ -77,7 +77,7 @@ Domain workflows complete or abort during shutdown — they have no cleanup to d
 
 ## TimePort
 
-Every project includes a `TimePort` for measuring process duration and driving poll loops. This makes performance visible and debugging easy across all layers.
+Every project includes a `TimePort`: the only source of time, so tests control it. It has **two clocks** — `now_ms()` (wall clock, for timestamps and business time) and `monotonic_ms()` (for durations; never jumps). Workflows use it only for **business time** (deadlines, expiry, poll intervals); measuring how long things take is done at the edges by decorators — see [Profiling](./profiling.md).
 
 ### TimePort Interface
 
@@ -86,15 +86,17 @@ Every project includes a `TimePort` for measuring process duration and driving p
 from typing import Protocol
 
 class TimePort(Protocol):
-    def now_ms(self) -> int: ...
-    def elapsed_ms(self, start_ms: int) -> int: ...
+    def now_ms(self) -> int: ...                       # wall clock (epoch ms): timestamps, business time
+    def monotonic_ms(self) -> int: ...                 # monotonic: durations only, never persisted
+    def elapsed_ms(self, start_ms: int) -> int: ...    # monotonic_ms() - start_ms
     def sleep_ms(self, ms: int) -> None: ...
 ```
 
 ```typescript
 // domain/ports/TimePort.ts (TypeScript)
 export interface TimePort {
-  nowMs(): number;
+  nowMs(): number;            // Date.now()
+  monotonicMs(): number;      // performance.now()
   elapsedMs(startMs: number): number;
   sleepMs(ms: number): Promise<void>;
 }
@@ -103,7 +105,8 @@ export interface TimePort {
 ```rust
 // domain/src/ports/time_port.rs (Rust)
 pub trait TimePort: Send + Sync {
-    fn now_ms(&self) -> u64;
+    fn now_ms(&self) -> u64;           // SystemTime since UNIX_EPOCH
+    fn monotonic_ms(&self) -> u64;     // Instant since a process-start Instant
     fn elapsed_ms(&self, start_ms: u64) -> u64;
     fn sleep_ms(&self, ms: u64);
 }
@@ -117,63 +120,78 @@ import time
 
 class SystemTimeAdapter:
     def now_ms(self) -> int:
-        return int(time.time() * 1000)
+        return time.time_ns() // 1_000_000           # wall clock — may jump (NTP, DST)
+
+    def monotonic_ms(self) -> int:
+        return time.monotonic_ns() // 1_000_000      # never goes backwards
 
     def elapsed_ms(self, start_ms: int) -> int:
-        return self.now_ms() - start_ms
+        return self.monotonic_ms() - start_ms        # durations never use the wall clock
 
     def sleep_ms(self, ms: int) -> None:
         time.sleep(ms / 1000.0)
 
 # adapters/mock_time.py (Python - for testing)
 class MockTimeAdapter:
-    def __init__(self):
-        self._current_ms = 0
+    def __init__(self, wall_ms: int = 0):
+        self._wall_ms = wall_ms
+        self._mono_ms = 0
         self._slept_ms = 0
 
     def now_ms(self) -> int:
-        return self._current_ms
+        return self._wall_ms
+
+    def monotonic_ms(self) -> int:
+        return self._mono_ms
 
     def elapsed_ms(self, start_ms: int) -> int:
-        return self._current_ms - start_ms
+        return self._mono_ms - start_ms
 
     def sleep_ms(self, ms: int) -> None:
         self._slept_ms += ms   # deterministic — no real waiting in tests
+        self.advance_ms(ms)
 
     def advance_ms(self, ms: int):
-        self._current_ms += ms
+        self._wall_ms += ms    # real time passing moves both clocks
+        self._mono_ms += ms
+
+    def set_wall_ms(self, wall_ms: int):
+        self._wall_ms = wall_ms   # simulate an NTP/DST jump: durations must not change
 ```
 
-### TimePort in Workflows
+### TimePort in Workflows: Business Time Only
+
+A workflow takes `TimePort` only when time is part of the **rule** — expiry, deadlines, "older than N days". It reads `now_ms()` once and passes the value to a pure function, so the rule is testable with a plain integer.
 
 ```python
-# domain/workflows/create_document.py
+# domain/workflows/release_expired_holds.py
+from domain.constants import HOLD_TTL_MS
 from domain.ports.time_port import TimePort
-from domain.ports.logger import LoggerPort
+from domain.result import Failure, Result, Success
 
-def create_document(
-    content: str,
-    repo: DocumentRepository,
-    logger: LoggerPort,
-    time: TimePort,  # Inject time port
-) -> Document:
-    start = time.now_ms()
+def select_expired(holds: list[Hold], now_ms: int) -> list[Hold]:
+    """Pure: business time arrives as a value."""
+    return [h for h in holds if now_ms - h.created_at_ms >= HOLD_TTL_MS]
 
-    document = Document.create(content=content)
-    repo.save(document)
-
-    elapsed = time.elapsed_ms(start)
-    logger.info(f"Document created in {elapsed}ms: {document.id}")
-    return document
+def release_expired_holds(holds: HoldRepository, time: TimePort) -> Result[int]:
+    found = holds.find_active()
+    if isinstance(found, Failure):
+        return found
+    expired = select_expired(found.value, now_ms=time.now_ms())
+    released = holds.release_all(expired)
+    if isinstance(released, Failure):
+        return released
+    return Success(len(expired))
 ```
+
+How long a workflow or port call took is **not** a workflow concern: `traced(...)` and the `Instrumented` decorator measure it from outside on the monotonic clock ([Profiling](./profiling.md)). Never write `start = time.now_ms()` … `elapsed_ms(start)` inside a workflow.
 
 ### TimePort Adapter Swapping
 
 | Environment | TimePort Adapter | Behavior |
 |-------------|------------------|----------|
-| Dev | `SystemTimeAdapter` | Real wall-clock time |
-| Test | `MockTimeAdapter` | Deterministic, fast, controllable |
-| Profile | `HighResTimeAdapter` | Nanosecond precision |
+| Dev / Prod | `SystemTimeAdapter` | Real wall clock + monotonic clock |
+| Test | `MockTimeAdapter` | Deterministic; `advance_ms` moves both clocks, `set_wall_ms` simulates a clock jump |
 
 ## LifetimePort
 
@@ -240,6 +258,8 @@ pub trait LifetimePort: Send + Sync {
 from domain.ports.lifetime_port import LifetimePort
 from domain.ports.time_port import TimePort
 from domain.ports.logger import LoggerPort
+from domain.constants import FLUSH_THRESHOLD
+from domain.result import Failure, Result, Success
 
 class DataCollector:
     def __init__(
@@ -263,11 +283,16 @@ class DataCollector:
         # Register exit handler — knows WHY we're exiting
         self.lifetime.on_exit(self._handle_exit)
 
-    def _flush_buffer(self):
-        """Flush any buffered data before exit."""
-        if self.buffer:
-            self.storage.save_batch(self.buffer)
-            self.buffer.clear()
+    def _flush_buffer(self) -> Result[None]:
+        """Flush buffered data. The buffer is cleared only once the save succeeded."""
+        if not self.buffer:
+            return Success(None)
+        saved = self.storage.save_batch(self.buffer)
+        if isinstance(saved, Failure):
+            self.logger.error("flush_failed", code=saved.error.code, pending=len(self.buffer))
+            return saved                                  # keep the buffer — never drop data
+        self.buffer.clear()
+        return saved
 
     def _handle_exit(self, reason: str):
         """Log exit reason and handle gracefully."""
@@ -278,13 +303,16 @@ class DataCollector:
         elif reason == "timeout":
             self.logger.error("Timeout — partial data saved")
 
-    def collect(self):
+    def collect(self) -> Result[None]:
         reading = self.sensor.read()
-        self.buffer.append(reading)
+        if isinstance(reading, Failure):
+            return reading
+        self.buffer.append(reading.value)
 
         # Periodic flush
-        if len(self.buffer) >= 100:
-            self._flush_buffer()
+        if len(self.buffer) >= FLUSH_THRESHOLD:
+            return self._flush_buffer()
+        return Success(None)
 ```
 
 ### Adapter Implementation
