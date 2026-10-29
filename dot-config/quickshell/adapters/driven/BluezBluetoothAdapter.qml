@@ -1,5 +1,3 @@
-// BluetoothPort over Quickshell.Bluetooth (BlueZ D-Bus). Event driven: this
-// replaces the bluetoothctl polling loops that ran every 3-5 seconds.
 import QtQml
 import Quickshell.Bluetooth
 import "../../domain/ports"
@@ -8,7 +6,6 @@ import "../../domain/errors"
 
 BluetoothPort {
   id: root
-
   readonly property var adapter: Bluetooth.defaultAdapter
   readonly property var connectedDevice: Bluetooth.devices.values.find(d => d.connected) ?? null
 
@@ -17,85 +14,45 @@ BluetoothPort {
   connectedName: enabled && connectedDevice !== null ? connectedDevice.name : ""
   discovering: available && adapter.discovering
   devices: available ? adapter.devices.values
-      .filter(device => device.paired || device.connected || discovering)
-      .map(device => ({
-        name: device.name !== "" ? device.name : device.deviceName,
-        address: device.address,
-        paired: device.paired,
-        connected: device.connected,
-        state: stateName(device.state)
-      }))
-    : []
+      .filter(d => d.paired || d.connected || discovering)
+      .map(d => ({ name: d.name !== "" ? d.name : d.deviceName, address: d.address, paired: d.paired, connected: d.connected, state: stateName(d.state) })) : []
 
-  // Postcondition: BlueZ reports one of the four known connection states.
   function stateName(state) {
     if (state === BluetoothDeviceState.Connected) return "Connected"
     if (state === BluetoothDeviceState.Connecting) return "Connecting"
     if (state === BluetoothDeviceState.Disconnecting) return "Disconnecting"
     if (state === BluetoothDeviceState.Disconnected) return "Disconnected"
-    Errors.postcondition(false, "bluetooth.unknown-state", "BlueZ reported an unknown device state",
-                         { state: state })
+    Errors.postcondition(false, "bluetooth.unknown-state", "BlueZ reported an unknown device state", { state: state })
     return ""
   }
 
-  function findDevice(address) {
-    return adapter.devices.values.find(d => d.address === address) ?? null
+  function findDevice(addr) { return adapter.devices.values.find(d => d.address === addr) ?? null }
+
+  function setEnabled(val) {
+    Errors.precondition(Contracts.isBool(val), "bluetooth.enabled-type", "enabled must be a boolean", { value: val })
+    if (available) adapter.enabled = val
   }
 
-  // Pre: value is a boolean.
-  function setEnabled(value) {
-    Errors.precondition(Contracts.isBool(value), "bluetooth.enabled-type",
-                        "enabled must be a boolean", { value: value })
-    if (!available) {
-      console.warn("[bluetooth] setEnabled ignored: no bluetooth adapter")
-      return
-    }
-    adapter.enabled = value
+  function setDiscovering(val) {
+    Errors.precondition(Contracts.isBool(val), "bluetooth.discovering-type", "discovering must be a boolean", { value: val })
+    if (available && enabled) adapter.discovering = val
   }
 
-  // Pre: value is a boolean.
-  function setDiscovering(value) {
-    Errors.precondition(Contracts.isBool(value), "bluetooth.discovering-type",
-                        "discovering must be a boolean", { value: value })
-    if (!available || !enabled) {
-      if (value) console.warn("[bluetooth] scan ignored: bluetooth is off or no adapter")
-      return
-    }
-    adapter.discovering = value
+  function connectDevice(addr) {
+    Errors.precondition(Contracts.isNonEmptyString(addr), "bluetooth.address-empty", "address must be a non-empty string", { address: addr })
+    const d = available ? findDevice(addr) : null
+    if (d) d.paired ? d.connect() : d.pair()
   }
 
-  // Pre: address is a non-empty string.
-  function connectDevice(address) {
-    Errors.precondition(Contracts.isNonEmptyString(address), "bluetooth.address-empty",
-                        "address must be a non-empty string", { address: address })
-    const device = available ? findDevice(address) : null
-    if (device === null) {
-      console.warn("[bluetooth] connect ignored: unknown device or no adapter", address)
-      return
-    }
-    if (device.paired) device.connect()
-    else device.pair()
+  function disconnectDevice(addr) {
+    Errors.precondition(Contracts.isNonEmptyString(addr), "bluetooth.address-empty", "address must be a non-empty string", { address: addr })
+    const d = available ? findDevice(addr) : null
+    if (d) d.disconnect()
   }
 
-  // Pre: address is a non-empty string.
-  function disconnectDevice(address) {
-    Errors.precondition(Contracts.isNonEmptyString(address), "bluetooth.address-empty",
-                        "address must be a non-empty string", { address: address })
-    const device = available ? findDevice(address) : null
-    if (device === null) {
-      console.warn("[bluetooth] disconnect ignored: unknown device or no adapter", address)
-      return
-    }
-    device.disconnect()
-  }
-
-  // Pre: address is a non-empty string.
-  function forgetDevice(address) {
-    Errors.precondition(Contracts.isNonEmptyString(address), "bluetooth.address-empty",
-                        "address must be a non-empty string", { address: address })
-    if (!available) return
-    const device = findDevice(address)
-    if (device) device.forget()
-    else console.warn("[bluetooth] forget ignored: unknown device", address)
+  function forgetDevice(addr) {
+    Errors.precondition(Contracts.isNonEmptyString(addr), "bluetooth.address-empty", "address must be a non-empty string", { address: addr })
+    const d = available ? findDevice(addr) : null
+    if (d) d.forget()
   }
 }

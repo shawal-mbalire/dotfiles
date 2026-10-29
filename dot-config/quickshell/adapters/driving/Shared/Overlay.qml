@@ -1,4 +1,3 @@
-// Quickshell reference: https://quickshell.org/docs/v0.3.0/types/Quickshell.Wayland/
 import "../../../infra/config"
 import Quickshell
 import Quickshell.Wayland
@@ -7,44 +6,17 @@ import "."
 
 PanelWindow {
   id: root
-
-  property string title: ""
-  property string shellNamespace: "quickshell:overlay"
-  // Clicking anywhere outside the overlay emits closeRequested().
-  property bool dismissOnOutsideClick: true
-  // Draw the rounded backdrop; off for windows whose children are their own cards.
-  property bool showBackground: true
-
-  // false plays the exit animation, after which closeFinished() is emitted and
-  // the owner may destroy the window. true (re)plays the enter animation.
-  property bool open: true
-  // Corner the open/close scale grows from.
-  property int openOrigin: Item.Top
-
-  // Children of an Overlay land in the animated body, not the bare window.
+  property string title: ""; property string shellNamespace: "quickshell:overlay"
+  property bool dismissOnOutsideClick: true; property bool showBackground: true
+  property bool open: true; property int openOrigin: Item.Top
   default property alias content: body.data
+  signal closeRequested(); signal closeFinished()
 
-  // Emitted instead of writing `visible` directly; the owner in shell.qml
-  // decides whether the overlay exists at all.
-  signal closeRequested()
-  // NB: not `closed` — QsWindow (PanelWindow's base) already declares a `closed`
-  // signal, and re-declaring it is an invalid override (qt.qml.invalidOverride).
-  signal closeFinished()
-
-  implicitWidth: 400
-  implicitHeight: 400
-  color: "transparent"
-
-  anchors {
-    top: true
-    left: true
-    right: true
-  }
-
+  implicitWidth: 400; implicitHeight: 400; color: "transparent"
+  anchors { top: true; left: true; right: true }
   margins.top: Theme.barHeight
   margins.left: Math.max(0, (screen.width - implicitWidth) / 2)
   margins.right: Math.max(0, (screen.width - implicitWidth) / 2)
-
   screen: Quickshell.screens[0]
 
   WlrLayershell.namespace: root.shellNamespace
@@ -52,29 +24,12 @@ PanelWindow {
   WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
   exclusiveZone: 0
 
-  DismissGrab {
-    window: root
-    enabled: root.open && root.dismissOnOutsideClick
-    onDismissed: root.closeRequested()
-  }
+  DismissGrab { window: root; enabled: root.open && root.dismissOnOutsideClick; onDismissed: root.closeRequested() }
 
   Item {
-    id: body
-    anchors.fill: parent
-    enabled: root.open
-    opacity: 0
-    scale: 0.94
-    transformOrigin: root.openOrigin
+    id: body; anchors.fill: parent; enabled: root.open; opacity: 0; scale: 0.94; transformOrigin: root.openOrigin
     transform: Translate { id: slide; y: -10 }
-
-    Rectangle {
-      anchors.fill: parent
-      visible: root.showBackground
-      color: Theme.glass(Theme.base)
-      radius: Theme.radiusLg
-      border.color: Theme.surface1
-      border.width: 1
-    }
+    Rectangle { anchors.fill: parent; visible: root.showBackground; color: Theme.glass(Theme.base); radius: Theme.radiusLg; border.color: Theme.surface1; border.width: 1 }
   }
 
   ParallelAnimation {
@@ -92,19 +47,7 @@ PanelWindow {
     onFinished: root.closeFinished()
   }
 
-  function playOpen() {
-    exitAnim.stop()
-    enterAnim.restart()
-  }
-
-  onOpenChanged: {
-    if (open) {
-      playOpen()
-    } else {
-      enterAnim.stop()
-      exitAnim.restart()
-    }
-  }
-
+  function playOpen() { exitAnim.stop(); enterAnim.restart() }
+  onOpenChanged: { if (open) playOpen(); else { enterAnim.stop(); exitAnim.restart() } }
   Component.onCompleted: if (open) playOpen()
 }

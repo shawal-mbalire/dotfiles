@@ -39,10 +39,6 @@ ShellRoot {
   ConnectionNoticeWorkflow { bluetoothPort: bluetooth; networkPort: network; feedPort: notificationFeed }
 
   // ── Auto-hidden bar ──────────────────────────────────────────────────────
-  // Hidden until the pointer reaches the top (Bar/TopEdgeReveal), enters the
-  // top-right hot corner, or the `bar` IPC toggle pins it. The bar and the
-  // control center are treated as one object: while the control center is open
-  // the bar stays, and dismissing the control center lets the bar hide with it.
   property bool barVisible: false
   property bool barPinned: false
   property bool barHovered: false
@@ -50,7 +46,6 @@ ShellRoot {
   property bool cornerHovered: false
   property int barHideDelay: 500
 
-  // immediate: hide now instead of after barHideDelay (used once the control center has closed).
   function updateBar(immediate) {
     if (barPinned || barHovered || stripHovered || cornerHovered || controlCenterSlot.open) {
       barHideTimer.stop()
@@ -63,13 +58,8 @@ ShellRoot {
     }
   }
 
-  function toggleBar() {
-    barPinned = !barPinned
-    updateBar()
-  }
+  function toggleBar() { barPinned = !barPinned; updateBar() }
 
-  // The hot corner is a single action: bar up and control center open, always
-  // together, never one without the other.
   function openControlCenterFromCorner() {
     barVisible = true
     if (!controlCenterSlot.open) controlCenterSlot.toggle(root.focusedScreen())
@@ -82,8 +72,6 @@ ShellRoot {
     onTriggered: if (!root.barPinned) root.barVisible = false
   }
 
-  // Each overlay opens on the focused monitor and stays mounted until its
-  // exit animation has finished.
   OverlaySlot { id: menuSlot }
   OverlaySlot { id: clipboardSlot }
   OverlaySlot { id: controlCenterSlot }
@@ -93,13 +81,8 @@ ShellRoot {
     return Quickshell.screens.find(s => s.name === name) ?? Quickshell.screens[0]
   }
 
-  IpcHandler {
-    target: "bar"
-    function toggle(): void { root.toggleBar() }
-  }
+  IpcHandler { target: "bar"; function toggle(): void { root.toggleBar() } }
 
-  // Volume and mic keys go through the audio adapter, so the volume ceiling,
-  // sink eligibility and the OSD all apply.
   IpcHandler {
     target: "audio"
     function up(): void { audio.step(Bounds.volumeStep) }
@@ -108,8 +91,6 @@ ShellRoot {
     function toggleMicMute(): void { audio.toggleSourceMuted() }
   }
 
-  // Brightness keys step the shell's own level, so the curve, the OSD and the
-  // readout all come from one place.
   IpcHandler {
     target: "brightness"
     function up(): void { brightness.step(Bounds.brightnessStep) }
@@ -117,16 +98,8 @@ ShellRoot {
     function refresh(): void { brightness.refresh() }
   }
 
-  IpcHandler {
-    target: "menu"
-    function toggle(): void { menuSlot.toggle(root.focusedScreen()) }
-  }
-
-  IpcHandler {
-    target: "clipboard"
-    function toggle(): void { clipboardSlot.toggle(root.focusedScreen()) }
-  }
-
+  IpcHandler { target: "menu"; function toggle(): void { menuSlot.toggle(root.focusedScreen()) } }
+  IpcHandler { target: "clipboard"; function toggle(): void { clipboardSlot.toggle(root.focusedScreen()) } }
   IpcHandler {
     target: "controlCenter"
     function toggle(): void {
@@ -135,28 +108,26 @@ ShellRoot {
     }
   }
 
+  IpcHandler {
+    target: "wallpapers"
+    function refresh(): void { wallpaper.refresh() }
+    function set(path: string): void { wallpaper.set(path) }
+    function next(): void { wallpaper.next() }
+    function prev(): void { wallpaper.previous() }
+    function random(): void { wallpaper.random() }
+    function list(): string { return wallpaper.wallpapers.join("\n") }
+    function current(): string { return wallpaper.current }
+  }
+
   // ── Volume / brightness OSD ──────────────────────────────────────────────
-  // Shown when a level changes outside the control center (bar scroll, media
-  // keys); the control center's own sliders are their own feedback.
   property string osdKind: "volume"
   property int osdLevel: 0
   property bool osdMuted: false
   property bool osdActive: false
-  // Ignore the initial 0 -> real sink/brightness values at startup.
   property bool levelFeedbackReady: false
 
-  Timer {
-    id: levelFeedbackArm
-    interval: 1500
-    running: true
-    onTriggered: root.levelFeedbackReady = true
-  }
-
-  Timer {
-    id: osdHide
-    interval: 1100
-    onTriggered: root.osdActive = false
-  }
+  Timer { id: levelFeedbackArm; interval: 1500; running: true; onTriggered: root.levelFeedbackReady = true }
+  Timer { id: osdHide; interval: 1100; onTriggered: root.osdActive = false }
 
   function showOsd(kind, level, muted) {
     root.osdKind = kind
@@ -187,13 +158,8 @@ ShellRoot {
     }
   }
 
-  // ── Colour scheme: the adapter owns the desktop setting, Theme only renders it
   GnomeColorSchemeAdapter { id: colorScheme }
-  Binding {
-    target: Theme
-    property: "darkMode"
-    value: colorScheme.darkMode
-  }
+  Binding { target: Theme; property: "darkMode"; value: colorScheme.darkMode }
 
   // ── Bar, one per screen ──────────────────────────────────────────────────
   Variants {
@@ -204,7 +170,6 @@ ShellRoot {
       required property var modelData
       screen: modelData
 
-      // Stays mapped through the exit slide, like the control center, then unmaps.
       property bool shown: root.barVisible
       property bool mounted: false
       visible: mounted
@@ -232,30 +197,19 @@ ShellRoot {
         onFinished: if (!barWindow.shown) barWindow.mounted = false
       }
 
-      anchors {
-        top: true
-        left: true
-        right: true
-      }
-
-      // Auto-hiding: must not reserve space, or tiled windows reflow on every hide.
+      anchors { top: true; left: true; right: true }
       exclusiveZone: 0
-      // Clicks pass through the empty area while the bar is sliding out of view.
       mask: Region { item: barPanel }
       implicitHeight: Theme.barHeight
       color: Theme.glass(Theme.mantle)
       WlrLayershell.namespace: "quickshell:bar"
 
-      // Full-bleed so the hover handler covers the whole bar, not just the
-      // content inset; margins move to the left/right groups.
       Item {
         id: barPanel
         anchors.fill: parent
         opacity: 0
         transform: Translate { id: barSlide; y: -Theme.barHeight }
 
-        // Keep the bar up while the pointer is on it; hiding is deferred so the
-        // pointer can travel between the bar and the top-edge strip.
         HoverHandler {
           onHoveredChanged: {
             root.barHovered = hovered
@@ -273,44 +227,29 @@ ShellRoot {
           SystemTray {}
         }
 
-        Clock {
-          anchors.centerIn: parent
-        }
+        Clock { anchors.centerIn: parent }
 
-        RowLayout {
+        BarIndicators {
           anchors.right: parent.right
           anchors.rightMargin: 14
           anchors.verticalCenter: parent.verticalCenter
-          spacing: 20
-
-          ColorCorrection { colorCorrectionPort: colorCorrection }
-          Network { networkPort: network }
-          Bluetooth { bluetoothPort: bluetooth }
-          Volume { audioPort: audio }
-          Brightness { brightnessPort: brightness }
-          Battery { batteryPort: battery }
+          colorCorrectionPort: colorCorrection
+          networkPort: network
+          bluetoothPort: bluetooth
+          audioPort: audio
+          brightnessPort: brightness
+          batteryPort: battery
         }
       }
     }
   }
 
-  // ── Top-edge reveal strip + hot corner, one of each per screen ───────────
+  // ── Top-edge sensors (reveal strip + hot corner), one per screen ─────────
   Variants {
     model: Quickshell.screens
-
-    TopEdgeReveal {
-      // Edge hover pins the bar open; leaving arms the hide timer.
+    TopEdgeSensors {
       onHoverEntered: { root.stripHovered = true; root.updateBar() }
       onHoverExited: { root.stripHovered = false; root.updateBar() }
-    }
-  }
-
-  Variants {
-    model: Quickshell.screens
-
-    HotCorner {
-      onHoverEntered: { root.cornerHovered = true; root.updateBar() }
-      onHoverExited: { root.cornerHovered = false; root.updateBar() }
       onTriggered: root.openControlCenterFromCorner()
     }
   }
@@ -330,7 +269,6 @@ ShellRoot {
   // ── Overlays: created on open, destroyed after their exit animation ──────
   LazyLoader {
     active: menuSlot.mounted
-
     Menu {
       screen: menuSlot.screen
       open: menuSlot.open
@@ -342,7 +280,6 @@ ShellRoot {
 
   LazyLoader {
     active: clipboardSlot.mounted
-
     Clipboard {
       screen: clipboardSlot.screen
       open: clipboardSlot.open
@@ -354,7 +291,6 @@ ShellRoot {
 
   LazyLoader {
     active: controlCenterSlot.mounted
-
     ControlCenter {
       screen: controlCenterSlot.screen
       open: controlCenterSlot.open
@@ -377,12 +313,9 @@ ShellRoot {
     }
   }
 
-  Wallpapers { wallpaperPort: wallpaper }
-
   // ── Wallpaper, one background surface per screen ─────────────────────────
   Variants {
     model: Quickshell.screens
-
     WallpaperBackground { wallpaperPort: wallpaper }
   }
 }

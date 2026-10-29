@@ -1,28 +1,39 @@
-pragma Singleton
 import QtQml
 
-// Sinks the shell never uses as output.
-// - AirPlay (RAOP) speakers, including the Mac mini, appear and vanish on their
-//   own, and a stream left on one is silent.
-// - HDMI / DisplayPort outputs of the laptop's sound card. They are listed even
-//   when nothing is plugged in, and the built-in speakers are the one real output
-//   of the machine, so the picker treats them as a single sink.
-// Matched against node.name and node.description, case-insensitively.
+// AudioNodes model: Pipewire eligible node filtering and arrived device tracking.
+pragma Singleton
+
 QtObject {
-  readonly property var excluded: [/^raop_sink\./i, /airplay/i, /mac\s*mini/i, /hdmi|displayport/i]
-
-  function isEligible(name, description) {
-    const text = (name || "") + " " + (description || "")
-    return !excluded.some(pattern => pattern.test(text))
+  // Sinks: RAOP/AirPlay and Mac mini are excluded.
+  function isSinkEligible(name, description) {
+    if (!name) return false
+    const n = name.toLowerCase(), d = (description || "").toLowerCase()
+    if (n.startsWith("raop_client.") || n.startsWith("raop_sink.")) return false
+    if (n.includes("airplay") || d.includes("airplay")) return false
+    if (n.includes("macmini") || d.includes("macmini")) return false
+    if (n.includes("mac-mini") || d.includes("mac-mini")) return false
+    if (n.includes("hdmi") || d.includes("hdmi")) return false
+    if (n.includes("displayport") || d.includes("displayport")) return false
+    return true
   }
 
-  // Bluetooth (bluez) output sinks, e.g. "bluez_output.AF_45_C1_DA_22_67.1".
-  function isBluetooth(name) {
-    return /^bluez_output\./.test(name || "")
+  // Legacy alias for Sinks.isEligible
+  function isEligible(name, description) { return isSinkEligible(name, description) }
+
+  // Sources: monitor streams are recording taps from shell apps, not real microphones.
+  function isSourceEligible(name) {
+    const text = name || ""
+    return !(/\.monitor$/i).test(text)
   }
 
-  // The first Bluetooth sink in `current` that was not in `previous` (names), or "".
+  // Newly connected Bluetooth sink detector
   function arrivedBluetooth(previous, current) {
-    return current.find(name => isBluetooth(name) && !previous.includes(name)) ?? ""
+    const isBt = n => n.startsWith("bluez_output.")
+    const prevBt = (previous || []).filter(isBt)
+    const currBt = (current || []).filter(isBt)
+    for (let i = 0; i < currBt.length; i++) {
+      if (!prevBt.includes(currBt[i])) return currBt[i]
+    }
+    return ""
   }
 }
