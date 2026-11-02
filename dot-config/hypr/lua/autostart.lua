@@ -10,6 +10,8 @@
 local shell = require("lua.env")
 
 hl.on("hyprland.start", function()
+	-- Fingerprint login leaves the GNOME keyring locked; unlock it from a TPM-sealed credential.
+	hl.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/unlock-keyring.sh")
 	-- tmux.service starts before Hyprland, so its panes lack the Hyprland socket env;
 	-- a qs started from tmux then never sees workspace events.
 	hl.exec_cmd("sh -c 'tmux set-environment -g HYPRLAND_INSTANCE_SIGNATURE \"$HYPRLAND_INSTANCE_SIGNATURE\"; tmux set-environment -g WAYLAND_DISPLAY \"$WAYLAND_DISPLAY\"'")

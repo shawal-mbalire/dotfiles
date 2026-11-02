@@ -2,7 +2,7 @@
 ---------------------
 
 local mainMod = "SUPER" -- Sets "Windows" key as main modifier
-local terminal = "kitty"
+local terminal = "tersh"
 local fileManager = "nautilus"
 local browser = "flatpak run app.zen_browser.zen"
 local appMenu = "qs ipc call menu toggle"
@@ -13,7 +13,11 @@ local wallpaper = "qs ipc call wallpapers random"
 
 -- Save screenshot to ~/Pictures/Screenshots and copy it to the clipboard
 local function screenshot(capture)
-	return hl.dsp.exec_cmd([[sh -c 'mkdir -p "$HOME/Pictures/Screenshots" && f="$HOME/Pictures/Screenshots/$(date +%F_%T).png" && ]] .. capture .. [[ "$f" && wl-copy < "$f"']])
+	return hl.dsp.exec_cmd(
+		[[sh -c 'mkdir -p "$HOME/Pictures/Screenshots" && f="$HOME/Pictures/Screenshots/$(date +%F_%T).png" && ]]
+			.. capture
+			.. [[ "$f" && wl-copy < "$f"']]
+	)
 end
 
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
@@ -48,10 +52,10 @@ hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:mag
 
 -- resize windows with alt + vim motions
 -- h/l shrink/grow width, k/j shrink/grow height
-hl.bind("ALT + h", hl.dsp.window.resize({ x = -10, y = 0, relative = true }))
-hl.bind("ALT + j", hl.dsp.window.resize({ x = 0, y = 10, relative = true }))
-hl.bind("ALT + k", hl.dsp.window.resize({ x = 0, y = -10, relative = true }))
-hl.bind("ALT + l", hl.dsp.window.resize({ x = 10, y = 0, relative = true }))
+-- hl.bind("ALT + h", hl.dsp.window.resize({ x = -10, y = 0, relative = true }))
+-- hl.bind("ALT + j", hl.dsp.window.resize({ x = 0, y = 10, relative = true }))
+-- hl.bind("ALT + k", hl.dsp.window.resize({ x = 0, y = -10, relative = true }))
+-- hl.bind("ALT + l", hl.dsp.window.resize({ x = 10, y = 0, relative = true }))
 
 -- Laptop multimedia keys for volume and LCD brightness
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("qs ipc call audio up"), { locked = true, repeating = true })
@@ -70,4 +74,8 @@ hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true 
 -- Screenshots (grim + slurp + wl-copy)
 hl.bind("Print", screenshot([[grim -g "$(slurp)"]]), { locked = true })
 hl.bind("SHIFT + Print", screenshot("grim"), { locked = true })
-hl.bind("CTRL + Print", screenshot([[grim -o "$(hyprctl monitors -j | jq -r ".[] | select(.focused).name")"]]), { locked = true })
+hl.bind(
+	"CTRL + Print",
+	screenshot([[grim -o "$(hyprctl monitors -j | jq -r ".[] | select(.focused).name")"]]),
+	{ locked = true }
+)

@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://carapace.sh/schemas/spec.json
+# carapace completion for tersh (copy to ~/.config/carapace/specs/tersh.yaml)
+name: tersh
+description: Lightweight terminal with rich media cards
+flags:
+  --cwd=: Start the shell in DIR
+  --input=: Type TEXT into the shell once it starts
+  --size=: Initial window size in logical pixels (e.g. 1000x640)
+  -V, --version: Print the version
+  -h, --help: Show the help
+completion:
+  flag:
+    cwd: ["$directories"]
+commands:
+  - name: update
+    description: Install the latest release
+    flags:
+      --check: Only report whether a newer release exists

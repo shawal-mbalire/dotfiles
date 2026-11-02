@@ -676,12 +676,8 @@ def up [] {
   brew update -y
 }
 
-def cleanup [] {
-  if $nu.os-info.name == "linux" {
-    sudo dnf autoremove -y
-    sudo dnf clean all 
-  }
-  brew cleanup
+def cleanup [--run (-r)] {
+  nu ($nu.default-config-dir | path join clean.nu) ...(if $run { [--run] } else { [] })
 }
 
 def usage [] {

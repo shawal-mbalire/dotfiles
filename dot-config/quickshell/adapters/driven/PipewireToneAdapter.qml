@@ -15,8 +15,7 @@ import "../../domain/errors"
 FeedbackPort {
   id: root
 
-  property int minHz: 320
-  property int maxHz: 1180
+  property int toneHz : 800
   property real duration: 0.08
   property int maxPlayMs: 1000
   property int maxFailures: 3
@@ -40,7 +39,7 @@ FeedbackPort {
                         "level must be a finite number >= 0", { level: level })
     if (!root.available || tone.running) return
     const ratio = Math.max(0, Math.min(100, level)) / 100
-    const hz = Math.round(root.minHz + (root.maxHz - root.minHz) * ratio)
+    const hz = toneHz
     watchdog.restart()
     tone.exec(["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet",
                "-f", "lavfi", "-i", "sine=frequency=" + hz + ":duration=" + root.duration])
