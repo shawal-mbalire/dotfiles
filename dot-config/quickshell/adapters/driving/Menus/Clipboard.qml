@@ -48,7 +48,8 @@ Overlay {
         Text { text: String.fromCodePoint(0xF014C); color: Theme.overlay1; font { family: Theme.nerdFont; pixelSize: 16 } }
         TextInput {
           id: input; Layout.fillWidth: true; color: Theme.text; selectionColor: Theme.blue; selectedTextColor: Theme.crust
-          font { family: Theme.font; pixelSize: 14; weight: 600 }; clip: true; focus: true
+          font { family: Theme.font; pixelSize: 14; weight: 600 }
+          clip: true; focus: true
           Component.onCompleted: forceActiveFocus()
           Keys.onPressed: ev => {
             const ctrl = ev.modifiers & Qt.ControlModifier
@@ -64,7 +65,9 @@ Overlay {
         }
         Text {
           visible: root.clipboardPort.history.length > 0; text: "Clear"; color: clearHover.hovered ? Theme.red : Theme.overlay0
-          font { family: Theme.font; pixelSize: 11; weight: 700 }; HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }; TapHandler { onTapped: root.clipboardPort.clear() }
+          font { family: Theme.font; pixelSize: 11; weight: 700 }
+          HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }
+          TapHandler { onTapped: root.clipboardPort.clear() }
         }
       }
     }
@@ -79,8 +82,11 @@ Overlay {
         id: row; required property string modelData; required property int index
         width: ListView.view.width; height: 40
         Text {
-          anchors { fill: parent; leftMargin: Theme.padding; rightMargin: Theme.padding }; text: ClipboardModel.preview(row.modelData)
-          textFormat: Text.PlainText; color: Theme.text; font { family: Theme.font; pixelSize: 12; weight: 600 }; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
+          anchors { fill: parent; leftMargin: Theme.padding; rightMargin: Theme.padding }
+          text: ClipboardModel.preview(row.modelData)
+          textFormat: Text.PlainText; color: Theme.text
+          font { family: Theme.font; pixelSize: 12; weight: 600 }
+          elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
         }
         MouseArea {
           anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor

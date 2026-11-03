@@ -26,8 +26,16 @@ ColumnLayout {
 
   RowLayout {
     Layout.fillWidth: true; visible: root.icon !== "" || root.label !== ""; spacing: Theme.spacing
-    Text { text: root.icon; color: root.iconColor; font { family: Theme.nerdFont; pixelSize: 14; weight: Theme.fontWeight }; visible: root.icon !== "" }
-    Text { text: root.label; color: Theme.text; font { family: Theme.font; pixelSize: 13; weight: 800 }; visible: root.label !== "" }
+    Text {
+      text: root.icon; color: root.iconColor
+      font { family: Theme.nerdFont; pixelSize: 14; weight: Theme.fontWeight }
+      visible: root.icon !== ""
+    }
+    Text {
+      text: root.label; color: Theme.text
+      font { family: Theme.font; pixelSize: 13; weight: 800 }
+      visible: root.label !== ""
+    }
     Item { Layout.fillWidth: true }
   }
 
@@ -48,6 +56,10 @@ ColumnLayout {
         onPressed: m => root.applyMouse(m); onPositionChanged: m => { if (pressed) root.applyMouse(m) }
       }
     }
-    Text { text: root.value + "%"; color: Theme.overlay0; font { family: Theme.font; pixelSize: 12; weight: 600 }; Layout.alignment: Qt.AlignVCenter }
+    Text {
+      text: root.value + "%"; color: Theme.overlay0
+      font { family: Theme.font; pixelSize: 12; weight: 600 }
+      Layout.alignment: Qt.AlignVCenter
+    }
   }
 }

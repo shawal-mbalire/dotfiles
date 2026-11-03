@@ -70,19 +70,37 @@ Overlay {
         }
 
         ColumnLayout {
-          id: content; anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.padding }; spacing: Theme.spacing
+          id: content
+          anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.padding }
+          spacing: Theme.spacing
           RowLayout {
             Layout.fillWidth: true; spacing: Theme.spacingLg
             Rectangle {
               implicitWidth: 40; implicitHeight: 40; radius: Theme.radiusSm; color: Theme.surface0; Layout.alignment: Qt.AlignTop
               Image { id: appImage; anchors.fill: parent; anchors.margins: card.modelData.image ? 0 : 8; source: card.iconSource; sourceSize: Qt.size(80, 80); fillMode: Image.PreserveAspectFit; asynchronous: true; visible: status === Image.Ready }
-              Text { anchors.centerIn: parent; text: String.fromCodePoint(0xF009A); color: card.critical ? Theme.red : Theme.overlay1; font { family: Theme.nerdFont; pixelSize: 20 }; visible: appImage.status !== Image.Ready }
+              Text {
+                anchors.centerIn: parent; text: String.fromCodePoint(0xF009A); color: card.critical ? Theme.red : Theme.overlay1
+                font { family: Theme.nerdFont; pixelSize: 20 }
+                visible: appImage.status !== Image.Ready
+              }
             }
             ColumnLayout {
               spacing: 2; Layout.fillWidth: true; Layout.alignment: Qt.AlignTop
-              Text { text: card.modelData.appName; textFormat: Text.PlainText; color: Theme.overlay1; font { family: Theme.font; pixelSize: 10; weight: 700 }; elide: Text.ElideRight; Layout.fillWidth: true }
-              Text { text: card.modelData.summary; textFormat: Text.PlainText; color: Theme.text; font { family: Theme.font; pixelSize: 13; weight: 800 }; elide: Text.ElideRight; Layout.fillWidth: true }
-              Text { text: card.modelData.body; textFormat: Text.PlainText; color: Theme.subtext0; font { family: Theme.font; pixelSize: 11; weight: 600 }; wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight; Layout.fillWidth: true; visible: text !== "" }
+              Text {
+                text: card.modelData.appName; textFormat: Text.PlainText; color: Theme.overlay1
+                font { family: Theme.font; pixelSize: 10; weight: 700 }
+                elide: Text.ElideRight; Layout.fillWidth: true
+              }
+              Text {
+                text: card.modelData.summary; textFormat: Text.PlainText; color: Theme.text
+                font { family: Theme.font; pixelSize: 13; weight: 800 }
+                elide: Text.ElideRight; Layout.fillWidth: true
+              }
+              Text {
+                text: card.modelData.body; textFormat: Text.PlainText; color: Theme.subtext0
+                font { family: Theme.font; pixelSize: 11; weight: 600 }
+                wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight; Layout.fillWidth: true; visible: text !== ""
+              }
             }
             Rectangle {
               implicitWidth: 22; implicitHeight: 22; radius: 11; color: closeArea.containsMouse ? Theme.red : Theme.surface0; Layout.alignment: Qt.AlignTop

@@ -23,10 +23,15 @@ Rectangle {
       TapHandler { onTapped: root.toggleRequested() }
       HoverHandler { id: headerHover; cursorShape: Qt.PointingHandCursor }
       Text { text: root.icon; color: root.iconColor; font { family: Theme.nerdFont; pixelSize: 14; weight: Theme.fontWeight } }
-      Text { text: root.title; color: Theme.text; font { family: Theme.font; pixelSize: 12; weight: 800 }; elide: Text.ElideRight }
+      Text {
+        text: root.title; color: Theme.text
+        font { family: Theme.font; pixelSize: 12; weight: 800 }
+        elide: Text.ElideRight
+      }
       Text {
         Layout.fillWidth: true; Layout.minimumWidth: 0; text: root.summary; color: Theme.overlay0
-        font { family: Theme.font; pixelSize: 10; weight: 600 }; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
+        font { family: Theme.font; pixelSize: 10; weight: 600 }
+        horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
       }
       Text {
         text: String.fromCodePoint(0xF0140); color: Theme.overlay0; font { family: Theme.nerdFont; pixelSize: 14 }

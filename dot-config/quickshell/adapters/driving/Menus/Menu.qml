@@ -40,7 +40,8 @@ Overlay {
         Text { text: String.fromCodePoint(0xF0349); color: Theme.overlay1; font { family: Theme.nerdFont; pixelSize: 16 } }
         TextInput {
           id: input; Layout.fillWidth: true; color: Theme.text; selectionColor: Theme.blue; selectedTextColor: Theme.crust
-          font { family: Theme.font; pixelSize: 14; weight: 600 }; clip: true; focus: true
+          font { family: Theme.font; pixelSize: 14; weight: 600 }
+          clip: true; focus: true
           Component.onCompleted: forceActiveFocus()
           Keys.onPressed: ev => {
             const ctrl = ev.modifiers & Qt.ControlModifier
@@ -79,8 +80,16 @@ Overlay {
           }
           ColumnLayout {
             Layout.fillWidth: true; spacing: 0
-            Text { text: row.modelData.name; textFormat: Text.PlainText; color: Theme.text; font { family: Theme.font; pixelSize: 13; weight: 700 }; elide: Text.ElideRight; Layout.fillWidth: true }
-            Text { text: row.modelData.genericName || row.modelData.comment; textFormat: Text.PlainText; color: Theme.overlay1; font { family: Theme.font; pixelSize: 10; weight: 600 }; elide: Text.ElideRight; Layout.fillWidth: true; visible: text !== "" }
+            Text {
+              text: row.modelData.name; textFormat: Text.PlainText; color: Theme.text
+              font { family: Theme.font; pixelSize: 13; weight: 700 }
+              elide: Text.ElideRight; Layout.fillWidth: true
+            }
+            Text {
+              text: row.modelData.genericName || row.modelData.comment; textFormat: Text.PlainText; color: Theme.overlay1
+              font { family: Theme.font; pixelSize: 10; weight: 600 }
+              elide: Text.ElideRight; Layout.fillWidth: true; visible: text !== ""
+            }
           }
         }
         MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.selectedIndex = row.index; onClicked: root.launch(row.index) }

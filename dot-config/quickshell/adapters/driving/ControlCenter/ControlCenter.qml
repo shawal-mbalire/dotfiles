@@ -92,7 +92,11 @@ Overlay {
       Layout.fillWidth: true; spacing: Theme.spacingSm
       Text { text: dsRoot.icon; color: Theme.overlay1; font { family: Theme.nerdFont; pixelSize: 13 } }
       Text { text: dsRoot.kind; color: Theme.overlay1; font { family: Theme.font; pixelSize: 9; weight: 800 } }
-      Text { Layout.fillWidth: true; text: dsRoot.currentLabel; textFormat: Text.PlainText; color: Theme.subtext0; font { family: Theme.font; pixelSize: 10; weight: 600 }; elide: Text.ElideRight }
+      Text {
+        Layout.fillWidth: true; text: dsRoot.currentLabel; textFormat: Text.PlainText; color: Theme.subtext0
+        font { family: Theme.font; pixelSize: 10; weight: 600 }
+        elide: Text.ElideRight
+      }
     }
 
     Column {
@@ -107,7 +111,8 @@ Overlay {
           Text {
             anchors { verticalCenter: parent.verticalCenter; left: parent.left; right: parent.right; leftMargin: Theme.padding; rightMargin: Theme.padding }
             text: dsRow.modelData.label; textFormat: Text.PlainText; color: dsRow.current ? Theme.text : Theme.subtext0
-            font { family: Theme.font; pixelSize: 11; weight: dsRow.current ? 800 : 600 }; elide: Text.ElideRight
+            font { family: Theme.font; pixelSize: 11; weight: dsRow.current ? 800 : 600 }
+            elide: Text.ElideRight
           }
           MouseArea { id: dsArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: dsRoot.chosen(dsRow.modelData.name) }
         }
@@ -171,14 +176,18 @@ Overlay {
             }
             Text {
               Layout.fillWidth: true; visible: root.networkError !== ""; text: root.networkError
-              color: Theme.red; font { family: Theme.font; pixelSize: 10; weight: 600 }; wrapMode: Text.Wrap
+              color: Theme.red
+              font { family: Theme.font; pixelSize: 10; weight: 600 }
+              wrapMode: Text.Wrap
             }
             Rectangle {
               Layout.fillWidth: true; implicitHeight: 34; visible: root.passwordFor !== ""
               radius: Theme.radiusSm; color: Theme.surface0; border.color: Theme.blue; border.width: 1
               TextInput {
                 id: pskInput; anchors.fill: parent; anchors.margins: Theme.paddingSm; verticalAlignment: TextInput.AlignVCenter
-                echoMode: TextInput.Password; color: Theme.text; font { family: Theme.font; pixelSize: 12; weight: 600 }; clip: true
+                echoMode: TextInput.Password; color: Theme.text
+                font { family: Theme.font; pixelSize: 12; weight: 600 }
+                clip: true
                 onVisibleChanged: { text = ""; if (visible) forceActiveFocus() }
                 Keys.onPressed: ev => {
                   if (ev.key === Qt.Key_Escape) root.passwordFor = ""
@@ -214,8 +223,16 @@ Overlay {
                       readonly property int tier: netRow.modelData.signal >= 75 ? 4 : netRow.modelData.signal >= 50 ? 3 : netRow.modelData.signal >= 25 ? 2 : 1
                       text: String.fromCodePoint(0xF091F + (tier - 1) * 3); color: tier >= 3 ? Theme.green : tier === 2 ? Theme.yellow : Theme.red; font { family: Theme.nerdFont; pixelSize: 13 }
                     }
-                    Text { text: netRow.modelData.name; textFormat: Text.PlainText; color: netRow.modelData.connected ? Theme.green : Theme.text; font { family: Theme.font; pixelSize: 11; weight: netRow.modelData.connected ? 800 : 600 }; Layout.fillWidth: true; elide: Text.ElideRight }
-                    Text { text: String.fromCodePoint(0xF033E); color: Theme.overlay0; font { family: Theme.nerdFont; pixelSize: 11 }; visible: netRow.modelData.secured }
+                    Text {
+                      text: netRow.modelData.name; textFormat: Text.PlainText; color: netRow.modelData.connected ? Theme.green : Theme.text
+                      font { family: Theme.font; pixelSize: 11; weight: netRow.modelData.connected ? 800 : 600 }
+                      Layout.fillWidth: true; elide: Text.ElideRight
+                    }
+                    Text {
+                      text: String.fromCodePoint(0xF033E); color: Theme.overlay0
+                      font { family: Theme.nerdFont; pixelSize: 11 }
+                      visible: netRow.modelData.secured
+                    }
                     Text { text: netRow.modelData.connected ? "Connected" : netRow.modelData.signal + "%"; color: Theme.overlay0; font { family: Theme.font; pixelSize: 10; weight: 600 } }
                   }
                   MouseArea { id: netArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.selectNetwork(netRow.modelData) }
@@ -245,10 +262,16 @@ Overlay {
                 RowLayout {
                   anchors.fill: parent; anchors.margins: 6; spacing: Theme.spacingSm
                   Rectangle { implicitWidth: 6; implicitHeight: 6; radius: 3; color: btRow.busy ? Theme.yellow : btRow.modelData.connected ? Theme.blue : Theme.overlay0; Layout.alignment: Qt.AlignVCenter }
-                  Text { Layout.fillWidth: true; text: btRow.modelData.name; textFormat: Text.PlainText; color: Theme.text; font { family: Theme.font; pixelSize: 11; weight: 600 }; elide: Text.ElideRight }
+                  Text {
+                    Layout.fillWidth: true; text: btRow.modelData.name; textFormat: Text.PlainText; color: Theme.text
+                    font { family: Theme.font; pixelSize: 11; weight: 600 }
+                    elide: Text.ElideRight
+                  }
                   Text {
                     text: btRow.modelData.state === "Connecting" ? "Connecting…" : btRow.modelData.state === "Disconnecting" ? "Disconnecting…" : btRow.modelData.connected ? "Connected" : btRow.modelData.paired ? "" : "Pair"
-                    color: btRow.busy ? Theme.yellow : Theme.blue; font { family: Theme.font; pixelSize: 10; weight: 600 }; visible: text !== ""
+                    color: btRow.busy ? Theme.yellow : Theme.blue
+                    font { family: Theme.font; pixelSize: 10; weight: 600 }
+                    visible: text !== ""
                   }
                   Text {
                     visible: btRow.modelData.paired; text: "Forget"; color: forgetArea.containsMouse ? Theme.red : Theme.overlay0; font { family: Theme.font; pixelSize: 10; weight: 700 }
@@ -257,7 +280,12 @@ Overlay {
                 }
               }
             }
-            Text { Layout.fillWidth: true; visible: root.bluetoothPort.devices.length === 0; text: root.bluetoothPort.discovering ? "Scanning…" : "No devices"; color: Theme.overlay0; font { family: Theme.font; pixelSize: 11; weight: 600 }; horizontalAlignment: Text.AlignHCenter }
+            Text {
+              Layout.fillWidth: true; visible: root.bluetoothPort.devices.length === 0
+              text: root.bluetoothPort.discovering ? "Scanning…" : "No devices"; color: Theme.overlay0
+              font { family: Theme.font; pixelSize: 11; weight: 600 }
+              horizontalAlignment: Text.AlignHCenter
+            }
           }
 
           // Color Correction
@@ -294,8 +322,16 @@ Overlay {
               Item { Layout.fillWidth: true }
               ColumnLayout {
                 spacing: 0; Layout.alignment: Qt.AlignRight
-                Text { text: root.batteryPort.state; color: Theme.subtext0; font { family: Theme.font; pixelSize: 10; weight: 700 }; Layout.alignment: Qt.AlignRight }
-                Text { text: root.batteryPort.timeText; visible: text !== ""; color: Theme.overlay0; font { family: Theme.font; pixelSize: 10; weight: 600 }; Layout.alignment: Qt.AlignRight }
+                Text {
+                  text: root.batteryPort.state; color: Theme.subtext0
+                  font { family: Theme.font; pixelSize: 10; weight: 700 }
+                  Layout.alignment: Qt.AlignRight
+                }
+                Text {
+                  text: root.batteryPort.timeText; visible: text !== ""; color: Theme.overlay0
+                  font { family: Theme.font; pixelSize: 10; weight: 600 }
+                  Layout.alignment: Qt.AlignRight
+                }
               }
             }
             Rectangle {
@@ -316,12 +352,26 @@ Overlay {
               Rectangle {
                 implicitWidth: 42; implicitHeight: 42; radius: Theme.radiusSm; color: Theme.surface2; clip: true
                 Image { id: artImage; anchors.fill: parent; source: root.mediaPort.artUrl; fillMode: Image.PreserveAspectCrop; sourceSize.width: 84; sourceSize.height: 84; visible: status === Image.Ready }
-                Text { anchors.centerIn: parent; text: String.fromCodePoint(0xF075A); color: Theme.mauve; font { family: Theme.nerdFont; pixelSize: 18; weight: Theme.fontWeight }; visible: artImage.status !== Image.Ready }
+                Text {
+                  anchors.centerIn: parent; text: String.fromCodePoint(0xF075A); color: Theme.mauve
+                  font { family: Theme.nerdFont; pixelSize: 18; weight: Theme.fontWeight }
+                  visible: artImage.status !== Image.Ready
+                }
               }
               ColumnLayout {
                 Layout.fillWidth: true; spacing: 2
-                Text { Layout.fillWidth: true; text: root.mediaPort.title !== "" ? root.mediaPort.title : "Nothing playing"; textFormat: Text.PlainText; color: Theme.text; font { family: Theme.font; pixelSize: 13; weight: 800 }; elide: Text.ElideRight; maximumLineCount: 1 }
-                Text { Layout.fillWidth: true; visible: root.mediaPort.artist !== ""; text: root.mediaPort.artist; textFormat: Text.PlainText; color: Theme.subtext0; font { family: Theme.font; pixelSize: 11; weight: 600 }; elide: Text.ElideRight; maximumLineCount: 1 }
+                Text {
+                  Layout.fillWidth: true; text: root.mediaPort.title !== "" ? root.mediaPort.title : "Nothing playing"
+                  textFormat: Text.PlainText; color: Theme.text
+                  font { family: Theme.font; pixelSize: 13; weight: 800 }
+                  elide: Text.ElideRight; maximumLineCount: 1
+                }
+                Text {
+                  Layout.fillWidth: true; visible: root.mediaPort.artist !== ""; text: root.mediaPort.artist
+                  textFormat: Text.PlainText; color: Theme.subtext0
+                  font { family: Theme.font; pixelSize: 11; weight: 600 }
+                  elide: Text.ElideRight; maximumLineCount: 1
+                }
               }
             }
           }
@@ -351,7 +401,9 @@ Overlay {
           Layout.fillWidth: true; implicitHeight: volumeCol.implicitHeight + Theme.paddingSm * 2
           radius: Theme.radius; color: Theme.surface0; border.color: Theme.surface1; border.width: 1
           ColumnLayout {
-            id: volumeCol; anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.paddingSm }; spacing: Theme.spacingSm
+            id: volumeCol
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.paddingSm }
+            spacing: Theme.spacingSm
             RowLayout {
               Layout.fillWidth: true; spacing: Theme.spacing
               Text {
@@ -364,7 +416,8 @@ Overlay {
               Text {
                 Layout.alignment: Qt.AlignVCenter; text: String.fromCodePoint(0xF0140); color: Theme.overlay0; font { family: Theme.nerdFont; pixelSize: 12 }
                 rotation: root.devicesOpen ? 180 : 0; Behavior on rotation { NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easeOut } }
-                TapHandler { onTapped: root.devicesOpen = !root.devicesOpen }; HoverHandler { cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: root.devicesOpen = !root.devicesOpen }
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
               }
             }
             Item {
@@ -384,7 +437,8 @@ Overlay {
           Layout.fillWidth: true; visible: root.brightnessPort.available; implicitHeight: 34; radius: Theme.radius
           color: Theme.surface0; border.color: Theme.surface1; border.width: 1
           RowLayout {
-            anchors { fill: parent; leftMargin: Theme.padding; rightMargin: Theme.padding }; spacing: Theme.spacing
+            anchors { fill: parent; leftMargin: Theme.padding; rightMargin: Theme.padding }
+            spacing: Theme.spacing
             Text {
               Layout.alignment: Qt.AlignVCenter
               text: root.brightnessPort.percent === 0 ? String.fromCodePoint(0xF00DA) : root.brightnessPort.percent < 34 ? String.fromCodePoint(0xF00DC) : root.brightnessPort.percent < 67 ? String.fromCodePoint(0xF00DE) : String.fromCodePoint(0xF00E0)
@@ -419,14 +473,27 @@ Overlay {
                 Rectangle { implicitWidth: 6; implicitHeight: 6; radius: 3; color: historyRow.modelData.critical ? Theme.red : Theme.blue }
                 ColumnLayout {
                   spacing: 0; Layout.fillWidth: true
-                  Text { text: historyRow.modelData.summary; textFormat: Text.PlainText; color: Theme.text; font { family: Theme.font; pixelSize: 11; weight: 700 }; elide: Text.ElideRight; Layout.fillWidth: true }
-                  Text { text: historyRow.modelData.body !== "" ? historyRow.modelData.body : historyRow.modelData.appName; textFormat: Text.PlainText; color: Theme.overlay0; font { family: Theme.font; pixelSize: 9; weight: 600 }; elide: Text.ElideRight; maximumLineCount: 1; Layout.fillWidth: true; visible: text !== "" }
+                  Text {
+                    text: historyRow.modelData.summary; textFormat: Text.PlainText; color: Theme.text
+                    font { family: Theme.font; pixelSize: 11; weight: 700 }
+                    elide: Text.ElideRight; Layout.fillWidth: true
+                  }
+                  Text {
+                    text: historyRow.modelData.body !== "" ? historyRow.modelData.body : historyRow.modelData.appName; textFormat: Text.PlainText; color: Theme.overlay0
+                    font { family: Theme.font; pixelSize: 9; weight: 600 }
+                    elide: Text.ElideRight; maximumLineCount: 1; Layout.fillWidth: true; visible: text !== ""
+                  }
                 }
                 Text { text: Qt.formatTime(historyRow.modelData.receivedAt, "HH:mm"); color: Theme.overlay0; font { family: Theme.font; pixelSize: 9; weight: 600 } }
               }
             }
           }
-          Text { text: "No important notifications"; color: Theme.subtext0; font { family: Theme.font; pixelSize: 11; weight: 600 }; visible: root.importantNotifications.length === 0; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
+          Text {
+            text: "No important notifications"; color: Theme.subtext0
+            font { family: Theme.font; pixelSize: 11; weight: 600 }
+            visible: root.importantNotifications.length === 0
+            Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+          }
         }
       }
     }

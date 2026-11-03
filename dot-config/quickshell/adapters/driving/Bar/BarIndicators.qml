@@ -41,7 +41,9 @@ RowLayout {
     Text { text: parent.icon; color: parent.wifiEnabled ? Theme.pink : Theme.overlay0; font { family: Theme.nerdFont; pixelSize: Theme.fontSize; weight: Theme.fontWeight } }
     Text {
       text: !parent.wifiEnabled ? "off" : root.networkPort.connected ? root.networkPort.ssid : "Disconnected"
-      color: parent.wifiEnabled ? Theme.pink : Theme.overlay0; font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }; elide: Text.ElideRight; Layout.maximumWidth: 160
+      color: parent.wifiEnabled ? Theme.pink : Theme.overlay0
+      font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
+      elide: Text.ElideRight; Layout.maximumWidth: 160
     }
   }
 
@@ -54,7 +56,12 @@ RowLayout {
     readonly property string icon: !powered ? String.fromCodePoint(0xF00B2) : connected ? String.fromCodePoint(0xF00B1) : String.fromCodePoint(0xF00AF)
 
     Text { text: parent.icon; color: parent.powered ? Theme.blue : Theme.overlay0; font { family: Theme.nerdFont; pixelSize: Theme.fontSize; weight: Theme.fontWeight } }
-    Text { text: !parent.powered ? "off" : parent.connected ? root.bluetoothPort.connectedName : "on"; color: parent.powered ? Theme.blue : Theme.overlay0; font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }; elide: Text.ElideRight; Layout.maximumWidth: 140 }
+    Text {
+      text: !parent.powered ? "off" : parent.connected ? root.bluetoothPort.connectedName : "on"
+      color: parent.powered ? Theme.blue : Theme.overlay0
+      font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
+      elide: Text.ElideRight; Layout.maximumWidth: 140
+    }
     TapHandler { cursorShape: Qt.PointingHandCursor; onTapped: root.bluetoothPort.setEnabled(!parent.powered) }
   }
 
@@ -103,9 +110,15 @@ RowLayout {
     readonly property string icon: charging ? String.fromCodePoint(0xF0084) : level >= 100 ? String.fromCodePoint(0xF0079) : level < 10 ? String.fromCodePoint(0xF0083) : String.fromCodePoint(0xF007A + (Math.floor(level / 10) - 1))
 
     Text {
-      text: parent.icon; font { family: Theme.nerdFont; pixelSize: 17; weight: Theme.fontWeight }; Layout.alignment: Qt.AlignVCenter
+      text: parent.icon
+      font { family: Theme.nerdFont; pixelSize: 17; weight: Theme.fontWeight }
+      Layout.alignment: Qt.AlignVCenter
       color: parent.charging ? Theme.green : parent.level <= 15 ? Theme.red : parent.level <= 30 ? Theme.peach : Theme.green
     }
-    Text { text: parent.level + "%"; color: Theme.text; font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }; Layout.alignment: Qt.AlignVCenter }
+    Text {
+      text: parent.level + "%"; color: Theme.text
+      font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }
+      Layout.alignment: Qt.AlignVCenter
+    }
   }
 }

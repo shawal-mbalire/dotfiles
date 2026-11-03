@@ -7,6 +7,6 @@ RowLayout {
   id: root
   spacing: 6
   SystemClock { id: clock; precision: SystemClock.Minutes }
-  Text { text: Qt.formatDateTime(clock.date, "MMM d"); color: Theme.overlay0; font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }; Layout.alignment: Qt.AlignVCenter }
-  Text { text: Qt.formatDateTime(clock.date, "hh:mm"); color: Theme.text; font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight }; Layout.alignment: Qt.AlignVCenter }
+  Text { text: Qt.formatDateTime(clock.date, "MMM d"); color: Theme.overlay0; font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight } Layout.alignment: Qt.AlignVCenter }
+  Text { text: Qt.formatDateTime(clock.date, "hh:mm"); color: Theme.text; font { family: Theme.font; pixelSize: Theme.fontSize; weight: Theme.fontWeight } Layout.alignment: Qt.AlignVCenter }
 }
