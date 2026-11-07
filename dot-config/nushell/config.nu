@@ -672,8 +672,8 @@ def up [] {
     sudo dnf update -y 
     sudo flatpak upgrade -y
   }
-  brew upgrade -y
-  brew update -y
+  brew upgrade
+  brew update
 }
 
 def cleanup [--run (-r)] {
@@ -700,6 +700,7 @@ alias ghs = gh auth status --active
 alias gha = gh auth switch
 alias gs  = git status
 alias lg = lazygit
+alias ld = lazydocker
 alias tc = tuicr
 alias tm = tmux
 

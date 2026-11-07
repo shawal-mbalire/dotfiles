@@ -50,12 +50,12 @@ end
 hl.bind(mainMod .. " + S", hl.dsp.workspace.toggle_special("magic"))
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
 
--- resize windows with alt + vim motions
+-- resize windows with mainMod + alt + vim motions
 -- h/l shrink/grow width, k/j shrink/grow height
--- hl.bind("ALT + h", hl.dsp.window.resize({ x = -10, y = 0, relative = true }))
--- hl.bind("ALT + j", hl.dsp.window.resize({ x = 0, y = 10, relative = true }))
--- hl.bind("ALT + k", hl.dsp.window.resize({ x = 0, y = -10, relative = true }))
--- hl.bind("ALT + l", hl.dsp.window.resize({ x = 10, y = 0, relative = true }))
+hl.bind(mainMod .. " + ALT + h", hl.dsp.window.resize({ x = -10, y = 0, relative = true }))
+hl.bind(mainMod .. " + ALT + j", hl.dsp.window.resize({ x = 0, y = 10, relative = true }))
+hl.bind(mainMod .. " + ALT + k", hl.dsp.window.resize({ x = 0, y = -10, relative = true }))
+hl.bind(mainMod .. " + ALT + l", hl.dsp.window.resize({ x = 10, y = 0, relative = true }))
 
 -- Laptop multimedia keys for volume and LCD brightness
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("qs ipc call audio up"), { locked = true, repeating = true })
