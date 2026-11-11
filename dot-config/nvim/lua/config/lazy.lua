@@ -69,6 +69,9 @@ require("lazy").setup({
     -- version = "*", -- try installing the latest stable version for plugins that support semver
   },
   install = { colorscheme = { "catppuccin", "habamax" } },
+  -- Plugins marked `dev = true` load from ~/GitHub/<name> when that checkout
+  -- exists, and are installed from git as usual when it doesn't.
+  dev = { path = "~/GitHub", fallback = true },
   checker = {
     enabled = true, -- check for plugin updates periodically
     notify = false, -- notify on update
