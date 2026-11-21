@@ -10,6 +10,7 @@ local controlCenter = "qs ipc call controlCenter toggle"
 local clipboard = "qs ipc call clipboard toggle"
 local bar = "qs ipc call bar toggle"
 local wallpaper = "qs ipc call wallpapers random"
+local steam = "steam"
 
 -- Save screenshot to ~/Pictures/Screenshots and copy it to the clipboard
 local function screenshot(capture)
@@ -25,6 +26,7 @@ hl.bind(mainMod .. " + SPACE", hl.dsp.layout("togglesplit")) -- dwindle only
 
 hl.bind(mainMod .. " + P", hl.dsp.exec_cmd(appMenu))
 hl.bind(mainMod .. " + Z", hl.dsp.exec_cmd(browser))
+hl.bind(mainMod .. " + S", hl.dsp.exec_cmd(steam))
 hl.bind(mainMod .. " + B", hl.dsp.exec_cmd(bar))
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + V", hl.dsp.exec_cmd(clipboard))

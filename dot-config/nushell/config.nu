@@ -669,11 +669,23 @@ def zen [...args: string] {
 
 def up [] {
   if $nu.os-info.name == "linux" {
-    sudo dnf update -y 
-    sudo flatpak upgrade -y
+    print (ansi blue_bold) + "==> Validating sudo credentials..." + (ansi reset)
+    ^sudo -v
+
+    print (ansi blue_bold) + "==> Updating DNF packages..." + (ansi reset)
+    ^sudo dnf upgrade -y
+
+    if (which flatpak | is-not-empty) {
+      print (ansi blue_bold) + "==> Updating Flatpaks..." + (ansi reset)
+      ^flatpak update -y
+    }
   }
-  brew upgrade
-  brew update
+
+  if (which brew | is-not-empty) {
+    print (ansi blue_bold) + "==> Updating Homebrew..." + (ansi reset)
+    ^brew update
+    ^brew upgrade
+  }
 }
 
 def cleanup [--run (-r)] {
@@ -681,7 +693,7 @@ def cleanup [--run (-r)] {
 }
 
 def usage [] {
-  du -d 7 | sort-by --reverse physical | first 30
+  du -d 15 | sort-by --reverse physical | first 5
 
 } 
 def loc [] {
