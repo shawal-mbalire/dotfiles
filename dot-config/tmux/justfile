@@ -16,21 +16,25 @@ deps os="fedora":
 
 # Full setup: install TPM and all plugins (default: fedora)
 setup os="fedora": (deps os)
-    @if [ ! -d "$HOME/.config/tmux/plugins/tpm" ]; then \
-        echo "Installing TPM..."; \
-        git clone https://github.com/tmux-plugins/tpm "$HOME/.config/tmux/plugins/tpm"; \
-    else \
-        echo "TPM already installed"; \
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [ ! -d "$HOME/.config/tmux/plugins/tpm" ]; then
+        echo "Installing TPM..."
+        git clone https://github.com/tmux-plugins/tpm "$HOME/.config/tmux/plugins/tpm"
+    else
+        echo "TPM already installed"
     fi
-    TMUX_PLUGIN_MANAGER_PATH="$HOME/.config/tmux/plugins" ~/.config/tmux/plugins/tpm/bin/install_plugins
-    @#!/usr/bin/env bash
+
+    TMUX_PLUGIN_MANAGER_PATH="$HOME/.config/tmux/plugins" "$HOME/.config/tmux/plugins/tpm/bin/install_plugins"
+
     RESURRECT_DIR="$HOME/.local/share/tmux/resurrect"
     if [ -d "$RESURRECT_DIR" ]; then
-        LAST=$(readlink "$RESURRECT_DIR/last" 2>/dev/null)
+        LAST=$(readlink "$RESURRECT_DIR/last" 2>/dev/null || true)
         if [ -n "$LAST" ] && [ ! -s "$RESURRECT_DIR/$LAST" ]; then
             echo "Warning: Empty save file $LAST, fixing..."
-            rm "$RESURRECT_DIR/$LAST" "$RESURRECT_DIR/last"
-            PREV=$(ls -t "$RESURRECT_DIR"/tmux_resurrect_*.txt 2>/dev/null | head -1)
+            rm -f "$RESURRECT_DIR/$LAST" "$RESURRECT_DIR/last"
+            PREV=$(ls -t "$RESURRECT_DIR"/tmux_resurrect_*.txt 2>/dev/null | head -1 || true)
             if [ -n "$PREV" ]; then
                 ln -s "$(basename "$PREV")" "$RESURRECT_DIR/last"
                 echo "Fixed: linked to $(basename "$PREV")"
@@ -41,6 +45,7 @@ setup os="fedora": (deps os)
 # Reload tmux configuration
 reload:
     tmux source-file ~/.config/tmux/tmux.conf
+    @echo "Tmux config reloaded."
 
 # Debug: test config without plugins
 debug:
